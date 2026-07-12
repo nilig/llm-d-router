@@ -86,7 +86,7 @@
   But under load it loses to plain recompute. This is what we found, and what needs to change in
   the connector.</p>
   <div class="stat-row" style="margin-top:34px">
-    <div class="stat"><div class="k">Mechanism</div><div class="v num-good">Works</div><div class="s">pulls fire &amp; serve, 100% completion in isolation</div></div>
+    <div class="stat"><div class="k">Data path</div><div class="v num-good">Correct</div><div class="s">pulls fire &amp; serve every transfer — once the crash is fixed</div></div>
     <div class="stat"><div class="k">Under load</div><div class="v num-bad">~2&times; slower</div><div class="s">vs recompute, with the GPU idle</div></div>
     <div class="stat"><div class="k">Blocker</div><div class="v num-bad">EngineCore crash</div><div class="s">assert fires under concurrency</div></div>
   </div>
@@ -108,12 +108,20 @@
     <div class="card"><h4>generic_p2p connector</h4><p>OffloadingConnector + a p2p secondary tier over NIXL; lookup/serve/pull between peers.</p></div>
     <div class="card"><h4>PD multi-tier</h4><p>Disaggregated prefill/decode with tiered offload; the NIXL PD path. Merged (#1888).</p></div>
   </div>
-  <h3>Validated working in isolation</h3>
+  <h3>The data path itself is correct</h3>
+  <p style="font-size:15.5px;color:var(--muted)">Tested directly — one producer, several consumers,
+  pulling straight over the p2p tier with no benchmark load. The mechanism does what it should:</p>
   <ul>
-    <li class="g">Pulls actually fire and the producer <strong>serves 100% of transfers</strong> it starts (184/184 under a 60-way concurrent hammer) — the serve path does not drop or stall.</li>
-    <li class="g">Routing engages the mechanism: peers resolve lookups, transfers complete, prefixes are reused across pods.</li>
+    <li class="g">Pulls fire and the producer <strong>serves 100% of the transfers it starts</strong> (142/152 on the fix build; 184/184 in earlier 60-way runs) — the serve path does not drop or stall.</li>
+    <li class="g">Lookups resolve, transfers complete, and prefixes are reused across pods.</li>
     <li class="g">Exercised across topologies: PD tiered, P2P without PD, P2P with PD (NIXL), and P2P with PD multi-tier.</li>
   </ul>
+  <div class="callout"><span class="lbl">What "correct" does and doesn't mean here</span>
+  This is the data path behaving correctly in a direct test — <strong>with Defect 2 fixed</strong>. It is
+  not a claim that the connector is fine standalone: on pristine code it crashes under concurrency even
+  in this direct test (Finding 2). And a correct data path still loses on throughput under load
+  (Finding 1). "Correct" = the pull/serve mechanism does the right thing; it does not mean fast or
+  crash-free as shipped.</div>
 </section>
 
 <section>
