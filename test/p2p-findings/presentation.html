@@ -172,7 +172,7 @@
   it dispatches wire messages, serves inbound fetches via <code>write_blocks</code>, and polls the transport.
   On top of that, a HIT defers its request (<code>RETRY</code>) out of <code>Running</code> until the load
   round-trip finishes. So while the mesh pulls and serves, the scheduling loop can't keep the GPU fed.</p>
-  <div class="callout"><span class="lbl">Whose code — upstream, not the branch</span>
+  <div class="callout"><span class="lbl">Upstream vLLM, not the branch</span>
   <code>_poll_once</code>, the <code>_initiate_promotion</code> deferral (base <code>TieringManager</code>),
   and the fetch/transfer path all live in <strong>upstream vLLM main</strong> (<code>vllm/v1/kv_offload/tiering</code>),
   not in the generic_p2p branch. The branch runs within this architecture and extends the p2p manager, but

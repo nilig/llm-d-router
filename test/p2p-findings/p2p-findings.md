@@ -122,7 +122,7 @@ per-step time on p2p coordination and defers HIT requests -> the scheduling loop
 keep the GPU fed -> throughput halves. (Which of the two sub-costs dominates would
 need engine step-time instrumentation.)
 
-### Whose code — upstream vLLM, not the branch
+### Upstream vLLM, not the branch
 
 `_poll_once`, the `_initiate_promotion` deferral (base `TieringManager`), and the
 fetch/transfer path all live in **upstream `vllm-project/vllm` main** under
