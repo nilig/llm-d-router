@@ -1,0 +1,17 @@
+--- a/session/client.py	2026-07-12 20:18:36
++++ b/session/client.py	2026-07-12 21:46:06
+@@ -234,9 +234,11 @@
+             # While in-flight, register_lookup() for the same
+             # (req_id, hash) is a no-op, so no new unsent entries
+             # can accumulate for a req_id after its first flush.
+-            assert req_id not in self._flushed_req_ids, (
+-                f"LookupMsg already sent for kv_request_id={req_id}"
+-            )
++            # FIX(defect2): allow more than one LookupMsg per request. Chunked
++            # prefill / reschedule registers a request's hashes across several
++            # scheduler steps, so a req_id can re-enter _unsent after its first
++            # flush. Send the new hashes instead of asserting (the assert here
++            # crashed EngineCore: "LookupMsg already sent").
+             self._flushed_req_ids.add(req_id)
+             logger.debug(
+                 "P2P LOOKUP client %s: SEND LookupMsg kv_request_id=%s hashes=%d",

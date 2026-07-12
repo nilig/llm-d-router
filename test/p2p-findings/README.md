@@ -1,57 +1,51 @@
-# p2p findings — reproducible evidence bundle
+# P2P findings — evidence bundle
 
-Companion to `p2p-findings.md`. Each defect has a way to reproduce it independently.
+Companion to `p2p-findings.md` (and `presentation.html`, a slide version). Two defects
+in the `generic_p2p` connector under load, each reproducible independently. All runs
+were on pristine branch code on the current nightly — 8 of 9 mounted files are
+byte-identical to the branch; only `session_client.py` had a local workaround, reverted
+for these runs.
 
-## Defect 1 — throughput (ablation ladder)
+## Defect 2 — EngineCore crash (the blocker)
 
-Run `bench-ws400` (rate 16, shared-prefix 400x16, 2048-token prefix) through
-weighted-random routing with p2p on, then re-run with each ablation applied to
-`manager.py`. Watch the engine log's `Running` / `GPU KV cache usage` — the GPU idles
-under normal p2p and fills under the ablations.
+`flush_pending_lookups` asserts one `LookupMsg` per request; chunked prefill / reschedule
+violates it and the assert kills EngineCore.
 
-- `ablationA_p2p-to-miss.diff` — `.p2p` returns `MISS` immediately (no lookup, no
-  pull). Keeps the EPP header + sidecar inject. Expected: throughput ~= off.
-- `ablationB_hit-to-miss.diff` — full lookup round-trip runs, but a HIT is downgraded
-  to `MISS` (no pull/promotion/transfer). Expected: throughput ~= off, with lookups
-  actually resolving (`RESOLVED_hit > 0`, `submit_load = 0`).
+- **Reproduce:** deploy pristine `generic_p2p`, warm one pod with ~300 distinct ~4k-token
+  prefixes, pull concurrently from the other 3 (`CONC=80`, ~90s). Pods crash with
+  `AssertionError: LookupMsg already sent` at `client.py:237`. Script: `p2p_hang_repro.py`
+  (stdlib; drives the concurrent pulls).
+- **Fix:** `defect2_fix_send-late-hashes.diff` — remove the assert, allow >1 `LookupMsg`
+  per request (send the late hashes). The server queues inbound lookups per-message, so it
+  accepts a second `LookupMsg` for the same request. Validated: no crash, p2p still fires.
 
-Apply either over the mounted `manager.py` and re-run the same benchmark. Result ladder:
+## Defect 1 — throughput (coordination on the scheduler thread)
+
+Once the crash is worked around, p2p is ~2x slower than recompute with the GPU idle
+(`Running <= 5`, `KV <= 4%`). The cost is the p2p coordination running synchronously on
+the scheduler thread (`manager._poll_once` dispatch + serve + transport poll, plus HIT
+deferral) — the async NIXL transfer itself is not the blocker.
+
+Ablation ladder (bench-ws400, rate 16, weighted-random routing):
 
 | build | tok/s |
 |-------|-------|
-| p2p off (recompute) | 1346 |
-| ablation A | 1358 |
-| ablation B | 1291 |
-| p2p normal | 690 |
+| recompute (off) | 1346 |
+| header + inject only (`.p2p`->MISS) | 1358 |
+| + lookup round-trip (HIT->MISS) | 1291 |
+| + transfer (normal p2p) | 690 |
 
-A->B->normal shows the lookup costs ~nothing and the **pull/promotion** is the ~2x cap.
+Adding the lookup costs ~nothing; adding the **pull/promotion** halves throughput.
 
-Also observed and ruled out during these runs: `_LOAD_TIMEOUT` aborts = 0; sweeping
-`_LOOKUP_TIMEOUT_S` 10s->1s moved the TTFT tail 10s->1s but left throughput flat
-(683->692) — so the stall duration is not the throughput bottleneck.
+- **Reproduce:** apply `ablationA_p2p-to-miss.diff` or `ablationB_hit-to-miss.diff` over
+  `manager.py`, re-run bench-ws400 p2p-on, compare tok/s and watch `Running`/`KV usage`.
+- **Fix direction:** move the p2p data-plane coordination off the scheduler thread onto a
+  background thread. Not implemented — architectural, connector-side.
 
-## Defect 2 — the lookup hang
+## Files
 
-`p2p_hang_repro.py` — stdlib only, no router/EPP/sidecar. Warms one pod past its GPU
-cache (offload to the servable CPU tier), then hammers it with concurrent pulls from
-the other pods in two arms (OFF/recompute vs ON/p2p) and prints the tail delta.
-
-```
-URLS=http://POD0:8200,http://POD1:8200,http://POD2:8200,http://POD3:8200 \
-MODEL=meta-llama/Llama-3.1-8B-Instruct KPER=300 CONC=80 DUR=120 \
-python3 p2p_hang_repro.py
-```
-
-Pod0 is the source; the rest pull from it on `remote_port=7777`. Expected: OFF max
-~4s; ON has a rare tail to the client timeout (~120s unfixed). Enable debug logging
-and grep `double-flush guard dropping` (the dropped hashes) and correlate the
-`kv_request_id`s with the hung requests — in our runs 5/6 hangs were guard-dropped.
-
-## Fix (Defect 2 safety net)
-
-`lookup_timeout.patch` — one file (`session_client.py`), ~66 lines. Bounds the lookup
-wait with `_LOOKUP_TIMEOUT_S` and degrades a probe still pending past its flush to
-`MISS` (local recompute) in the `collect_results` poll. Deadline keyed off flush time
-so it never pre-empts a live probe. Validated: 120s -> ~13s tail, 0 failures, p2p
-stays fully alive (100% serve completion), timeout fires only on genuinely-stuck
-probes. Fixes the hang, not the throughput.
+- `p2p-findings.md` — the written report.
+- `presentation.html` — slide version for the team.
+- `defect2_fix_send-late-hashes.diff` — the crash fix.
+- `ablationA_p2p-to-miss.diff`, `ablationB_hit-to-miss.diff` — the throughput localization.
+- `p2p_hang_repro.py` — concurrent-pull driver (triggers the crash on pristine code).
