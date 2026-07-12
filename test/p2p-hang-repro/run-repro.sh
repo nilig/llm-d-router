@@ -16,12 +16,14 @@ for i in $(seq 1 60); do r=$($K get pods --no-headers 2>/dev/null | grep "$DEPLO
 IPS=$($K get pods --no-headers -o wide 2>/dev/null | grep "$DEPLOY" | grep '2/2 *Running' | awk '{print $6}' | head -4)
 URLS=$(for ip in $IPS; do echo -n "http://$ip:8200,"; done | sed 's/,$//')
 log "URLS=$URLS"
-SCRIPT_B64=$(base64 < "$HERE/p2p_hang_repro.py" | tr -d '\n')
+# Feed the script to the pod on stdin (python - reads the program from stdin).
+# Passing it inline base64-encoded and exec()-ing it trips EDR signatures for
+# "base64-encoded command via python"; stdin avoids both the encode and the exec.
 R=$RANDOM
 $K run repro$R --image=python:3.11-slim -i --rm --restart=Never \
-  --env="SCRIPT=$SCRIPT_B64" --env="URLS=$URLS" --env="MODEL=$MODEL" \
+  --env="URLS=$URLS" --env="MODEL=$MODEL" \
   --env="KPER=${KPER:-300}" --env="CONC=${CONC:-60}" --env="DUR=${DUR:-75}" \
-  --command -- python -c "import base64,os;exec(base64.b64decode(os.environ['SCRIPT']))" 2>&1 \
+  --command -- python - < "$HERE/p2p_hang_repro.py" 2>&1 \
   | grep -E "source=|ARM|warmed|reqs=|RESULT|body|tail|stalled|REPRODUCED|weak|Error|Traceback" \
   | while read l; do log "  $l"; done
 log "DONE"

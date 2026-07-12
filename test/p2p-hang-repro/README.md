@@ -70,9 +70,14 @@ Pod0 is the source; the rest are consumers pulling from it on `remote_port=7777`
 It prints `REPRODUCED` when the ON arm tail dwarfs the OFF arm tail with matched
 body latency.
 
-`run-repro.sh` is the in-cluster wrapper: it resolves pod IPs and runs the
-script in a `python:3.11-slim` pod. Override `CTX`, `NS`, `DEPLOY`, `MODEL` for
-your cluster:
+The script is stdlib only, so the simplest path is to run it directly against
+the pods - from inside the cluster, or via `kubectl port-forward` to each pod.
+No kubectl-run wrapper needed.
+
+`run-repro.sh` is an optional in-cluster wrapper: it resolves pod IPs and runs
+the script in a `python:3.11-slim` pod (fed on stdin via `python -`, so it does
+not base64-encode or `exec()` anything - that pattern trips EDR signatures).
+Override `CTX`, `NS`, `DEPLOY`, `MODEL` for your cluster:
 
 ```
 CTX=my-ctx NS=my-ns DEPLOY=my-vllm-deploy ./run-repro.sh
