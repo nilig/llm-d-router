@@ -1,0 +1,24 @@
+--- a/manager.py	2026-07-12 20:02:46
++++ b/manager.py	2026-07-12 18:01:27
+@@ -284,16 +284,11 @@
+         # lookup() returns HIT/MISS once LookupRespMsg has arrived.
+         # PD path (``prefill`` sub-dict only) keeps the eager HIT today.
+         if _p2p_params(req_context.kv_transfer_params):
+-            peer_id = self._remote_id_from_params(consumer)
+-            session = self._sessions.get(peer_id) if peer_id else None
+-            if session is None:
+-                return LookupResult.MISS
+-            result = session.register_lookup(kv_request_id, key)
+-            if result is True:
+-                return LookupResult.HIT
+-            if result is False:
+-                return LookupResult.MISS
+-            return LookupResult.RETRY
++            # ABLATION: skip the p2p lookup+pull entirely and force a local
++            # recompute. Keeps the EPP p2p-source-producer header + sidecar
++            # inject path intact, so throughput vs normal-ON isolates the
++            # vLLM lookup/pull cost from the header/inject overhead.
++            return LookupResult.MISS
+ 
+         # PD consumer (we are the decoder): all kv blocks should be on the
+         # prefiller side. Return HIT immediately.

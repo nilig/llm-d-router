@@ -1,0 +1,124 @@
+--- sc_orig.py	2026-07-12 09:32:55
++++ sc_live.py	2026-07-12 11:00:50
+@@ -31,6 +31,10 @@
+ 
+ _LOAD_TIMEOUT_S = 30.0
+ _ABORT_ACK_TIMEOUT_S = 10.0
++# Bound the lookup phase: a probe unanswered this long is degraded to a MISS so
++# the engine recomputes the block locally instead of waiting indefinitely.
++# Comfortably above normal probe round-trip; well below any client timeout.
++_LOOKUP_TIMEOUT_S = 10.0
+ 
+ 
+ @dataclass
+@@ -66,11 +70,18 @@
+         self._completed_loads: list[LoadResult] = []
+         # Symmetric-P2P lookup state, keyed by (kv_request_id, block_hash).
+         # Value is the probe outcome: None while in-flight (registered/sent
+-        # but unresolved), True/False once a LookupRespMsg lands. There is no
+-        # timeout — on_request_finished (finish_request → cancel_lookups) is
+-        # guaranteed after the request's lookup() calls and clears every
+-        # entry, so an unanswered probe simply stays None until then.
++        # but unresolved), True/False once a LookupRespMsg lands. A probe
++        # unanswered for _LOOKUP_TIMEOUT_S past its flush is degraded to False
++        # (MISS) by collect_results so the request recomputes rather than
++        # retrying forever; finish_request → cancel_lookups clears the rest.
+         self._lookups: dict[tuple[str, bytes], bool | None] = {}
++        # Monotonic time flush_pending_lookups first armed each request's
++        # lookup deadline, used to bound the lookup phase. Cleared in
++        # cancel_lookups and when collect_results fires. Armed at flush, not
++        # registration, so a probe is always registered before it can time
++        # out; hashes the double-flush guard drops are never sent and are
++        # degraded to MISS once the deadline passes.
++        self._lookup_flushed_at: dict[str, float] = {}
+         # Fast index of entries registered but not yet flushed onto the wire:
+         # (req_id, h) is in _unsent_lookups_by_req[req_id] from register_lookup
+         # until the next flush_pending_lookups, which drains and clears it.
+@@ -227,16 +238,30 @@
+         """
+         if not self._unsent_lookups_by_req:
+             return
++        now = time.monotonic()
+         for req_id, hashes in self._unsent_lookups_by_req.items():
+-            # At most one LookupMsg per kv_request_id per session:
+-            # all block lookups for a request are registered in a
+-            # single scheduler step and flushed together here.
+-            # While in-flight, register_lookup() for the same
+-            # (req_id, hash) is a no-op, so no new unsent entries
+-            # can accumulate for a req_id after its first flush.
++            # Arm the lookup deadline before the double-flush guard, so hashes
++            # registered after the first flush (chunked prefill spreads a
++            # request's blocks across scheduler steps) get a deadline even
++            # though the guard drops their LookupMsg. setdefault, not assign:
++            # keep the earliest pending-probe time so later batches do not push
++            # the deadline out; collect_results deletes the entry when it fires,
++            # so a batch arriving after that re-arms a fresh window.
++            self._lookup_flushed_at.setdefault(req_id, now)
+             if req_id in self._flushed_req_ids:
+                 # PATCH(nili): guard against double-flush under concurrent
+-                # load; the upstream assert here crashed EngineCore. Skip.
++                # load; the upstream assert here crashed EngineCore. The
++                # dropped hashes are never sent, so their probes stay None —
++                # collect_results degrades them to MISS after _LOOKUP_TIMEOUT_S
++                # and the engine recomputes. Root fix is to send these late
++                # hashes (drop the one-LookupMsg-per-request assumption).
++                logger.debug(
++                    "P2P LOOKUP client %s: double-flush guard dropping %d late "
++                    "hash(es) for kv_request_id=%s",
++                    self._peer_id,
++                    len(hashes),
++                    req_id,
++                )
+                 continue
+             self._flushed_req_ids.add(req_id)
+             logger.debug(
+@@ -317,6 +342,7 @@
+             del self._lookups[k]
+         self._unsent_lookups_by_req.pop(kv_request_id, None)
+         self._flushed_req_ids.discard(kv_request_id)
++        self._lookup_flushed_at.pop(kv_request_id, None)
+ 
+     def collect_results(self) -> list[LoadResult]:
+         """Walk load timeouts and drain completed loads.
+@@ -325,10 +351,39 @@
+         sent and enter the aborting phase. Aborting requests past
+         ``_ABORT_ACK_TIMEOUT_S`` are surfaced as failed loads.
+ 
+-        Lookups have no timeout: an unanswered probe stays None (RETRY)
+-        until finish_request clears it — see ``_lookups``.
++        Probes still pending ``_LOOKUP_TIMEOUT_S`` past their flush are
++        degraded to MISS so their requests recompute rather than retry
++        forever — see ``_lookups``.
+         """
+         now = time.monotonic()
++
++        # Bound the lookup phase. A req_id is in _lookup_flushed_at only after
++        # flush_pending_lookups processed it, so every probe flipped here was
++        # registered and had _LOOKUP_TIMEOUT_S to resolve; the deadline never
++        # pre-empts a just-registered probe. Flipping None to False makes
++        # register_lookup return MISS, and the engine recomputes the block.
++        expired = [
++            rid
++            for rid, at in self._lookup_flushed_at.items()
++            if now - at >= _LOOKUP_TIMEOUT_S
++        ]
++        for rid in expired:
++            keys = [
++                k for k in self._lookups if k[0] == rid and self._lookups[k] is None
++            ]
++            for k in keys:
++                self._lookups[k] = False
++            del self._lookup_flushed_at[rid]
++            if keys:
++                logger.warning(
++                    "P2PSession %s: %d lookup probe(s) for kv_request_id=%s "
++                    "timed out after %.0fs, degrading to local recompute",
++                    self._peer_id,
++                    len(keys),
++                    rid,
++                    _LOOKUP_TIMEOUT_S,
++                )
++
+         to_remove: list[str] = []
+         for req_id, req in self._inbound.items():
+             if req.aborted_at is None:
