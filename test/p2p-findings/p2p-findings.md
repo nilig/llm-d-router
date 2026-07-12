@@ -1,19 +1,24 @@
 # generic_p2p under load: two connector defects, evidence, and fixes
 
 Two defects surface when the p2p connector runs under concurrent load. Both were
-reproduced against **pristine `generic_p2p` code** on the current nightly — 8 of the 9
-mounted files (including `manager.py`) are byte-identical to the branch; only our
-local `session_client.py` carried a workaround, which we reverted for these runs.
+reproduced against **unmodified `generic_p2p` branch code** on the current nightly — 8 of
+the 9 mounted files (including `manager.py`) are byte-identical to the branch; only my
+local `session_client.py` carried a workaround, which I reverted for these runs.
 
-- **Defect 2 — `EngineCore` crash.** `flush_pending_lookups` asserts one `LookupMsg`
-  per request; chunked prefill / reschedule violates that, and the assert takes down
-  `EngineCore` under concurrent load. This is the first blocker — p2p can't run under
-  load without hitting it.
-- **Defect 1 — throughput.** Once the crash is worked around, p2p throughput is ~2x
-  lower than recompute with the GPU idle. The cost is the p2p data-plane
-  **coordination on the scheduler thread**, not the (async) NIXL transfer.
+The router (EPP producer + sidecar) is exonerated by ablation. Within the connector the two
+defects have **different owners**, verified against `vllm-project/vllm` main:
 
-The router (EPP producer + sidecar) is exonerated by ablation — both are connector-side.
+- **Defect 2 — `EngineCore` crash. In the `generic_p2p` branch.** The symmetric-P2P lookup
+  phase (`flush_pending_lookups` and its assert) is a branch addition — upstream main's
+  `client.py` is 210 lines with no lookup phase and no assert; the branch's is 378. It
+  asserts one `LookupMsg` per request; chunked prefill / reschedule violates that, and the
+  assert takes down `EngineCore`. The first blocker — p2p can't run under load without it.
+- **Defect 1 — throughput. In upstream vLLM.** Once the crash is worked around, p2p is ~2x
+  slower than recompute with the GPU idle. The cost is the data-plane **coordination on the
+  scheduler thread** (`_poll_once`, the `_initiate_promotion` deferral in the base
+  `TieringManager`, the fetch/transfer path) — all in upstream `vllm/v1/kv_offload/tiering`,
+  present in main. The branch runs within this architecture; it does not introduce it. So
+  the fix is an upstream concern affecting anyone using the KV-offload p2p tier.
 
 ## Test setup
 
@@ -47,10 +52,10 @@ get registered across several scheduler steps) or a **reschedule/preemption**, a
 `req_id` comes back in `_unsent_lookups_by_req` after its first flush. The assert then
 fires and kills `EngineCore`.
 
-### Reproduced (pristine code, concurrent hammer)
+### Reproduced (unmodified branch code, concurrent hammer)
 
-`CONC=80` hammer, 4 pods on pristine `generic_p2p`. **2 of 4 pods crashed and
-restarted**, each with:
+`CONC=80` hammer, 4 pods on unmodified `generic_p2p` branch code. **2 of 4 pods crashed
+and restarted**, each with:
 
 ```
 File ".../p2p/session/session.py", line 218, in flush_pending_lookups
@@ -68,9 +73,9 @@ per-message (`_pending_inbound_lookups` is a list, each gets its own `lookup_id`
 accepts the second `LookupMsg` for the same `kv_request_id`.
 
 Validated on the fix build under the same 80-way hammer: **0 crashes** (vs 2 of 4 pods
-on pristine), no new errors/tracebacks, and p2p still fires and serves (152 hits, 142
+on unmodified branch code), no new errors/tracebacks, and p2p still fires and serves (152 hits, 142
 transfers, 52 loads, 0 failures). Worth a second look on your side that accumulating a
-second `LookupMsg` per request has no downstream assumption we missed, but it holds
+second `LookupMsg` per request has no downstream assumption I missed, but it holds
 empirically.
 
 ---
@@ -117,11 +122,23 @@ per-step time on p2p coordination and defers HIT requests -> the scheduling loop
 keep the GPU fed -> throughput halves. (Which of the two sub-costs dominates would
 need engine step-time instrumentation.)
 
+### Whose code — upstream vLLM, not the branch
+
+`_poll_once`, the `_initiate_promotion` deferral (base `TieringManager`), and the
+fetch/transfer path all live in **upstream `vllm-project/vllm` main** under
+`vllm/v1/kv_offload/tiering` — `_poll_once` is in upstream main's p2p manager,
+`_initiate_promotion` in the upstream base `TieringManager` (never mounted; runs from the
+nightly), and `request_blocks`/`collect_results` in upstream main's `client.py`. The
+`generic_p2p` branch modifies the p2p manager (+232 lines) and adds the lookup phase, but
+the design that starves the GPU — data-plane coordination + synchronous promotion on the
+scheduler thread — is upstream. So this is an upstream issue, and the fix affects anyone
+using the KV-offload p2p tier, not just this branch.
+
 ### Fix
 
 Move the p2p data-plane coordination — `recv`/dispatch, serve/`write_blocks`,
 transport polling — off the scheduler thread onto a dedicated background thread,
-leaving only a minimal non-blocking handoff on the scheduler path.
+leaving only a minimal non-blocking handoff on the scheduler path. This is upstream work.
 
 ### Confirmed on the crash-fixed build
 
@@ -143,7 +160,7 @@ the crash.
 
 ## Reproduce
 
-- **Defect 2 (crash):** deploy pristine `generic_p2p`, warm one pod with ~300 distinct
+- **Defect 2 (crash):** deploy unmodified `generic_p2p` branch code, warm one pod with ~300 distinct
   ~4k-token prefixes, pull concurrently from the other 3 (`CONC=80`, ~90s). Pods crash
   with `AssertionError: LookupMsg already sent` at `client.py:237`. Script:
   `p2p_hang_repro.py` (stdlib; drives the concurrent pulls).
