@@ -1,0 +1,4 @@
+scenario1: FIXED behavior confirmed (sticky MISS, no re-send)
+scenario2: duplicate fetch -> session disconnected (protocol error), as caught live
+scenario2: FIXED behavior confirmed (dropped lookup expires to MISS after 8.0s -> request recomputes)
+ALL SCENARIOS PASSED (mode=fixed)

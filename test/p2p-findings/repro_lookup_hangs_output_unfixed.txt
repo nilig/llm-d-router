@@ -1,0 +1,5 @@
+scenario1: BUG confirmed (MISS forgotten on read; re-registered + LookupMsg re-sent -> livelock seed)
+ERROR 07-14 06:01:48 [v1/kv_offload/.../session/session.py:317] P2PSession consumer:7777: protocol error: malformed 'fetch': duplicate fetch for kv_request_id=req-dupfetch — disconnecting
+scenario2: duplicate fetch -> session disconnected (protocol error), as caught live
+scenario2: BUG confirmed (dropped lookup stays in-flight forever -> request deferred until client timeout)
+ALL SCENARIOS PASSED (mode=bug)

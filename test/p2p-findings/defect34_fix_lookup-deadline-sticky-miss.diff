@@ -1,0 +1,70 @@
+--- /private/tmp/claude-501/-Users-niliguy-github-com-llm-d-router/a5536e3c-535b-499e-b9eb-5ba4d86c97ae/scratchpad/fixA_clean_base.py	2026-07-14 08:07:56
++++ /private/tmp/claude-501/-Users-niliguy-github-com-llm-d-router/a5536e3c-535b-499e-b9eb-5ba4d86c97ae/scratchpad/fixA_clean_patched.py	2026-07-14 08:23:39
+@@ -13,6 +13,13 @@
+ 
+ import time
+ from collections.abc import Callable, Sequence
++
++# Consumer-side lookup deadline. The source force-MISSes straggler hashes at
++# _LOOKUP_PENDING_TIMEOUT_S (5s), so a live session delivers a response within
++# ~5.5s; expiry here only fires when the LookupMsg or its response was lost
++# (e.g. dropped during a session disconnect). Expired entries resolve to MISS
++# so the request recomputes instead of deferring forever.
++_CONSUMER_LOOKUP_TIMEOUT_S = 8.0
+ from dataclasses import dataclass
+ from typing import TYPE_CHECKING, NamedTuple
+ 
+@@ -71,6 +78,8 @@
+         # guaranteed after the request's lookup() calls and clears every
+         # entry, so an unanswered probe simply stays None until then.
+         self._lookups: dict[tuple[str, bytes], bool | None] = {}
++        # Monotonic deadline per in-flight (req_id, hash) entry.
++        self._lookup_expiry: dict[tuple[str, bytes], float] = {}
+         # Fast index of entries registered but not yet flushed onto the wire:
+         # (req_id, h) is in _unsent_lookups_by_req[req_id] from register_lookup
+         # until the next flush_pending_lookups, which drains and clears it.
+@@ -205,10 +214,35 @@
+         key = (kv_request_id, block_hash)
+         if key in self._lookups:
+             result = self._lookups[key]
+-            if result is not None:
++            if result is True:
++                # HIT stays pop-on-read: consuming it means the caller
++                # pulls the block now; a sticky HIT could double-pull.
+                 del self._lookups[key]
++                self._lookup_expiry.pop(key, None)
++                return True
++            if result is False:
++                # MISS is sticky until cancel_lookups clears the request.
++                # Pop-on-read MISS livelocks the scheduler: a MISS consumed
++                # in a pass that does not admit the chunk is forgotten and
++                # re-registered as RETRY next pass, so with fragmented
++                # responses the request's blocks never all read resolved
++                # in one pass.
++                return False
++            if time.monotonic() > self._lookup_expiry.get(key, float("inf")):
++                # Expired in-flight entry becomes a sticky MISS.
++                self._lookups[key] = False
++                self._lookup_expiry.pop(key, None)
++                logger.warning(
++                    "P2P LOOKUP client %s: lookup expired to MISS "
++                    "kv_request_id=%s hash=%s",
++                    self._peer_id,
++                    kv_request_id,
++                    block_hash.hex()[:16],
++                )
++                return False
+             return result
+         self._lookups[key] = None
++        self._lookup_expiry[key] = time.monotonic() + _CONSUMER_LOOKUP_TIMEOUT_S
+         self._unsent_lookups_by_req.setdefault(kv_request_id, []).append(block_hash)
+         logger.debug(
+             "P2P LOOKUP client %s: REGISTER kv_request_id=%s hash=%s (unsent=%d)",
+@@ -318,6 +352,7 @@
+         keys = [k for k in self._lookups if k[0] == kv_request_id]
+         for k in keys:
+             del self._lookups[k]
++            self._lookup_expiry.pop(k, None)
+         self._unsent_lookups_by_req.pop(kv_request_id, None)
+         self._flushed_req_ids.discard(kv_request_id)
+ 
