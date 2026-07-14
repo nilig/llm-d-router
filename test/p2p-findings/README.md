@@ -1,9 +1,12 @@
-# P2P findings — lookup-path request hangs (Defects 3 & 4)
+# P2P findings — lookup-path request hangs (Defects 3, 4, 5)
 
-Two request-hang defects in the symmetric-P2P lookup path
-(`vllm/v1/kv_offload/tiering/p2p`, `generic_p2p` branch with the
-send-late-hashes client fix in the baseline). Full write-up:
-`p2p-lookup-hangs.md`.
+Three request-hang defects in the KV-offload pull path: two in the
+symmetric-P2P lookup protocol (`generic_p2p` branch, with the
+send-late-hashes client fix in the baseline; full write-up:
+`p2p-lookup-hangs.md`) and one in the upstream tiering manager. With all
+three fixes, the 64x16K shared-prefix pool benchmark completes cleanly at
+every offered rate (4-24 req/s, 0 failures, 0 restarts), and load-balanced
+routing with P2P sustains ~22% more throughput than without it.
 
 A rate-dependent fraction of p2p-consumer requests (0.3-4%, grows with load)
 hangs in the vLLM waiting queue with `reason="deferred"` until the HTTP
