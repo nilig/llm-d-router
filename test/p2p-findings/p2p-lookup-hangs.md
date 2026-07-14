@@ -1,7 +1,8 @@
-# Two request-hang bugs in the symmetric-P2P lookup path
+# Three request-hang defects in the KV-offload pull path
 
-Scope: `vllm/v1/kv_offload/tiering/p2p` (generic_p2p branch, with the
-send-late-hashes client fix applied). Both bugs make a consumer request sit in
+Scope: defects 1 and 2 are in `vllm/v1/kv_offload/tiering/p2p` (generic_p2p
+branch, with the send-late-hashes client fix applied); defect 3 is in the
+upstream tiering manager (`vllm/v1/kv_offload/tiering/manager.py`). Both bugs make a consumer request sit in
 the scheduler waiting queue with `reason="deferred"` until the HTTP client
 gives up (aiohttp default: 300s), with zero bytes returned. Under a staged
 benchmark each hang also stalls the stage barrier for the full client timeout,
@@ -82,7 +83,40 @@ observed 6,600-20,500 `LookupMsg` round trips for a single request
 with and without Defect 1's fix; frequency scales with source busyness, which is
 why higher request rates showed more hangs.
 
-## Fix (validated): `defect12_fix_lookup-deadline-sticky-miss.diff`, one file (`session/client.py`), ~30 lines
+
+## Defect 3: unbounded wait on write-in-flight primary-tier blocks
+
+With the defect 1/2 fixes in place a residual ~0.2% of requests still hung to
+the client timeout, with no p2p-path trace of their own: no unresolved
+lookup, no expiry, no session event. Their engine-side signature was a spin -
+the scheduler re-calling the connector's lookup at ~200 calls/s for the whole
+wait (worst observed: 1,270,000 calls from one request; at 10 req/s, 551 of
+1,800 requests spun past 2,000 calls).
+
+Instrumenting the upstream tiering manager's `lookup()` showed every spinning
+request wedged on a key whose primary-tier state is `HIT_PENDING`: a CPU-tier
+block whose write - a GPU-to-CPU save or a secondary-tier promotion - is
+still in flight. `lookup()` short-circuits `HIT_PENDING` with no deadline,
+and the scheduler re-polls pending blocks in a hot loop. When the owner job
+is slow (busy tier) the waiter burns scheduler-thread time until it resolves;
+when the owner job is leaked (session-teardown corners), the slot never
+resolves and every request touching that key hangs until its HTTP client
+gives up. The victim and the leak are separated in time - the wedged key
+belongs to an earlier request's write - which is why these hangs carry no
+trace of their own.
+
+Fix (`defect3_fix_pending-wait-deadline.diff`, upstream
+`tiering/manager.py`): an 8s deadline per (request, key) on the pending wait;
+past it the block is treated as MISS for that request, so it recomputes, and
+secondary tiers are not consulted for the downgraded key (the block is
+mid-write locally; pulling it again would collide). Validated: the 64x16K
+shared-prefix pool at 4-24 req/s completes cleanly for the first time -
+5,040/5,040 requests, zero failures, zero restarts - where every previous
+attempt lost requests to this hang. A production version should also clear
+the deadline map on request finish, and the hot re-poll loop deserves an
+upstream backoff independent of the deadline.
+
+## Fix for defects 1 and 2 (validated): `defect12_fix_lookup-deadline-sticky-miss.diff`, one file (`session/client.py`), ~30 lines
 
 1. Consumer-side lookup deadline (8s = server's 5s straggler deadline plus
    margin): an in-flight entry past its deadline resolves to MISS, so any
