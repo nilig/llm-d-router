@@ -82,10 +82,13 @@ fetch's transfers are queued — common under sustained multi-pod load with
 CPU-tier eviction churn, rare on an idle pair, hence the deterministic
 in-process repro.
 
-## Fix
+## Fixes
 
-`defect12_fix_lookup-deadline-sticky-miss.diff` — one file
-(`session/client.py`):
+Two diffs, one per layer. All three defects get the same fallback shape: a
+stalled pull degrades to a local recompute instead of waiting without bound.
+
+`defect12_fix_lookup-deadline-sticky-miss.diff` — defects 1 and 2, one file
+(branch `session/client.py`):
 
 1. Consumer-side lookup deadline (8s = the server's 5s straggler deadline
    plus margin): an in-flight entry past its deadline resolves to MISS, so
@@ -98,10 +101,24 @@ in-process repro.
 
 Validated end-to-end (rate 6 x 120s, 90s client timeout): unfixed
 3 hangs/720 requests, fixed 0/720 with p2p fully engaged (251 pulls, 79%
-lookup HIT rate). Not addressed: the duplicate-fetch protocol violation
-itself (accumulate fetch demand server-side or aggregate client-side;
-disconnecting the shared session on a per-request error is the
-amplification step worth removing).
+lookup HIT rate).
+
+`defect3_fix_pending-wait-deadline.diff` — defect 3, one file (upstream
+`tiering/manager.py`): 8s deadline per (request, key) on the `HIT_PENDING`
+wait; past it the block is treated as MISS for that request and secondary
+tiers are not consulted for the downgraded key (the block is mid-write
+locally; pulling it again would collide).
+
+Validated: with both diffs applied, the 64x16K shared-prefix pool at 4-24
+req/s completes cleanly for the first time - 5,040/5,040 requests, zero
+failures, zero restarts - and load-balanced+P2P sustains ~12.6 req/s where
+no-P2P saturates at ~10.3.
+
+Not addressed: the duplicate-fetch protocol violation itself (accumulate
+fetch demand server-side or aggregate client-side; disconnecting the shared
+session on a per-request error is the amplification step worth removing),
+an upstream backoff for the pending-block re-poll loop, and clearing the
+pending-deadline map on request finish.
 
 ## Files
 
