@@ -1,4 +1,4 @@
-# P2P findings — lookup-path request hangs (Defects 3, 4, 5)
+# P2P findings — lookup-path request hangs (Defects 1, 2, 3)
 
 Three request-hang defects in the KV-offload pull path: two in the
 symmetric-P2P lookup protocol (`generic_p2p` branch, with the
@@ -17,7 +17,7 @@ wall time ~4x the offered window while the engines are idle and fast
 is the live indicator; client-disconnect reaping of a deferred request does
 not increment any abort counter.
 
-## Defect 3 — duplicate-fetch session teardown strands in-flight lookups
+## Defect 1 — duplicate-fetch session teardown strands in-flight lookups
 
 Per-chunk pulls send more than one `FetchMsg` per `kv_request_id`; the
 server treats a second fetch while the first's outbound state is open as a
@@ -29,7 +29,7 @@ send exceptions, no requeue). The dropped lookups stay in-flight forever:
 consumer-side deadline — the request defers until client timeout. Collateral
 damage: any request with in-flight lookups on the torn-down session.
 
-## Defect 4 — pop-on-read MISS livelock
+## Defect 2 — pop-on-read MISS livelock
 
 `register_lookup` pops a resolved entry when it is read. A MISS consumed in
 a scheduler pass that does not admit the chunk is forgotten and
@@ -38,7 +38,7 @@ re-registered as in-flight on the next pass; under fragmented responses
 Observed live: 6,600-20,500 `LookupMsg` round trips (~85/s) for a single
 request, virtually all resolving MISS, until client timeout.
 
-## Defect 5 — unbounded wait on write-in-flight primary-tier blocks (upstream)
+## Defect 3 — unbounded wait on write-in-flight primary-tier blocks (upstream)
 
 Location: upstream `vllm/v1/kv_offload/tiering/manager.py` (not the p2p
 branch). `lookup()` short-circuits on `HIT_PENDING` - a primary-tier block
@@ -48,10 +48,10 @@ Instrumented run at 10 req/s: 551/1800 requests spun past 2,000 lookup calls
 on pending keys, the worst at 1,270,000 calls (~42K calls/s on the scheduler
 thread). When the pending slot's owner job is slow or leaked (session
 teardown corners), waiters hang until the HTTP client timeout - the residual
-~0.2% hangs seen after the Defect 3/4 fixes, with no p2p-path trace of their
+~0.2% hangs seen after the Defect 1/2 fixes, with no p2p-path trace of their
 own since the wedged key belongs to an earlier request's write.
 
-- **Fix:** `defect5_fix_pending-wait-deadline.diff` - 8s deadline per
+- **Fix:** `defect3_fix_pending-wait-deadline.diff` - 8s deadline per
   (request, key) on the pending wait; past it the block is treated as MISS
   for that request (recompute) and secondary tiers are not consulted for the
   downgraded key (the block is mid-write locally; pulling it again would
@@ -84,7 +84,7 @@ in-process repro.
 
 ## Fix
 
-`defect34_fix_lookup-deadline-sticky-miss.diff` — one file
+`defect12_fix_lookup-deadline-sticky-miss.diff` — one file
 (`session/client.py`):
 
 1. Consumer-side lookup deadline (8s = the server's 5s straggler deadline
@@ -106,8 +106,8 @@ amplification step worth removing).
 ## Files
 
 - `p2p-lookup-hangs.md` — the written report.
-- `defect34_fix_lookup-deadline-sticky-miss.diff` — the fix.
+- `defect12_fix_lookup-deadline-sticky-miss.diff` — the fix.
 - `repro_lookup_hangs.py` — deterministic in-process repro (+ `EXPECT=fixed` mode).
 - `repro_lookup_hangs_2pod.py` — 2-pod system-level variant.
 - `repro_lookup_hangs_output_unfixed.txt`, `repro_lookup_hangs_output_fixed.txt` — captured runs.
-- `defect5_fix_pending-wait-deadline.diff` — the pending-wait deadline (upstream tiering manager).
+- `defect3_fix_pending-wait-deadline.diff` — the pending-wait deadline (upstream tiering manager).

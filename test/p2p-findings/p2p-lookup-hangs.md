@@ -43,7 +43,7 @@ pods, direct `kv_transfer_params.p2p` injection, no router/EPP/sidecar) is
 included for the system-level setup; it verifies the pull path end-to-end
 and hunts the race probabilistically.
 
-## Bug 1: duplicate FetchMsg tears down the session and strands in-flight lookups
+## Defect 1: duplicate FetchMsg tears down the session and strands in-flight lookups
 
 Chain, each link observed in logs on a caught instance:
 
@@ -69,7 +69,7 @@ The `assert req_id not in self._flushed_req_ids` that the send-late-hashes fix
 removed was the client-side face of the same contract violation; removing it
 moved the failure to the server-side disconnect.
 
-## Bug 2: pop-on-read MISS livelock
+## Defect 2: pop-on-read MISS livelock
 
 `register_lookup` pops a resolved entry when it is read. A MISS consumed
 during a scheduler pass that does not admit the chunk is forgotten; the next
@@ -79,10 +79,10 @@ holds stragglers up to `_LOOKUP_PENDING_TIMEOUT_S`), the request's hashes
 never all read "resolved" within one pass, and the request livelocks:
 observed 6,600-20,500 `LookupMsg` round trips for a single request
 (~85/second, virtually all resolving MISS) until the client timeout. Present
-with and without Bug 1's fix; frequency scales with source busyness, which is
+with and without Defect 1's fix; frequency scales with source busyness, which is
 why higher request rates showed more hangs.
 
-## Fix (validated): `defect34_fix_lookup-deadline-sticky-miss.diff`, one file (`session/client.py`), ~30 lines
+## Fix (validated): `defect12_fix_lookup-deadline-sticky-miss.diff`, one file (`session/client.py`), ~30 lines
 
 1. Consumer-side lookup deadline (8s = server's 5s straggler deadline plus
    margin): an in-flight entry past its deadline resolves to MISS, so any
@@ -104,8 +104,8 @@ configurations):
 | deadline only    | 720  | 11*   | 15,781                      | engaged      |
 | deadline+sticky  | 720  | 0     | 1                           | 317 injections, 251 pulls, 79% HIT |
 
-*The deadline alone rescues Bug 1 (the one session teardown in that run
-produced one expiry-to-MISS and no loss hang) but cannot rescue Bug 2, whose
+*The deadline alone rescues Defect 1 (the one session teardown in that run
+produced one expiry-to-MISS and no loss hang) but cannot rescue Defect 2, whose
 entries each resolve well inside the deadline - that run's hangs were all
 livelocks (run-to-run variance in livelock count is high).
 
