@@ -1,0 +1,57 @@
+--- /private/tmp/claude-501/-Users-niliguy-github-com-llm-d-router/a5536e3c-535b-499e-b9eb-5ba4d86c97ae/scratchpad/upstream_tiering_manager.py	2026-07-14 10:57:49
++++ /private/tmp/claude-501/-Users-niliguy-github-com-llm-d-router/a5536e3c-535b-499e-b9eb-5ba4d86c97ae/scratchpad/fixD_clean_patched.py	2026-07-14 11:43:57
+@@ -23,6 +23,8 @@
+ from collections.abc import Collection, Iterable, Sequence
+ from dataclasses import dataclass, field
+ 
++import time
++
+ import numpy as np
+ from typing_extensions import override
+ 
+@@ -53,6 +55,9 @@
+ )
+ 
+ logger = init_logger(__name__)
++
++# Deadline for waiting on a write-in-flight primary-tier block.
++_PENDING_WAIT_TIMEOUT_S = 8.0
+ 
+ 
+ @dataclass
+@@ -302,6 +307,35 @@
+         self._maybe_process_finished_jobs()
+ 
+         primary_hit = self.primary_tier.lookup(key, req_context)
++        # Bound the HIT_PENDING wait. A block can stay write-in-flight far
++        # longer than a request can afford (slow saves/promotions under
++        # load; leaked slots in failure corners), and the scheduler
++        # re-polls pending blocks in a hot loop. Past the deadline the
++        # block is treated as MISS for this request so it recomputes
++        # instead of deferring until the HTTP client gives up. Secondary
++        # tiers are not consulted for a downgraded key: the block is
++        # mid-write locally and pulling it again would collide.
++        if primary_hit is LookupResult.HIT_PENDING:
++            pending = getattr(self, "_pending_wait_deadline", None)
++            if pending is None:
++                pending = self._pending_wait_deadline = {}
++            wait_key = (req_context.req_id, key)
++            deadline = pending.get(wait_key)
++            now = time.monotonic()
++            if deadline is None:
++                if len(pending) > 100000:
++                    for k in [k for k, v in pending.items()
++                              if v != -1.0 and now > v]:
++                        del pending[k]
++                pending[wait_key] = now + _PENDING_WAIT_TIMEOUT_S
++            elif deadline == -1.0 or now > deadline:
++                if deadline != -1.0:
++                    pending[wait_key] = -1.0
++                    logger.warning(
++                        "pending-wait expired to MISS req=%s key=%s",
++                        req_context.req_id,
++                        key.hex()[:16] if hasattr(key, "hex") else key)
++                return LookupResult.MISS
+         if primary_hit is LookupResult.HIT:
+             return LookupResult.HIT
+         if primary_hit is LookupResult.HIT_PENDING:

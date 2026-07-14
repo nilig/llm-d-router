@@ -35,6 +35,31 @@ re-registered as in-flight on the next pass; under fragmented responses
 Observed live: 6,600-20,500 `LookupMsg` round trips (~85/s) for a single
 request, virtually all resolving MISS, until client timeout.
 
+## Defect 5 — unbounded wait on write-in-flight primary-tier blocks (upstream)
+
+Location: upstream `vllm/v1/kv_offload/tiering/manager.py` (not the p2p
+branch). `lookup()` short-circuits on `HIT_PENDING` - a primary-tier block
+whose write (GPU-to-CPU save or secondary-tier promotion) is in flight -
+with no deadline, and the scheduler re-polls pending blocks in a hot loop.
+Instrumented run at 10 req/s: 551/1800 requests spun past 2,000 lookup calls
+on pending keys, the worst at 1,270,000 calls (~42K calls/s on the scheduler
+thread). When the pending slot's owner job is slow or leaked (session
+teardown corners), waiters hang until the HTTP client timeout - the residual
+~0.2% hangs seen after the Defect 3/4 fixes, with no p2p-path trace of their
+own since the wedged key belongs to an earlier request's write.
+
+- **Fix:** `defect5_fix_pending-wait-deadline.diff` - 8s deadline per
+  (request, key) on the pending wait; past it the block is treated as MISS
+  for that request (recompute) and secondary tiers are not consulted for the
+  downgraded key (the block is mid-write locally; pulling it again would
+  collide).
+- **Validated:** the 64x16K shared-prefix pool at rates 4-24 req/s completes
+  cleanly for the first time - 5,040/5,040 requests, zero failures, zero
+  restarts. With the fix, load-balanced+p2p sustains ~12.6 req/s where
+  no-p2p saturates at ~10.3, with p50 2.1s versus 12.2s at rate 12.
+- The hot-loop re-poll itself (tens of kHz per waiting request) deserves an
+  upstream backoff regardless of the deadline.
+
 ## Reproduce
 
     python3 repro_lookup_hangs.py             # asserts both defects fire
@@ -82,3 +107,4 @@ amplification step worth removing).
 - `repro_lookup_hangs.py` — deterministic in-process repro (+ `EXPECT=fixed` mode).
 - `repro_lookup_hangs_2pod.py` — 2-pod system-level variant.
 - `repro_lookup_hangs_output_unfixed.txt`, `repro_lookup_hangs_output_fixed.txt` — captured runs.
+- `defect5_fix_pending-wait-deadline.diff` — the pending-wait deadline (upstream tiering manager).
