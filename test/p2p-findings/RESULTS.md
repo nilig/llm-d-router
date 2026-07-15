@@ -262,8 +262,13 @@ starts, and the metric placement actually controls (completion latency is
 | 8 | 67.3 / 89.8 | 68.5 / 81.5 |
 | ALL | 64.5 / 84.5 | 65.8 / **78.3** |
 
-Throughput 1.86 vs 1.90 turns/s; 17 errors of 1,536 in each arm (client
-timeouts). Pull evidence: the P2P arm moved 32.5M tokens of conversation
+Throughput 1.86 vs 1.90 turns/s; 17 errors of 1,536 in each arm - all
+HTTP 400 context-length rejections at late turns (sampled answers
+re-tokenize ~3% longer than generated, so a few conversations outgrew
+max-model-len; the harness's truncation uses a fixed 200-token safety
+buffer, smaller than the client/server tokenizer divergence at 60K-token
+prompts). Same seed in both arms, so the same conversations failed in
+both - symmetric and routing-independent. Pull evidence: the P2P arm moved 32.5M tokens of conversation
 KV (~670 full-context transfers) with zero restarts; the affinity arm's
 mid-turn p50 wins (turns 2-3, 5) are sessions served entirely from their
 home pod's GPU cache.
