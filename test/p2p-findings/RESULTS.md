@@ -147,16 +147,22 @@ differentiate the arms - what differentiates them is where the decode load
 lands: affinity funnels everything into the 8 owner pods while half the
 fleet idles; load-aware placement spreads it 16 ways.
 
-Each cell: **achieved rate (req/s) / request latency p50 (s) / fails**.
+Each cell: **achieved rate (req/s) / request latency p50 (s)**. Fails were
+zero everywhere except the affinity arm at offered 48 (672).
 
-| offered rate | Affinity (8 owners) | Load, no P2P | Load + P2P |
-|---|---|---|---|
-| 12 req/s | 9.9 / 11.8s / 0 | 11.1 / 9.4s / 0 | 11.3 / 5.6s / 0 |
-| 24 req/s | 14.7 / 27.0s / 0 | 20.8 / 9.7s / 0 | 20.9 / 9.6s / 0 |
-| 36 req/s | 15.3 / 53.8s / 0 | 29.3 / 16.4s / 0 | 29.1 / 15.9s / 0 |
-| 48 req/s | 13.1 / 75.3s / 672 | 33.4 / 27.7s / 0 | 34.3 / 26.0s / 0 |
+| offered rate | Affinity (8 owners) | Blend, no P2P | Blend + P2P | Load, no P2P | Load + P2P |
+|---|---|---|---|---|---|
+| 12 req/s | 9.9 / 11.8s | 10.9 / 7.5s | 10.6 / 9.3s | 11.1 / 9.4s | 11.3 / 5.6s |
+| 24 req/s | 14.7 / 27.0s | 18.1 / 12.0s | 18.4 / 19.0s | 20.8 / 9.7s | 20.9 / 9.6s |
+| 36 req/s | 15.3 / 53.8s | 21.7 / 17.6s | 20.8 / 35.7s | 29.3 / 16.4s | 29.1 / 15.9s |
+| 48 req/s | 13.1 / 75.3s | 22.0 / 28.1s | 21.8 / 52.7s | 33.4 / 27.7s | 34.3 / 26.0s |
 
-![gpt-oss hot set](figures/gptoss-scenarioB3.png)
+Blend = the canonical production scorer mix (prefix 3 / queue 2 /
+kv-utilization 2, max-score picker).
+
+![gpt-oss hot set, five arms](figures/gptoss-scenarioB3-five.png)
+
+![gpt-oss hot set Pareto](figures/gptoss-scenarioB3-pareto.png)
 
 What the table shows: the affinity arm's 8 owner pods cap near 15 req/s
 aggregate and shed 672 requests to the 120s timeout at offered 48, while
@@ -176,13 +182,25 @@ Decode throughput at offered 48 (achieved rate x 512 output tokens):
 17.5K tok/s load+P2P, 17.1K load-no-P2P, 6.7K affinity - the same 2.5x,
 expressed as decode work per second.
 
+The blend arms answer the "would the production default cover this?"
+question: no. Both blend arms cap near 22 req/s - 1.7x affinity, but 35%
+below pure load - because the prefix term keeps steering to owners until
+their queues force a spill; the p95s (~90s in both blend arms) show the
+requests that stayed on hot owners paying for it. Adding P2P to the blend
+changes nothing (the two blend arms differ within run-to-run variance,
+single runs each): with prefix-first placement the scheduled pod almost
+always already holds the prefix, so there is nothing to pull - the
+blend+P2P arm moved 98K tokens all run, two prefix-acquisitions' worth,
+against the load+P2P arm's 5.9M.
+
 **Bottom line:** the 2.5x win over affinity on a cache-resident hot set
 belongs to load-aware placement, not to P2P; P2P makes the fleet's
 acquisition of hot content ~3x cheaper but adds nothing at steady state in
-this regime. P2P's throughput case is scenario A's regime (working set
-exceeds per-pod cache); its hot-set role is cheap propagation. Blended
-scorer arms (production defaults, with and without P2P) are being measured
-to close the remaining framing question.
+this regime. The blend control adds the pairing rule: P2P only helps a
+policy that generates misses by spreading - it composes with load-aware
+placement and is nearly inert under prefix-first placement. P2P's
+throughput case is scenario A's regime (working set exceeds per-pod
+cache); its hot-set role is cheap propagation.
 
 ## Small scale: 4x Llama-3.1-8B-Instruct
 
