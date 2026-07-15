@@ -5,6 +5,15 @@ rigs: a 4-GPU Llama-3.1-8B deployment (small scale, plus a P/D variant) and a
 16-GPU gpt-oss-120b deployment (scale-out). Robustness defects found along
 the way, their fixes, and reproducers are in [README.md](README.md).
 
+**Metrics used in every table.** *Prefill latency* = time to first token for
+a single request (ms). *Achieved rate* = successful requests per second the
+system actually sustained at a given offered (client-side) rate; achieved
+tracking offered means the system keeps up, achieved flattening below
+offered means saturation. *Request latency p50/p95* = median / 95th
+percentile end-to-end latency of successful requests (send to last token),
+in seconds. *TTFT* = time to first token under load. *Fails* = requests
+that hit the client timeout (120s).
+
 ## What is measured
 
 Three routing arms, identical pods and workload in every comparison; only
@@ -21,6 +30,9 @@ the EPP scheduling config changes:
    KV-source header and the pod pulls the prefix from that peer
    (CPU-to-CPU over NIXL/UCX) instead of recomputing it.
 
+The hot-set scenario adds two control arms with the canonical production
+scorer blend (prefix 3 / queue 2 / kv-utilization 2), with and without P2P.
+
 ## Hardware and software
 
 | | Small scale (Llama) | Scale-out (gpt-oss) |
@@ -35,7 +47,7 @@ the EPP scheduling config changes:
 | vLLM block size | 64 (matches router `blockSize`) | 64 (matches router `blockSize`) |
 | `minCachedTokenDelta` | 2048 | 2048 (re-derived from the crossover below) |
 | vLLM | nightly + `generic_p2p` OffloadingConnector branch + the robustness fixes in [README.md](README.md) | same |
-| Router | llm-d inference gateway EPP: `token-producer` + `precise-prefix-cache-producer` (+ `p2p-source-producer` on the P2P arm) | same |
+| Router | llm-d inference gateway EPP: `token-producer` + `precise-prefix-cache-producer` (+ `p2p-source-producer` on the P2P arms) | same |
 | Load generator | inference-perf (`shared_prefix` datagen), llm-d-benchmark harness | same |
 
 Methodology notes that materially affect results:
@@ -57,10 +69,11 @@ Methodology notes that materially affect results:
 
 ### Pull versus recompute (single request)
 
-Fresh prefix seeded on one pod, prefill latency measured on a cold pod with
-and without the pull; 5-rep medians, warm mesh, unique prefix per rep.
+Fresh prefix seeded on one pod; single-request prefill latency measured on
+a cold pod with and without the pull. 5-rep medians, warm mesh, unique
+prefix per rep.
 
-| prefix tokens | recompute | P2P pull | delta |
+| prefix tokens | prefill latency, recompute | prefill latency, P2P pull | delta |
 |---|---|---|---|
 | 2,048 | 70.6 ms | 49.0 ms | -31% |
 | 8,192 | 205.4 ms | 120.1 ms | -42% |
@@ -70,17 +83,23 @@ and without the pull; 5-rep medians, warm mesh, unique prefix per rep.
 
 ![gpt-oss crossover](figures/gptoss-crossover.png)
 
-The pull wins at every measured length: gpt-oss's compact KV (41.5 KB/token)
-makes the transfer cheap enough to beat even its fast MoE prefill
-(~29K tokens/s on H200), and the win grows with prefix length.
+**Bottom line:** pulling a cached prefix from a peer is faster than
+recomputing it at every measured length, and the gap grows with length -
+gpt-oss's compact KV (41.5 KB/token) makes the transfer cheap enough to
+beat even its fast MoE prefill (~29K tokens/s). This sets the per-miss
+economics everything below builds on, and the smallest winning length sets
+the router threshold (`minCachedTokenDelta: 2048`).
 
 ### Uniform pool (scenario A)
 
-128 shared prefixes x 48K tokens (~6M-token working set, ~4.4x one pod's GPU
-cache), 256-token questions, 64 output tokens, constant-rate stages 4-24
-req/s x 60s. Uniform popularity is affinity's best case.
+128 shared prefixes x 48K tokens (~6M-token working set - 4.4x one pod's
+GPU cache, so the fleet holds the pool but no single pod does), 256-token
+questions, 64 output tokens, constant-rate stages of 60s each. Uniform
+popularity is affinity's best case.
 
-| offered | Affinity achieved / lat p50 | Load no-P2P achieved / lat p50 | Load+P2P achieved / lat p50 |
+Each cell: **achieved rate (req/s) / request latency p50 (s)**.
+
+| offered rate | Affinity | Load, no P2P | Load + P2P |
 |---|---|---|---|
 | 4 req/s | 3.8 / 2.4s | 3.8 / 4.2s | 3.9 / 2.4s |
 | 8 req/s | 7.9 / 0.7s | 6.7 / 6.5s | 7.7 / 1.6s |
@@ -91,59 +110,73 @@ req/s x 60s. Uniform popularity is affinity's best case.
 
 ![gpt-oss uniform pool](figures/gptoss-scenarioA4.png)
 
-Affinity is near-ideal here (zero failures, flat sub-second p50): each of
-the 16 pods owns ~8 of the 128 prefixes (384K tokens, comfortably within
-its GPU cache), so a uniform pool with working affinity is all local hits.
-The recompute arm saturates near 9.4 req/s - cross-pod placements
-re-prefill 48K tokens each. The pull recovers most of that gap: load+P2P
-tracks offered to 16 req/s and saturates at 16.7 (+78% over recompute)
-with an order-of-magnitude latency win in the 12-16 req/s band (2.3s vs
-24.9s p50 at 12), on ~139M pulled prefix tokens (~58% of requests pulled
-instead of recomputing). Zero failures and zero restarts in all three
-arms.
+What the table shows: affinity is near-ideal (achieved tracks offered to
+23.7 req/s at flat sub-second latency, zero failures) because each pod
+owns ~8 of the 128 prefixes - 384K tokens, comfortably GPU-resident - so
+every request is a local cache hit. The recompute arm saturates at ~9.4
+req/s: every cross-pod placement re-prefills 48K tokens and the fleet
+drowns in prefill. The pull arm tracks offered to 16 req/s and saturates
+at 16.7 (+78% over recompute, about half of the throughput gap to the
+affinity ceiling), with 2.3s vs 24.9s p50 at 12 req/s - but stays 3-5x
+slower on p50 than affinity even in its tracking band, because a pull
+costs ~0.5s where a local hit costs nothing. ~139M prefix tokens were
+pulled (~58% of requests). Zero failures, zero restarts, all arms.
 
-Read together with the hot-set scenario below: on a uniform pool affinity
-is the ceiling and the pull recovers most of the recompute penalty of
-load-aware placement; on a hot set affinity collapses and the pull wins
-outright. P2P is what makes load-aware placement a safe default across
-both regimes.
+**Bottom line:** when the working set is bigger than any one pod's cache
+and placement is load-aware, P2P converts each cache miss from a 1.7s
+recompute into a 0.55s pull: +78% sustained throughput and an
+order-of-magnitude latency win over recompute under load. It does not
+catch pure affinity on a uniform pool - affinity misses nothing here.
 
 ### Hot set, decode-heavy (scenario B)
 
-8 shared prefixes x 48K tokens, 256-token questions, 512-token outputs,
-stages 12/24/36/48 req/s x 60s. The hot set fits in every pod's GPU cache
-(8 x 48K = 384K of ~1.38M tokens), so cache capacity does not differentiate
-the arms - decode-load concentration does: affinity funnels everything into
-the 8 owner pods while half the fleet idles; load+P2P serves the same hot
-content from all 16 pods (each pod pulls each prefix once - ~5.9M tokens
-over the mesh - then every request is a local hit).
+8 shared prefixes x 48K tokens, 256-token questions, 512-token outputs
+(decode-heavy), constant-rate stages of 60s. The hot set fits in every
+pod's GPU cache (384K of ~1.38M tokens), so cache capacity cannot
+differentiate the arms - what differentiates them is where the decode load
+lands: affinity funnels everything into the 8 owner pods while half the
+fleet idles; load-aware placement spreads it 16 ways.
 
-| offered | Affinity achieved / lat p50 / fails | Load+P2P achieved / lat p50 / fails |
-|---|---|---|
-| 12 req/s | 9.9 / 11.8s / 0 | 11.3 / 5.6s / 0 |
-| 24 req/s | 14.7 / 27.0s / 0 | 20.9 / 9.6s / 0 |
-| 36 req/s | 15.3 / 53.8s / 0 | 29.1 / 15.9s / 0 |
-| 48 req/s | 13.1 / 75.3s / 672 | 34.3 / 26.0s / 0 |
+Each cell: **achieved rate (req/s) / request latency p50 (s) / fails**.
+
+| offered rate | Affinity (8 owners) | Load, no P2P | Load + P2P |
+|---|---|---|---|
+| 12 req/s | 9.9 / 11.8s / 0 | 11.1 / 9.4s / 0 | 11.3 / 5.6s / 0 |
+| 24 req/s | 14.7 / 27.0s / 0 | 20.8 / 9.7s / 0 | 20.9 / 9.6s / 0 |
+| 36 req/s | 15.3 / 53.8s / 0 | 29.3 / 16.4s / 0 | 29.1 / 15.9s / 0 |
+| 48 req/s | 13.1 / 75.3s / 672 | 33.4 / 27.7s / 0 | 34.3 / 26.0s / 0 |
 
 ![gpt-oss hot set](figures/gptoss-scenarioB3.png)
 
-The owner pods cap near 15 req/s aggregate and shed 672 requests to the
-120s client timeout at offered 48; load+P2P takes 2.6x the throughput at
-roughly one-third the latency with zero failures (7,200/7,200 in each arm
-served, 0 restarts). TTFT stays under 1s p50 in both arms - the collapse is
-pure decode concentration, which is exactly the pathology the pull
-relieves: hot content scales horizontally without recompute.
+What the table shows: the affinity arm's 8 owner pods cap near 15 req/s
+aggregate and shed 672 requests to the 120s timeout at offered 48, while
+both load-aware arms take ~2.5x that throughput at a third of the latency
+with zero failures. The two load-aware arms are within 1-3% of each other
+from the second stage onward - we predicted this before running the
+control: the hot set is cache-resident, so the no-P2P arm pays each
+prefix's recompute once per pod (~128 one-time recomputes) and then serves
+local hits exactly like the P2P arm. The pull's measurable contribution is
+the acquisition transient in the first stage: p50 5.6s vs 9.4s (-40%) and
+p95 9.5s vs 26.2s while the fleet acquires the hot set, because a pull
+costs a third of a recompute. The control arm's `ext_hits` delta is zero
+(no pulls - a clean control); the P2P arm pulled ~5.9M tokens, exactly one
+acquisition of the 8 prefixes by each of the 15 non-owner pods.
 
-At short outputs and moderate rates the same hot set shows no arm
-difference (affinity holds ~0.33s TTFT p50 flat to 24 req/s, zero fails) -
-a hot-set scenario below owner saturation measures headroom, not a
-pathology.
+**Bottom line:** the 2.5x win over affinity on a cache-resident hot set
+belongs to load-aware placement, not to P2P; P2P makes the fleet's
+acquisition of hot content ~3x cheaper but adds nothing at steady state in
+this regime. P2P's throughput case is scenario A's regime (working set
+exceeds per-pod cache); its hot-set role is cheap propagation. Blended
+scorer arms (production defaults, with and without P2P) are being measured
+to close the remaining framing question.
 
 ## Small scale: 4x Llama-3.1-8B-Instruct
 
 ### Pull versus recompute (single request)
 
-| prefix tokens | recompute | P2P pull | delta |
+Same protocol as the gpt-oss crossover; single-request prefill latency.
+
+| prefix tokens | prefill latency, recompute | prefill latency, P2P pull | delta |
 |---|---|---|---|
 | 1,024 | 30 ms | 34 ms | +11% |
 | 4,096 | 99 ms | 59 ms | -41% |
@@ -152,27 +185,34 @@ pathology.
 
 ![Llama crossover](figures/llama-crossover.png)
 
-The crossover sits near 2K tokens (hence `minCachedTokenDelta: 2048`);
-Llama's larger per-token KV makes recompute relatively cheaper at very
-short prefixes than on gpt-oss.
+**Bottom line:** the crossover sits near 2K tokens - below it recompute
+wins, above it the pull wins and the gap grows. This is where
+`minCachedTokenDelta: 2048` comes from: the router only requests a pull
+when a peer holds at least a crossover-length advantage.
 
 ### One hot 16K prefix
 
-Ramped to 24 req/s: affinity concentrates all 5,040 requests on the prefix
-owner and saturates it (p50 6.1s), load-balanced routing holds p50 0.53s -
-an 11x win from placement alone. P2P adds nothing for a single persistent
-prefix (each pod recomputes once, it stays resident); its role is making
-load-balanced routing safe when prefixes do not fit everywhere - the pool
-scenarios below.
+Single hot prefix, all traffic, offered rate ramped to 24 req/s.
+
+**Bottom line:** affinity concentrates all 5,040 requests on the prefix
+owner and saturates it (request latency p50 6.1s at rate 24); simple
+load-balanced routing holds p50 0.53s - an 11x latency win from placement
+alone. P2P adds nothing for a single persistent prefix (each pod
+recomputes it once and it stays resident); its role is making load-aware
+placement affordable when prefixes do NOT fit everywhere - the pool
+scenario below.
 
 ![Llama hot prefix](figures/llama-hotspot.png)
 
-### Shared-prefix pool: 64 x 16K (128 GiB KV pool)
+### Shared-prefix pool: 64 x 16K (128 GiB KV pool, exceeds fleet cache)
 
-Moderate rates, load-balanced placement, no-P2P vs P2P (identical routing;
-the only difference is pull versus recompute on cross-pod placement):
+Load-balanced placement in both arms; the only difference is whether a
+cross-pod request recomputes its 16K prefix or pulls it from the holder.
 
-| rate | no-P2P p50 / p95 | P2P p50 / p95 | TTFT p50, P2P vs no-P2P |
+Moderate rates - each cell: **request latency p50 / p95 (s)**, plus TTFT
+p50 in the last column:
+
+| offered rate | no-P2P lat p50 / p95 | P2P lat p50 / p95 | TTFT p50, P2P vs no-P2P |
 |---|---|---|---|
 | 2 req/s | 0.94s / 2.38s | 0.93s / 1.65s | 0.40s vs 0.57s |
 | 4 req/s | 1.12s / 2.76s | 0.93s / 2.14s | 0.42s vs 0.57s |
@@ -181,9 +221,9 @@ the only difference is pull versus recompute on cross-pod placement):
 
 ![Llama pool latency](figures/llama-pool-latency.png)
 
-Saturation behavior at high rates:
+High rates - each cell: **achieved rate (req/s) / request latency p50 (s)**:
 
-| offered | no-P2P achieved / p50 lat | P2P achieved / p50 lat |
+| offered rate | no-P2P | P2P |
 |---|---|---|
 | 12 req/s | 9.9 / 12.2s | 11.6 / 2.1s |
 | 16 req/s | 10.3 / 21.3s | 12.6 / 7.8s |
@@ -192,18 +232,37 @@ Saturation behavior at high rates:
 
 ![Llama saturation](figures/llama-saturation.png)
 
-P2P raises the saturation ceiling ~22% (12.6 vs 10.3 req/s achieved) with
-up to 83% lower p50 in the 12-16 req/s band, and 30% higher peak token
-throughput (3,184 vs 2,420 tok/s).
+**Bottom line:** with a working set no pod can cache, the pull beats
+recompute at every rate and the gap grows with load: -43% p50 at 8 req/s,
+a +22% higher saturation ceiling (12.6 vs 10.3 req/s achieved), up to 83%
+lower p50 in the 12-16 req/s band, and 30% higher peak token throughput
+(3,184 vs 2,420 tok/s). Same regime and same conclusion as gpt-oss
+scenario A, at a quarter the scale.
 
 ### P/D disaggregation: prefill placement
 
 4 prefill + 1 decode, NIXL between the legs, same pool workload, three
-prefill-placement arms. Affinity placement saturates at ~15.7 req/s (the
-single decode pod's KV intake is the topology's ceiling, not prefill
-placement). Load-aware placement without P2P is recompute-bound at ~11.3
-req/s (p50 33s); adding the pull recovers the decode-bound ceiling: ~14.7
-req/s (+30%), p50 5.6s vs 12.2s at 16 req/s. Zero failures and restarts
-across all three arms (15,123 requests).
+prefill-placement arms.
+
+**Bottom line:** affinity placement saturates at ~15.7 req/s - the single
+decode pod's KV intake, not prefill placement, is this topology's ceiling.
+Load-aware placement without P2P is recompute-bound at ~11.3 req/s
+(request latency p50 33s); adding the pull returns it to the decode-bound
+ceiling: ~14.7 req/s (+30%), p50 5.6s vs 12.2s at 16 req/s. The pull is
+what makes load-aware prefill placement viable under P/D. Zero failures
+and restarts across all three arms (15,123 requests).
 
 ![Llama P/D placement](figures/llama-pd-placement.png)
+
+## Overall conclusion
+
+P2P KV sharing is miss-cost reduction, not a routing improvement: it
+converts a prefix-cache miss from "recompute the whole prefix" into "copy
+it from a peer at about a third of the cost". Its measured value is
+therefore largest where misses are frequent and expensive - working sets
+that exceed per-pod cache under load-aware placement (+78% throughput on
+gpt-oss, +22-30% on Llama aggregated and P/D, with order-of-magnitude p50
+wins over recompute under load) - and smallest where misses are rare
+(cache-resident hot sets: a one-time ~3x cheaper acquisition). It also
+decouples cache-friendliness from placement freedom: schedulers can place
+for load, drain, or scale without paying a recompute tax on long prefixes.
