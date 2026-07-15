@@ -80,23 +80,33 @@ makes the transfer cheap enough to beat even its fast MoE prefill
 cache), 256-token questions, 64 output tokens, constant-rate stages 4-24
 req/s x 60s. Uniform popularity is affinity's best case.
 
-*(load+P2P arm rerunning; its column and the figure land here shortly)*
-
 | offered | Affinity achieved / lat p50 | Load no-P2P achieved / lat p50 | Load+P2P achieved / lat p50 |
 |---|---|---|---|
-| 4 req/s | 3.8 / 2.4s | 3.8 / 4.2s | pending |
-| 8 req/s | 7.9 / 0.7s | 6.7 / 6.5s | pending |
-| 12 req/s | 11.9 / 0.7s | 9.0 / 24.9s | pending |
-| 16 req/s | 15.8 / 0.7s | 8.8 / 37.3s | pending |
-| 20 req/s | 19.8 / 0.7s | 9.4 / 48.8s | pending |
-| 24 req/s | 23.7 / 0.8s | 9.4 / 63.5s | pending |
+| 4 req/s | 3.8 / 2.4s | 3.8 / 4.2s | 3.9 / 2.4s |
+| 8 req/s | 7.9 / 0.7s | 6.7 / 6.5s | 7.7 / 1.6s |
+| 12 req/s | 11.9 / 0.7s | 9.0 / 24.9s | 11.4 / 2.3s |
+| 16 req/s | 15.8 / 0.7s | 8.8 / 37.3s | 15.1 / 3.6s |
+| 20 req/s | 19.8 / 0.7s | 9.4 / 48.8s | 15.4 / 15.6s |
+| 24 req/s | 23.7 / 0.8s | 9.4 / 63.5s | 16.7 / 30.0s |
+
+![gpt-oss uniform pool](figures/gptoss-scenarioA4.png)
 
 Affinity is near-ideal here (zero failures, flat sub-second p50): each of
 the 16 pods owns ~8 of the 128 prefixes (384K tokens, comfortably within
 its GPU cache), so a uniform pool with working affinity is all local hits.
 The recompute arm saturates near 9.4 req/s - cross-pod placements
-re-prefill 48K tokens each. The open question this scenario answers is how
-much of that 2.5x gap the pull closes.
+re-prefill 48K tokens each. The pull recovers most of that gap: load+P2P
+tracks offered to 16 req/s and saturates at 16.7 (+78% over recompute)
+with an order-of-magnitude latency win in the 12-16 req/s band (2.3s vs
+24.9s p50 at 12), on ~139M pulled prefix tokens (~58% of requests pulled
+instead of recomputing). Zero failures and zero restarts in all three
+arms.
+
+Read together with the hot-set scenario below: on a uniform pool affinity
+is the ceiling and the pull recovers most of the recompute penalty of
+load-aware placement; on a hot set affinity collapses and the pull wins
+outright. P2P is what makes load-aware placement a safe default across
+both regimes.
 
 ### Hot set, decode-heavy (scenario B)
 
