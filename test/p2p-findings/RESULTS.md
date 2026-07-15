@@ -100,16 +100,29 @@ GPU cache, so the fleet holds the pool but no single pod does), 256-token
 questions, 64 output tokens, constant-rate stages of 60s each. Uniform
 popularity is affinity's best case.
 
+Pool sizing note: the workload parameter that transfers across models is
+the ratio of working set to per-pod cache, not the prefix count and
+length. The Llama pool below (64 x 16K) is ~2x that rig's 0.5M-token
+per-pod cache; on gpt-oss's compact KV the same pool would be 0.76x of
+one pod's cache - every pod would hold all of it and every arm would
+serve local hits. 128 x 48K is that scenario translated to gpt-oss's
+cache geometry.
+
 Each cell: **achieved rate (req/s) / request latency p50 (s)**.
 
-| offered rate | Affinity | Load, no P2P | Load + P2P |
-|---|---|---|---|
-| 4 req/s | 3.8 / 2.4s | 3.8 / 4.2s | 3.9 / 2.4s |
-| 8 req/s | 7.9 / 0.7s | 6.7 / 6.5s | 7.7 / 1.6s |
-| 12 req/s | 11.9 / 0.7s | 9.0 / 24.9s | 11.4 / 2.3s |
-| 16 req/s | 15.8 / 0.7s | 8.8 / 37.3s | 15.1 / 3.6s |
-| 20 req/s | 19.8 / 0.7s | 9.4 / 48.8s | 15.4 / 15.6s |
-| 24 req/s | 23.7 / 0.8s | 9.4 / 63.5s | 16.7 / 30.0s |
+| offered rate | Affinity | Blend, no P2P | Load, no P2P | Load + P2P |
+|---|---|---|---|---|
+| 4 req/s | 3.8 / 2.4s | 4.0 / 1.9s | 3.8 / 4.2s | 3.9 / 2.4s |
+| 8 req/s | 7.9 / 0.7s | 7.9 / 0.7s | 6.7 / 6.5s | 7.7 / 1.6s |
+| 12 req/s | 11.9 / 0.7s | 11.9 / 0.7s | 9.0 / 24.9s | 11.4 / 2.3s |
+| 16 req/s | 15.8 / 0.7s | 15.8 / 0.7s | 8.8 / 37.3s | 15.1 / 3.6s |
+| 20 req/s | 19.8 / 0.7s | 19.8 / 0.8s | 9.4 / 48.8s | 15.4 / 15.6s |
+| 24 req/s | 23.7 / 0.8s | 23.7 / 0.8s | 9.4 / 63.5s | 16.7 / 30.0s |
+
+The blend arm (prefix 3 / queue 2 / kv 2, no P2P) is indistinguishable
+from pure affinity here: on a uniform pool the owners have capacity, so
+the prefix term steers every request to a local hit and the load terms
+never need to overrule it. Zero pulls, zero failures.
 
 ![gpt-oss uniform pool](figures/gptoss-scenarioA4.png)
 
@@ -286,6 +299,29 @@ and restarts across all three arms (15,123 requests).
 
 ![Llama P/D placement](figures/llama-pd-placement.png)
 
+## Cross-regime summary (gpt-oss, top offered rate of each scenario)
+
+Each cell: **achieved rate (req/s) / request latency p50 (s)**.
+
+| routing config | uniform pool @ 24 req/s | hot set @ 48 req/s |
+|---|---|---|
+| Affinity | **23.7** / 0.8s | 13.1 / 75.3s (672 fails) |
+| Blend, no P2P | **23.7** / 0.8s | 22.0 / 28.1s |
+| Blend + P2P | not run (P2P inert under prefix-first placement) | 21.8 / 52.7s |
+| Load, no P2P | 9.4 / 63.5s | 33.4 / 27.7s |
+| Load + P2P | 16.7 / 30.0s | **34.3** / 26.0s |
+
+No single configuration wins both regimes. Prefix-first policies (affinity,
+blend) are optimal when the working set spreads ownership across the fleet
+and each owner has capacity; they concentrate and degrade when few hot
+prefixes draw the load. Load-aware placement inverts that trade, and P2P
+is what sets its floor: without the pull it pays recompute on every
+cross-pod miss (9.4 req/s on the pool), with it the miss costs a third as
+much (16.7). The blend never fails catastrophically in either regime,
+which makes it a reasonable default when popularity is unknown - but it
+leaves 35% of hot-set throughput on the table, and adding P2P to it does
+nothing because prefix-first placement rarely misses.
+
 ## Overall conclusion
 
 P2P KV sharing is miss-cost reduction, not a routing improvement: it
@@ -295,6 +331,8 @@ therefore largest where misses are frequent and expensive - working sets
 that exceed per-pod cache under load-aware placement (+78% throughput on
 gpt-oss, +22-30% on Llama aggregated and P/D, with order-of-magnitude p50
 wins over recompute under load) - and smallest where misses are rare
-(cache-resident hot sets: a one-time ~3x cheaper acquisition). It also
-decouples cache-friendliness from placement freedom: schedulers can place
-for load, drain, or scale without paying a recompute tax on long prefixes.
+(cache-resident hot sets: a one-time ~3x cheaper acquisition) or where
+placement rarely misses (prefix-first policies). It composes with
+load-aware placement specifically, and it decouples cache-friendliness
+from placement freedom: schedulers can place for load, drain, or scale
+without paying a recompute tax on long prefixes.
