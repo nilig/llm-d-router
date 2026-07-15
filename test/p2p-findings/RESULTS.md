@@ -215,6 +215,72 @@ placement and is nearly inert under prefix-first placement. P2P's
 throughput case is scenario A's regime (working set exceeds per-pod
 cache); its hot-set role is cheap propagation.
 
+### Multi-turn chat (scenario C)
+
+A turn is one round-trip in a conversation: the user sends a message, the
+model answers - one request to the fleet. Each turn's request carries the
+entire conversation so far as its prompt (the 16K system prompt plus every
+previous question and answer), so turn 1 arrives with ~16.6K input tokens
+and turn 8 with ~48K. The deeper the turn, the more KV there is to reuse if
+the request lands where that history is cached or can be pulled - and the
+more expensive a recompute if not. Results below are split by turn for that
+reason; turns are inferred from input size (~192 requests per bucket,
+matching one request per conversation per turn).
+
+Workload: 192 conversations, each with a private 16,384-token system
+prompt, 8 turns of 256-token questions and 4,096-token answers, 128
+conversations active concurrently (`conversation_replay` datagen; the
+`shared_prefix` multi-turn path silently degrades to single-turn -
+kubernetes-sigs/inference-perf#616 - and was not used). Rig for this
+scenario: 14x TP=1, `--gpu-memory-utilization=0.60` (GPU KV ~0.48M
+tokens/pod, so 128 growing conversations exceed fleet GPU cache and
+sessions evict), CPU tier 88 GiB = 4.4x GPU, verified before the run. Both
+arms run the router image with load-aware P2P source selection
+(llm-d-router#2032).
+
+Arms: the precise guide's canonical blend (prefix 3 / queue 2 /
+kv-utilization 2, max-score picker) versus load-aware placement + P2P.
+
+**Time to first token** - the interval a chat user waits before the reply
+starts, and the metric placement actually controls (completion latency is
+~95% decode at 4K-token answers):
+
+| TTFT | Precise guide | Load + P2P |
+|---|---|---|
+| p50 | 2.53s | **1.42s** |
+| p90 | 7.56s | **4.87s** |
+| p99 | 25.4s | **9.2s** |
+
+**Turn completion latency** (each cell: p50 / p90, seconds):
+
+| turn | Precise guide | Load + P2P |
+|---|---|---|
+| 1 | 63.5 / 89.5 | 61.6 / 71.0 |
+| 2 | 49.0 / 82.7 | 62.7 / 72.7 |
+| 4 | 65.4 / 75.8 | 66.3 / 76.6 |
+| 6 | 67.1 / 81.9 | 67.9 / 78.5 |
+| 8 | 67.3 / 89.8 | 68.5 / 81.5 |
+| ALL | 64.5 / 84.5 | 65.8 / **78.3** |
+
+Throughput 1.86 vs 1.90 turns/s; 17 errors of 1,536 in each arm (client
+timeouts). Pull evidence: the P2P arm moved 32.5M tokens of conversation
+KV (~670 full-context transfers) with zero restarts; the affinity arm's
+mid-turn p50 wins (turns 2-3, 5) are sessions served entirely from their
+home pod's GPU cache.
+
+![gpt-oss multi-turn](figures/gptoss-multiturn.png)
+
+**Bottom line:** on multi-turn chat the two arms tie on throughput and
+completion latency, and split on tails and TTFT: the precise guide is
+fastest when a session stays home on warm cache, but an evicted or
+displaced session pays a full ~50K recompute before its first token (the
+25.4s TTFT p99); load+P2P pulls the history instead, starting replies 1.8x
+sooner at median and capping the tail at 9.2s. First scenario where
+load+P2P beats the tuned default on a user-facing metric rather than
+recovering a recompute floor. Single run per arm; a repeat and a
+shorter-output variant (raising prefill's share of latency) are the
+follow-ups.
+
 ## Small scale: 4x Llama-3.1-8B-Instruct
 
 ### Pull versus recompute (single request)
