@@ -12,7 +12,10 @@ tracking offered means the system keeps up, achieved flattening below
 offered means saturation. *Request latency p50/p95* = median / 95th
 percentile end-to-end latency of successful requests (send to last token),
 in seconds. *TTFT* = time to first token under load. *Fails* = requests
-that hit the client timeout (120s).
+that hit the client timeout (120s). *Decode throughput* = achieved rate x
+nominal output length (derived; the harness's raw output-tokens/s is
+skewed by a rare full-prompt-echo anomaly, and prompt-inclusive tokens/s
+would count cache hits as computed work).
 
 ## What is measured
 
@@ -122,6 +125,13 @@ slower on p50 than affinity even in its tracking band, because a pull
 costs ~0.5s where a local hit costs nothing. ~139M prefix tokens were
 pulled (~58% of requests). Zero failures, zero restarts, all arms.
 
+Decode throughput at peak load (achieved rate x 64 output tokens): 1,519
+tok/s affinity, 1,068 tok/s load+P2P, 599 tok/s recompute. Prompt-side
+token throughput is deliberately not reported: ~49K of every request's
+~49.5K tokens are cache hits (local or pulled), served rather than
+computed, so a prompt-inclusive tokens/s figure would overstate work done
+by three orders of magnitude.
+
 **Bottom line:** when the working set is bigger than any one pod's cache
 and placement is load-aware, P2P converts each cache miss from a 1.7s
 recompute into a 0.55s pull: +78% sustained throughput and an
@@ -161,6 +171,10 @@ p95 9.5s vs 26.2s while the fleet acquires the hot set, because a pull
 costs a third of a recompute. The control arm's `ext_hits` delta is zero
 (no pulls - a clean control); the P2P arm pulled ~5.9M tokens, exactly one
 acquisition of the 8 prefixes by each of the 15 non-owner pods.
+
+Decode throughput at offered 48 (achieved rate x 512 output tokens):
+17.5K tok/s load+P2P, 17.1K load-no-P2P, 6.7K affinity - the same 2.5x,
+expressed as decode work per second.
 
 **Bottom line:** the 2.5x win over affinity on a cache-resident hot set
 belongs to load-aware placement, not to P2P; P2P makes the fleet's
