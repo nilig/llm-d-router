@@ -344,6 +344,52 @@ weight: throughput ties, TTFT favors load+P2P by ~40% at p50 and ~2x at
 the tail. Consistent with scenario C and D, the precise guide's tail is
 the moving part (p99 27.2s vs 15.1s between its own two runs).
 
+### Session migration under same-prefix contention (scenario E, negative result)
+
+A four-step attempt to engineer the queue-vs-migrate dilemma: sessions
+(48K shared document prefix, 6 turns, 15-30s think time) whose home pods
+are loaded by background traffic on the same document, so that a
+returning turn must either queue behind it (affinity) or migrate and pull
+its history (load+P2P). Custom driver; 32 documents, 64 sessions, 16
+pods; background escalated across versions: v1 light single-turn (12.8
+req/s fleet), v3 ~150 concurrent 1K-token-answer requests, v4 ~64
+concurrent requests each carrying 6,144 unique prompt tokens
+(unavoidable prefill). Session-turn TTFT p50/p99, seconds; all runs zero
+errors.
+
+| background pressure | Affinity | Load + P2P | pulled |
+|---|---|---|---|
+| v1: light | **0.24 / 1.0** | 0.75 / 5.3 | 92M |
+| v3: heavy cached (decode) | **0.28 / 2.4** | 4.46 / 21.9 | 110M |
+| v4: heavy unique (prefill) | **0.90 / 7.0** | 1.27 / 11.8 | 266M |
+
+Affinity wins at every pressure level, and the reasons are the useful
+findings:
+
+1. **Cached-content floods are nearly free for the owner** (v3: background
+   answered in 0.21s p50 at ~150 concurrent) - a shared prefix hit costs
+   ~no compute and continuous batching admits it instantly. Prefix-owner
+   pods are far more robust to same-prefix load than queue-depth intuition
+   suggests.
+2. **Spreading same-prefix traffic is anti-productive by construction**:
+   whatever share of it lands off-owner must pull the shared prefix (v3:
+   110M, v4: 266M tokens), and at these volumes the transfer path itself
+   congests - the load arm's background AND sessions queued behind pulls
+   (v3: 4.5s vs 0.28s turns).
+3. The migration cost floor is ~0.3-0.9s p50 per moved turn when there is
+   nothing to flee (v1/v2).
+
+**Bottom line:** the queue-vs-migrate trade only favors migration when the
+home pod's congestion comes from content the session does NOT share
+(document Q&A above: evictions and other documents' sessions - pulls move
+only the session's own history). When the contention shares the
+session's prefix, route to the cache; spreading it converts free hits
+into a pull storm. Operationally: P2P composes with load-aware placement
+for miss-dominated traffic and must not be used as a substitute for
+affinity on hit-dominated traffic - the in-flight-token-gated affinity
+filter (prefix affinity that breaks stickiness only under real load) is
+the config this points to.
+
 ## Small scale: 4x Llama-3.1-8B-Instruct
 
 ### Pull versus recompute (single request)
