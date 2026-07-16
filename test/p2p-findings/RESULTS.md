@@ -286,6 +286,64 @@ recovering a recompute floor. Single run per arm; a repeat and a
 shorter-output variant (raising prefill's share of latency) are the
 follow-ups.
 
+### Document Q&A (scenario D)
+
+The regime chosen to make prefill the request rather than a prelude: each
+of 192 "documents" is a 48K-token private prefix; users ask 6 short
+questions (256-token answers) against their document, 128 conversations
+active concurrently. Per-turn decode is small, so time-to-first-token
+dominates the user experience, and 128 x ~50K-token contexts oversubscribe
+the fleet's GPU cache. Two full runs with arm order alternated (the fleet's
+CPU tiers arrive full for whichever arm runs second).
+
+Each cell: **TTFT p50 / p95 / p99 (s); throughput (turns/s)**. All four
+runs: 1,152/1,152 turns, zero errors, zero restarts.
+
+| run | Precise guide | Load + P2P |
+|---|---|---|
+| 1 | 4.1 / 41.0 / 80.5; 5.98 | 4.5 / 13.0 / 20.9; 7.02 |
+| 2 (order reversed) | 4.2 / 17.3 / 37.2; 7.66 | 3.9 / 12.5 / 26.7; 7.76 |
+
+![gpt-oss document Q&A](figures/gptoss-docqa.png)
+
+What the table shows: medians are equal - a home session answers from warm
+cache either way. The arms separate on tails and on stability. The precise
+guide's p99 TTFT is 37-81s (displaced or evicted questions queue behind a
+concentrated owner's 48K prefills) against load+P2P's 21-27s, and its
+numbers swing with fleet state: 28% throughput spread between runs versus
+10% for load+P2P, whose placement does not depend on where KV already
+lives. Tier evidence: the P2P arm pulled 30-32M tokens across pods per
+run; the precise arm did 23-31M local CPU-tier restores instead.
+
+**Bottom line:** on prefill-dominated conversational workloads, load-aware
+placement + P2P delivers up to +17% throughput and 2-4x lower p99 TTFT
+than the precise guide's configuration, and - measured across
+order-alternated repeats - is substantially less sensitive to the cache
+state it inherits. This is the strongest scenario for the pull: every
+displaced question is a ~0.6s transfer instead of a ~2s recompute or a
+queue behind someone else's.
+
+### Short-answer chat repeats (scenario C variant)
+
+The scenario C shape with 512-token answers instead of 4,096, doubled
+scale (384 conversations, 256 concurrent), raising prefill's share of each
+turn. Three clean arms across two runs (one P2P arm was lost to a cluster
+reclaim event):
+
+Each cell: **TTFT p50 / p95 / p99 (s); throughput (turns/s)**; 3,072/3,072
+turns, zero errors in every run.
+
+| arm | run | TTFT | throughput |
+|---|---|---|---|
+| Load + P2P | 2 | 1.33 / 5.1 / 9.0 | 14.79 |
+| Precise guide | 1 | 1.73 / 8.6 / 27.2 | 14.05 |
+| Precise guide | 2 | 2.33 / 9.3 / 15.1 | 14.77 |
+
+**Bottom line:** same shape as scenario C at higher rate and lower decode
+weight: throughput ties, TTFT favors load+P2P by ~40% at p50 and ~2x at
+the tail. Consistent with scenario C and D, the precise guide's tail is
+the moving part (p99 27.2s vs 15.1s between its own two runs).
+
 ## Small scale: 4x Llama-3.1-8B-Instruct
 
 ### Pull versus recompute (single request)
