@@ -164,6 +164,51 @@ this same workload delivered TTFT p99 of 21-27 s at 7.0-7.8 turns/s -
 placement cannot fix herding, because the requests still queue on the
 cache owner; it only trims what leaks around the edges.
 
+## Run K: the guide workload on a KV-starved fleet ("less GPU, more CPU")
+
+Same 16 pods and the guide's workload verbatim, with GPU KV capped at 4 GiB
+per pod via `kv_cache_memory_bytes` (~110K tokens, down from ~480K; the CPU
+tier stays 88 GiB, so CPU:GPU goes 4.4x -> 22x). Models a fleet of
+memory-poor GPUs at constant compute. Three arms; single run each; pod
+layout identical across arms (scheduler-spread, reshuffled by cluster
+reclaims between arms - disclosed as a variance source). P2P pull-volume
+counters were lost to a reclaim during the last arm's copy window; the
+low-rate TTFT delta (P2P arm 0.14-0.18 s vs no-pull 0.23 s) indicates pulls
+were active.
+
+TTFT p50 / p99 (s) and output tok/s at selected rates:
+
+| rate | Guide | Load-spread, no pull | Load-spread + P2P |
+|---|---|---|---|
+| 15 | 0.09 / 0.15 | 0.09 / ~1 | 0.16 / 1.1 |
+| 30 | 2.9 / 12.2 | 5.2* / 15.3* | 4.9 / 16.6 |
+| 40 | 12.2 / 30.6 | 19.8 / 44.0 | 17.1 / 40.8 |
+| 60 | 17.5 / 44.2; 18.3K | 25.1 / 53.0; 17.0K | 23.7 / 51.8; 18.4K |
+
+*interpolated between measured stages 25 and 35.
+
+All three arms collapse (the unconstrained guide held 0.115 / 0.46 at rate
+60), and **P2P is statistically indistinguishable from the no-pull control**
+- the pull neither helps nor hurts. The guide stays ahead of both spread
+arms.
+
+**Why the pull cannot win here:** the squeeze made KV *capacity* the
+binding constraint, not prefill compute. A request occupies its KV for its
+whole decode (~1,000 tokens), so requests queue for KV slots, and pulling a
+prefix instead of recomputing it saves compute but occupies the same KV for
+the same duration - the queue does not move. Worse for the spread arms:
+prefix-affinity *deduplicates* KV (concurrent same-group requests on one
+pod share one copy of the 6K prefix blocks), while spreading forces a
+per-pod copy - with or without P2P. That is why the guide leads on a
+KV-bound rig and why the pull is a no-op.
+
+**Boundary rule (new):** P2P pays only when the binding constraint is
+prefill compute or latency - long distinct prefixes, misses forced by
+content oversubscription, KV available to receive the pulled copy (the
+series-1 docQA regime). When KV capacity itself is the constraint, cache
+co-location (affinity) wins by block sharing, and no transfer mechanism can
+substitute for it.
+
 **Series-2 conclusion.** Three placements, two regimes:
 
 1. On the guide's home workload (GPU-resident prefixes), placement to the
