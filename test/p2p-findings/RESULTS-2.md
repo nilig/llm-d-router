@@ -60,13 +60,28 @@ load+P2P first); per-arm readiness gate at 16/16 pods; mechanism check on the
 P2P arm (precise index populated, source header firing, external-hit counter
 moving) before the A/B is trusted.
 
-**Results: run 1, baseline arm (guide-verbatim) — COMPLETE.** The load+P2P arm
-and the order-reversed run 2 are still in progress; the numbers below are the
-baseline half of run 1 only.
+**Results: run 1 — COMPLETE (both arms).** The order-reversed run 2 and the
+guide+P2P arm (opt7) are in progress.
 
-All 17,084 requests succeeded (zero failures, zero pod restarts). TTFT is in
-seconds; the fleet is not saturated even at the top of the ladder (achieved
-rate tracks requested rate throughout).
+Both arms: 17,084/17,084 requests succeeded, zero pod restarts. TTFT in
+seconds. The fleet is not saturated at the top of the ladder in either arm
+(achieved rate tracks requested rate).
+
+**Run 1 verdict: on its own workload, the guide wins decisively.** With
+GPU-resident 6K prefixes, affinity is free, and the load-preferred arm pays
+a P2P pull for it on nearly every request: weighted-random placement lands
+off-owner 15/16 of the time, and the arm pulled 105.6M tokens across ~17K
+requests - the full prefix, almost every request. That buys +80-100ms TTFT
+p50 across the whole ladder (0.15-0.21s vs 0.07-0.12s), tails 5-16x worse at
+the high rates (p99 7.6s vs 0.46s at rate 60), and -15% output throughput at
+rate 60. The pull mechanism itself held: ~40 pulls/s sustained for 50
+minutes, zero failures, zero restarts.
+
+This is the regime-dependence the series-1 pairing rule predicts: P2P pays
+off where misses are forced (cache oversubscription, series-1 docQA); where
+the cache holder has capacity, routing to it beats pulling from it. The
+remaining question for this workload is opt7: does adding the producer to
+the guide's own placement (where it should stay quiet) cost anything.
 
 | stage | rate (req/s) | requests | TTFT p50 | TTFT p95 | TTFT p99 | output tok/s |
 |---|---|---|---|---|---|---|
@@ -87,6 +102,29 @@ rate tracks requested rate throughout).
 | 14 | 55 | 1,485 | 0.113 | 0.237 | 0.426 | 33,282 |
 | 15 | 57 | 1,482 | 0.113 | 0.181 | 0.320 | 33,230 |
 | 16 | 60 | 1,500 | 0.115 | 0.297 | 0.464 | 34,814 |
+
+Load-preferred + P2P arm (same ladder; pulled 105.6M tokens - effectively
+the full 6K prefix on almost every request):
+
+| stage | rate (req/s) | requests | TTFT p50 | TTFT p95 | TTFT p99 | output tok/s |
+|---|---|---|---|---|---|---|
+| warmup | 15 | 750 | 0.280 | 5.819 | 9.121 | 13,413 |
+| 1 | 3 | 60 | 0.171 | 1.131 | 1.638 | 2,649 |
+| 2 | 10 | 200 | 0.153 | 0.224 | 0.974 | 6,933 |
+| 3 | 15 | 300 | 0.155 | 0.243 | 0.269 | 10,285 |
+| 4 | 20 | 760 | 0.171 | 0.268 | 0.614 | 14,549 |
+| 5 | 22 | 748 | 0.169 | 0.254 | 0.964 | 16,461 |
+| 6 | 25 | 750 | 0.168 | 0.260 | 0.672 | 18,748 |
+| 7 | 30 | 750 | 0.175 | 0.268 | 0.838 | 19,867 |
+| 8 | 35 | 735 | 0.170 | 0.275 | 1.145 | 20,147 |
+| 9 | 40 | 1,520 | 0.196 | 0.595 | 2.249 | 26,896 |
+| 10 | 43 | 1,548 | 0.200 | 0.386 | 1.217 | 28,914 |
+| 11 | 46 | 1,518 | 0.198 | 0.376 | 1.696 | 28,770 |
+| 12 | 49 | 1,470 | 0.204 | 0.379 | 1.238 | 29,145 |
+| 13 | 52 | 1,508 | 0.205 | 1.453 | 4.726 | 28,834 |
+| 14 | 55 | 1,485 | 0.215 | 1.356 | 2.399 | 31,545 |
+| 15 | 57 | 1,482 | 0.207 | 2.377 | 4.560 | 31,426 |
+| 16 | 60 | 1,500 | 0.213 | 3.738 | 7.601 | 29,725 |
 
 **Bottom line so far:** on its own benchmark - GPU-resident 6K prefixes,
 single-turn - the guide's prefix-first config keeps TTFT p99 under half a
