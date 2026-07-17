@@ -83,6 +83,46 @@ the cache holder has capacity, routing to it beats pulling from it. The
 remaining question for this workload is opt7: does adding the producer to
 the guide's own placement (where it should stay quiet) cost anything.
 
+**opt7 (guide + P2P producer): the pre-registered prediction holds - the
+producer costs nothing where it has nothing to do.** Same ladder, zero
+failures, and every stage within run-to-run noise of the guide baseline:
+
+| stage | rate (req/s) | requests | TTFT p50 | TTFT p95 | TTFT p99 | output tok/s |
+|---|---|---|---|---|---|---|
+| warmup | 15 | 750 | 0.123 | 0.241 | 0.263 | 12,402 |
+| 1 | 3 | 60 | 0.069 | 0.086 | 0.089 | 2,825 |
+| 2 | 10 | 200 | 0.072 | 0.087 | 0.094 | 7,935 |
+| 3 | 15 | 300 | 0.073 | 0.092 | 0.100 | 10,842 |
+| 4 | 20 | 760 | 0.081 | 0.098 | 0.110 | 15,477 |
+| 5 | 22 | 748 | 0.082 | 0.097 | 0.105 | 16,573 |
+| 6 | 25 | 750 | 0.084 | 0.100 | 0.107 | 19,109 |
+| 7 | 30 | 750 | 0.084 | 0.102 | 0.110 | 19,941 |
+| 8 | 35 | 735 | 0.088 | 0.108 | 0.118 | 21,610 |
+| 9 | 40 | 1,520 | 0.099 | 0.129 | 0.147 | 29,147 |
+| 10 | 43 | 1,548 | 0.102 | 0.131 | 0.153 | 30,818 |
+| 11 | 46 | 1,518 | 0.103 | 0.140 | 0.178 | 31,393 |
+| 12 | 49 | 1,470 | 0.105 | 0.146 | 0.177 | 31,157 |
+| 13 | 52 | 1,508 | 0.107 | 0.173 | 0.257 | 32,395 |
+| 14 | 55 | 1,485 | 0.107 | 0.206 | 0.292 | 33,399 |
+| 15 | 57 | 1,482 | 0.108 | 0.165 | 0.223 | 32,580 |
+| 16 | 60 | 1,500 | 0.111 | 0.312 | 0.457 | 34,234 |
+
+At rate 60: TTFT p50 0.111 vs 0.115, p95 0.312 vs 0.297, p99 0.457 vs
+0.464, throughput 34,234 vs 34,814 - differences alternate sign across
+stages and stay within the noise band. The mechanism evidence is the
+absence of the load-preferred arm's pull signature: opt6 paid +80-100ms
+p50 everywhere (a pull per request); opt7's p50 matches the baseline to
+within 4ms at every stage, so the producer effectively never fired under
+prefix-first placement. Pull-volume counters for this run were lost to a
+reclaimer strike during the post-run copy window (the run itself completed
+40 minutes before the strike); the TTFT parity carries the conclusion.
+
+**Guide-workload bottom line:** placement decides this regime. The guide
+wins it; load-preferred placement loses it by paying pulls for free hits;
+and the P2P producer added to the guide is free - it activates only when
+placement diverges from the cache. Whether it then helps (rather than
+merely not hurting) is the docQA question, next.
+
 | stage | rate (req/s) | requests | TTFT p50 | TTFT p95 | TTFT p99 | output tok/s |
 |---|---|---|---|---|---|---|
 | warmup | 15 | 750 | 0.127 | 0.248 | 0.295 | 12,491 |
