@@ -39,6 +39,16 @@ guide ships to showcase precise prefix routing.
 |---|---|---|---|---|
 | Precise guide (verbatim) | [epp-opt4v-gptoss-guide.yaml](configs/series-2/epp-opt4v-gptoss-guide.yaml) | `prefix-cache-scorer` 3 / `queue-scorer` 2 / `kv-cache-utilization-scorer` 2 / `no-hit-lru-scorer` 2 | max-score | none |
 | Load-preferred + P2P | [epp-opt6-gptoss-loadpref-p2p.yaml](configs/series-2/epp-opt6-gptoss-loadpref-p2p.yaml) | `queue-scorer` 3 / `kv-cache-utilization-scorer` 2 / `prefix-cache-scorer` 1 | weighted-random | `p2p-source-producer`, `minCachedTokenDelta` 2048, load-aware source ties (#2032) |
+| Guide + P2P (opt7) | [epp-opt7-gptoss-guide-p2p.yaml](configs/series-2/epp-opt7-gptoss-guide-p2p.yaml) | identical to the guide-verbatim baseline | max-score | `p2p-source-producer`, `minCachedTokenDelta` 2048 - placement unchanged, the producer activates only when scheduling diverges from the best cache holder |
+
+The third arm tests the "adding the P2P producer to the guide is
+same-or-better" claim on its own. Pre-registered prediction (from the
+series-1 blend-vs-blend+P2P control, where P2P under prefix-first placement
+moved 98K tokens all run): statistically indistinguishable from the baseline
+across the ladder, with possible small tail gains at the top rates where
+overload occasionally displaces requests off cache owners. Known risks that
+would falsify "never worse": pulls below the recompute crossover (gated here
+by the 2048-token delta) and source-side load during saturation.
 
 Both arms run the guide's `precise-prefix-cache-producer` config: blockSize 64,
 `speculativeIndexing: true`, KV events with pod discovery. The baseline differs
