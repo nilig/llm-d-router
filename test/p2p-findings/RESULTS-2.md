@@ -123,6 +123,60 @@ and the P2P producer added to the guide is free - it activates only when
 placement diverges from the cache. Whether it then helps (rather than
 merely not hurting) is the docQA question, next.
 
+## Run D: guide vs guide+P2P on the docQA regime
+
+The other half of the "safe default add-on" question: the document-Q&A
+regime from series 1 (192 docs x 48K tokens, 6 turns, 256-token answers,
+128 concurrent, `conversation_replay`, request timeout 180 s) - the regime
+where the guide's prefix-first placement herds and its tails blow up. Same
+two arms as Run G: guide-verbatim (opt4v) vs guide + `p2p-source-producer`
+(opt7). Four arms ran back-to-back on one fleet (cold at the first arm,
+progressively warmer after), order alternated so opt7 held the colder slot
+of the second pair.
+
+Each cell: TTFT p50 / p95 / p99 (s); turns/s; timeouts (requests exceeding
+the 180 s client timeout).
+
+| run | slot | Guide (opt4v) | Guide + P2P (opt7) |
+|---|---|---|---|
+| 1 | cold fleet | 4.25 / 95.1 / 152.2; 4.52; 0 | 3.93 / 35.9* / 133.2*; 3.87; **45** |
+| 2 | warm fleet | 4.17 / 80.4 / 134.5; 4.92; 0 (ran last, warmest) | 3.74 / 59.8 / 116.5; 5.30; 0 |
+
+*Run-1 opt7 percentiles are success-only and flattered by censoring: its
+45 worst requests became timeouts, so on an all-requests basis its extreme
+tail is >= 180 s - worse than the paired baseline's 152 s max.
+
+**Verdict: mostly the same, modestly better warm, possibly worse cold -
+and nowhere near a rescue.** In the warm pair opt7 beat the baseline on
+every metric from the less favorable slot (p95 -26%, p99 -13%, +8%
+turns/s). In the cold pair it traded a better body for 45 clipped tail
+requests the baseline didn't have - the pre-registered "source-side load
+during saturation" risk is plausibly real. The external-hit counter rose
+in every arm (~20M tokens; the offloading tier serves local CPU reloads
+under this cache pressure regardless of P2P), with opt7 arms +3-5M above
+their paired baselines - consistent with a modest number of genuine peer
+pulls, not per-request activation.
+
+The decisive comparison is against series 1: load-aware placement + P2P on
+this same workload delivered TTFT p99 of 21-27 s at 7.0-7.8 turns/s -
+5x better tails and ~1.5x the throughput of EITHER guide arm here
+(116-152 s, 3.9-5.3 turns/s). The producer bolted onto prefix-first
+placement cannot fix herding, because the requests still queue on the
+cache owner; it only trims what leaks around the edges.
+
+**Series-2 conclusion.** Three placements, two regimes:
+
+1. On the guide's home workload (GPU-resident prefixes), placement to the
+   cache wins; P2P is inert-and-free added to the guide, and actively
+   harmful under load-preferred placement.
+2. On the oversubscribed docQA workload, placement to the cache is the
+   bottleneck itself; adding P2P to it changes little. The series-1 result
+   stands as the winning configuration: load-aware placement with the P2P
+   pull covering the misses.
+3. The `p2p-source-producer` is safe to ship as a default in the guide
+   config (no measurable cost in either regime), but the value claim
+   belongs to the placement+pull pairing, not to the producer alone.
+
 | stage | rate (req/s) | requests | TTFT p50 | TTFT p95 | TTFT p99 | output tok/s |
 |---|---|---|---|---|---|---|
 | warmup | 15 | 750 | 0.127 | 0.248 | 0.295 | 12,491 |
