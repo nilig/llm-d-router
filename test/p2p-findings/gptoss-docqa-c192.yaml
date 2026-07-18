@@ -1,0 +1,84 @@
+endpoint:
+  stack_name: gptoss-docqa-c192
+  model: openai/gpt-oss-120b
+  namespace: nilig-p2p
+  base_url: http://llm-d-router-epp.nilig-p2p.svc.cluster.local:8081
+  hf_token_secret: llm-d-hf-token
+control:
+  work_dir: /private/tmp/claude-501/-Users-niliguy-github-com-llm-d-router/a5536e3c-535b-499e-b9eb-5ba4d86c97ae/scratchpad/bench-work
+  kubectl: kubectl
+harness:
+  name: inference-perf
+  results_pvc: workload-pvc
+  namespace: nilig-p2p
+  parallelism: 1
+  wait_timeout: 5400
+  image: ghcr.io/llm-d/llm-d-benchmark:v0.7.0
+env:
+- name: RAYON_NUM_THREADS
+  value: '4'
+workload:
+  gptoss_docqa:
+    load:
+      type: concurrent
+      num_workers: 8
+      worker_max_concurrency: 1000
+      request_timeout: 180
+      stages:
+      - num_requests: 1152
+        concurrency_level: 192
+    api:
+      type: completion
+      streaming: true
+    server:
+      type: vllm
+      model_name: openai/gpt-oss-120b
+      base_url: http://llm-d-router-epp.nilig-p2p.svc.cluster.local:8081
+      ignore_eos: true
+    tokenizer:
+      pretrained_model_name_or_path: openai/gpt-oss-120b
+    data:
+      type: conversation_replay
+      conversation_replay:
+        seed: 37
+        max_model_len: 65536
+        num_conversations: 192
+        shared_system_prompt_len: 256
+        dynamic_system_prompt_len:
+          type: lognormal
+          min: 49152
+          max: 49152
+          mean: 49152
+          std_dev: 1
+        turns_per_conversation:
+          type: lognormal
+          min: 6
+          max: 6
+          mean: 6
+          std_dev: 1
+        input_tokens_per_turn:
+          type: lognormal
+          min: 256
+          max: 256
+          mean: 256
+          std_dev: 1
+        output_tokens_per_turn:
+          type: lognormal
+          min: 256
+          max: 256
+          mean: 256
+          std_dev: 1
+        tool_call_latency_sec:
+          type: lognormal
+          min: 1
+          max: 2
+          mean: 1
+          std_dev: 1
+    report:
+      request_lifecycle:
+        summary: true
+        per_stage: true
+        per_request: true
+    storage:
+      local_storage:
+        path: /workspace

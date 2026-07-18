@@ -279,3 +279,60 @@ clean run started on a workload-warmed fleet. The cluster's idle-GPU
 reclaimer repeatedly zeroed the fleet during this series (observed strikes
 00:11, 02:22, 03:06, 05:44 on 2026-07-17, including mid-run at 40+ req/s);
 runs invalidated by strikes are quarantined and rerun, never reported.
+
+## Run L: P/D guide vs guide+P2P at C=192 (gpt-oss, paired A/B)
+
+Setup: pd-disaggregation guide topology at uniform TP=1 (8 prefill + 8
+decode, one H200 each), `openai/gpt-oss-120b`, quay-mirrored nightly +
+generic_p2p overlay, block 64, PYTHONHASHSEED pinned. Arm A: guide verbatim
+(plain `NixlConnector`, guide EPP). Arm B: identical plus the P2P stack
+(`MultiConnector(NixlConnector + OffloadingConnector[p2p tier])`, 128 GiB
+CPU tier both roles (~2.3x the ~1.38M-token GPU KV at TP=1), shm 160 Gi,
+sidecar `--enable-p2p-pull`, EPP + precise producer + p2p-source-producer,
+minCachedTokenDelta 2048). Workload: the docQA profile at concurrency 192
+(`gptoss-docqa-c192.yaml`), same day, clean re-roll per arm, config-aware
+readiness. Concurrency chosen by a mechanism gate (`pd-mechgate.sh`):
+bursts at C=128/192/256 under the guide's own scorers; C=192 produced 9
+source-header fires (placement spill), C=128 zero.
+
+| arm | success | TTFT p50 | p95 | p99 | turns/s |
+|---|---|---|---|---|---|
+| A guide | 1152/1152 | 11.94 s | 71.6 s | 106.1 s | 5.68 |
+| B guide+P2P | 1152/1152 | 1.16 s | 55.2 s | 80.0 s | 7.96 |
+
+Arm B is better on every metric: 10x median TTFT, -25% p99, +40%
+throughput, zero failures on both arms. Attribution: the win is the CPU
+offload tier - turn N+1's history re-prefill hits the tier (52.2M
+external-hit tokens in arm B) instead of recomputing under 192-deep
+queues. The P2P pull itself fired zero times during the profile run
+(docQA's smooth turn arrivals never spill placement; the gate's bursty
+single wave at the same concurrency fired 9), so the pull is a free,
+stable rider under guide placement and activates under burstier traffic.
+
+## Run M: prefill pulls decode's generated history (Llama-8B, chat API)
+
+The mechanism blocked all week under text-append became measurable when
+all three prerequisites cleared at once: a round-trip-stable chat template
+(Llama-3.1-8B; generated text re-tokenizes to the generated ids), the
+chat-completions API (server renders the message history), and natural EOS
+(no `ignore_eos`: forced continuation embeds special tokens as text and
+breaks the hash chain - with it, only 448 tokens matched). Rig: 1 prefill
++ 1 decode (TP=1, `llama-pd.yaml`), pull-enabled sidecar, session primed
+first (cold-session defect). Driver (`llama-chat-pull3.sh`): 8K-token
+system prompt, decode generates a ~1350-token answer, turn 2 resends the
+history with `x-kv-cache-source-host-port=<decode>`; control is the
+identical flow without the header.
+
+| mode | prefill ext-hit tokens | KV loaded |
+|---|---|---|
+| control (no source) | 0 | 0 |
+| pull (source=decode) | 1216 (~90% of the answer; all full blocks) | 152 MB |
+
+152 MB / 1216 tokens = 125 KB/token, Llama-8B's bf16 KV size - the byte
+accounting closes. The unmatched remainder is the final partial block,
+which is structurally uncacheable. This is the first cross-role
+generated-KV transfer of the campaign and bounds the claim precisely:
+prefill-from-decode works when the request can name decode's ids
+(token-stable multi-turn), and cannot exist under text-append harnesses
+(kubernetes-sigs/inference-perf#649) or analysis-dropping templates
+(gpt-oss harmony) regardless of the serving stack.
