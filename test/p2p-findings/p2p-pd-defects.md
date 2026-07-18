@@ -5,18 +5,22 @@ disaggregation (gpt-oss-120b, `always-disagg`, TP=1 prefill + TP=4 decode,
 `MultiConnector(NixlConnector + OffloadingConnector[p2p tier])`, sidecar
 `--enable-p2p-pull`). Defect 1 is a block-identity property shared by the p2p
 and fs secondary tiers; defect 2 is in the p2p control transport
-(`tiering/p2p/control/zmq.py`); defect 3 is a consumer-side session-lifecycle
-race. Separate from the pull-path request hangs in
+(`tiering/p2p/control/zmq.py`). Separate from the pull-path request hangs in
 [p2p-lookup-hangs.md](p2p-lookup-hangs.md).
 
-Context for all three: the pull mechanism itself is proven working between
+Context for both: the pull mechanism itself is proven working between
 same-TP roles. A standalone test (`pd-direct-pull-test.sh` - no EPP, no
 sidecar, no benchmark harness: warm one decode engine with an 8K input prompt,
 send the same prompt to a prefill engine with hand-injected
 `kv_transfer_params.p2p = {kv_request_id, remote_host, remote_port}`, the
 exact shape `pkg/sidecar/proxy/connector_p2p.go` injects) pulls the full 8,000
 tokens (285 MB) from the decode tier in 0.1 s against a 3.3 s local-compute
-reference - once the peer session is established. The defects below are what
+reference. This holds from the very first contact between a cold pair:
+`pd-direct-pull-output-cold.txt` captures a verified-cold pair (decode
+with zero accepted connections, prefill `ext_hits=0`) pulling the full prompt
+on request one, the session created mid-request - the session client parks
+the lookup as a pending entry and sends it once the handshake completes
+(`session/client.py` + `flush_pending_lookups`). The defects below are what
 break it around the edges.
 
 ## Defect 1: KV block identity is TP-dependent, so cross-TP sharing is refused by both secondary tiers
@@ -83,25 +87,6 @@ churn - degrades to "no pull, local recompute" instead of taking the whole
 EngineCore down. This is worth fixing independently of the cross-TP question:
 today any peer-connect instability is a fleet-wide crash rather than a graceful
 fallback.
-
-## Defect 3: cold-session race - the first request to a new peer always misses
-
-The first pull request naming a never-contacted peer establishes the P2P
-session and runs its block lookup concurrently. The lookup finds the session
-not yet ready, the consumer logs `manager.py:656 P2P ...: peer <peer>:7777
-down`, and the request silently recomputes - while the source side logs a
-clean `accepting incoming connection` / `created connected session` for the
-same instant. Any subsequent pull over the now-established session works
-perfectly (the 0.1 s / 8,000-token result above was request number two; request
-number one against the same warm source recomputed at full cost).
-
-Consequence: with lazily-formed sessions, every (consumer, source) pair pays
-one full recompute on first contact. A fleet of P prefills and D decodes under
-a scatter-heavy router burns P x D warmup misses, and any peer restart (pod
-churn, reclaim) resets its pairs. Fix direction: the lookup path should wait
-briefly (bounded, e.g. the session-connect timeout) for a session in
-CONNECTING state instead of classifying it down - or the manager should
-pre-establish sessions to discovered peers rather than on first use.
 
 Related robustness note, reconfirmed while testing: a pull naming a dead peer
 (pod deleted between header emission and arrival) hangs the request for 40+ s

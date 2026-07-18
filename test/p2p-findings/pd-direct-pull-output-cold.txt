@@ -1,0 +1,25 @@
+# pd-direct-pull-test run 1 (COLD session: first-ever contact for this prefill/decode pair)
+# pair verified cold: decode log has zero 'accepting incoming connection' lines; prefill ext_hits=0 before run
+# date: 2026-07-18T19:11:17Z  cluster: kermit_US-EAST-01A  ns: nilig-p2p
+# model: Qwen/Qwen3-30B-A3B-Thinking-2507  TP=1 prefill / TP=1 decode  block-size=64
+# image: quay.io/niliguy/vllm-openai:nightly-2afa3f7e950264bb179d030c23a1ed1f46558fd9
+# connector: MultiConnector(NixlConnector + OffloadingConnector[TieringOffloadingSpec, cpu 128GiB, offload_prompt_only=false, p2p tier :7777])
+# no EPP, no sidecar: kv_transfer_params.p2p hand-injected (shape of pkg/sidecar/proxy/connector_p2p.go)
+
+22:11:17 decode: qwen-pd-decode-79b96f7856-dsnhd (10.0.8.205)  prefill: qwen-pd-prefill-b8f974556-zc4m8  model: Qwen/Qwen3-30B-A3B-Thinking-2507  tag: COLDRACE2
+22:11:17 1. warm decode engine directly with prompt X (8K input tokens)...
+decode warm: 1.0s
+22:11:19 waiting 8s for CPU-tier flush...
+22:11:27 2. control: fresh prompt Y on prefill (compute-time reference)...
+control compute: 1.0s
+22:11:30 3. pull test: prompt X on prefill with p2p params -> 10.0.8.205:7777  (before: ext_hits=0 load_bytes=0)
+PULL request: 0.2s
+22:11:34 after: ext_hits=8000 (+8000 tokens)  load_bytes=786432000 (+750MB)
+--- prefill engine p2p lines (last 4m):
+(APIServer pid=1) INFO 07-18 19:11:32 [metrics.py:103] KV Transfer metrics: OffloadingConnector={'vllm:kv_offload_cpu_cache_usage_perc': 0.0, 'vllm:kv_offload_lookup_sync
+--- decode engine p2p lines (last 4m):
+(APIServer pid=1) INFO 07-18 19:11:23 [metrics.py:103] KV Transfer metrics: OffloadingConnector={'vllm:kv_offload_cpu_cache_usage_perc': 0.0, 'vllm:kv_offload_lookup_sync
+(EngineCore pid=400) INFO 07-18 19:11:31 [manager.py:707] P2P 10.0.8.205:7777: _poll_once got 1 new connection(s): ['10.0.2.203:7777']
+(EngineCore pid=400) INFO 07-18 19:11:31 [manager.py:591] P2P 10.0.8.205:7777: accepting incoming connection from 10.0.2.203:7777
+(EngineCore pid=400) INFO 07-18 19:11:31 [manager.py:608] P2P 10.0.8.205:7777: created connected session for 10.0.2.203:7777
+22:11:36 VERDICT: PULL WORKED - prefill took 8000 tokens from decode's tier
