@@ -1,0 +1,115 @@
+# Cross-TP fs multi-tier test. Two Llama-3.1-8B pods, TP=1 and TP=2, both
+# OffloadingConnector with a shared-filesystem secondary tier on the same RWX
+# PVC (workload-pvc, subdir /mnt/files-storage/fstest). Warm the TP=2 pod, then
+# read the same prefix on the TP=1 pod: if the fs read succeeds cross-TP the
+# problem is P2P-session-specific; if it misses/rejects, cross-TP KV sharing is
+# TP-layout-locked in general. No router/NIXL/p2p - isolates the fs tier only.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: llama-fs-tp1, namespace: nilig-p2p, labels: {app: llama-fs, tp: "1"}}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: llama-fs, tp: "1"}}
+  template:
+    metadata: {labels: {app: llama-fs, tp: "1"}}
+    spec:
+      serviceAccountName: pd-disaggregation-nvidia-gpu-vllm-sa
+      containers:
+        - name: modelserver
+          image: quay.io/niliguy/vllm-openai:nightly-2afa3f7e950264bb179d030c23a1ed1f46558fd9
+          imagePullPolicy: IfNotPresent
+          command: ["sh","-c","rm -f /dev/shm/vllm_offload_*.mmap 2>/dev/null; exec vllm serve \"$@\"","sh"]
+          args:
+            - meta-llama/Llama-3.1-8B-Instruct
+            - --port=8000
+            - --tensor-parallel-size=1
+            - --block-size=64
+            - --max-model-len=20000
+            - --gpu-memory-utilization=0.6
+            - --kv-transfer-config
+            - '{"kv_connector":"OffloadingConnector","kv_role":"kv_both","kv_connector_extra_config":{"spec_name":"TieringOffloadingSpec","cpu_bytes_to_use":8589934592,"offload_prompt_only":false,"secondary_tiers":[{"type":"fs","root_dir":"/mnt/files-storage/fstest","n_read_threads":8,"n_write_threads":8}]}}'
+          env:
+            - {name: HF_TOKEN, valueFrom: {secretKeyRef: {name: llm-d-hf-token, key: HF_TOKEN}}}
+            - {name: PYTHONHASHSEED, value: "0"}
+          ports: [{containerPort: 8000, name: http}]
+          resources: {limits: {cpu: "8", memory: 64Gi, nvidia.com/gpu: "1"}, requests: {cpu: "8", memory: 64Gi, nvidia.com/gpu: "1"}}
+          startupProbe: {httpGet: {path: /v1/models, port: 8000}, initialDelaySeconds: 10, periodSeconds: 15, failureThreshold: 40}
+          readinessProbe: {httpGet: {path: /v1/models, port: 8000}, periodSeconds: 5, failureThreshold: 3}
+          volumeMounts:
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/envs.py, name: gp2p, subPath: envs.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/spec.py, name: gp2p, subPath: spec.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/manager.py, name: gp2p, subPath: tiering_manager.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/manager.py, name: gp2p, subPath: manager.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/data/base.py, name: gp2p, subPath: data_base.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/data/nixl.py, name: gp2p, subPath: data_nixl.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/client.py, name: gp2p, subPath: session_client.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/protocol.py, name: gp2p, subPath: session_protocol.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/server.py, name: gp2p, subPath: session_server.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/session.py, name: gp2p, subPath: session_session.py}
+            - {mountPath: /dev/shm, name: shm}
+            - {mountPath: /mnt/files-storage, name: files-storage}
+            - {mountPath: /.cache, name: cache}
+            - {mountPath: /.config, name: cfg}
+            - {mountPath: /.triton, name: triton}
+      volumes:
+        - {name: shm, emptyDir: {medium: Memory, sizeLimit: 16Gi}}
+        - {name: gp2p, configMap: {name: generic-p2p-src}}
+        - {name: files-storage, persistentVolumeClaim: {claimName: workload-pvc}}
+        - {name: cache, emptyDir: {}}
+        - {name: cfg, emptyDir: {}}
+        - {name: triton, emptyDir: {}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: llama-fs-tp2, namespace: nilig-p2p, labels: {app: llama-fs, tp: "2"}}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: llama-fs, tp: "2"}}
+  template:
+    metadata: {labels: {app: llama-fs, tp: "2"}}
+    spec:
+      serviceAccountName: pd-disaggregation-nvidia-gpu-vllm-sa
+      containers:
+        - name: modelserver
+          image: quay.io/niliguy/vllm-openai:nightly-2afa3f7e950264bb179d030c23a1ed1f46558fd9
+          imagePullPolicy: IfNotPresent
+          command: ["sh","-c","rm -f /dev/shm/vllm_offload_*.mmap 2>/dev/null; exec vllm serve \"$@\"","sh"]
+          args:
+            - meta-llama/Llama-3.1-8B-Instruct
+            - --port=8000
+            - --tensor-parallel-size=2
+            - --block-size=64
+            - --max-model-len=20000
+            - --gpu-memory-utilization=0.6
+            - --kv-transfer-config
+            - '{"kv_connector":"OffloadingConnector","kv_role":"kv_both","kv_connector_extra_config":{"spec_name":"TieringOffloadingSpec","cpu_bytes_to_use":8589934592,"offload_prompt_only":false,"secondary_tiers":[{"type":"fs","root_dir":"/mnt/files-storage/fstest","n_read_threads":8,"n_write_threads":8}]}}'
+          env:
+            - {name: HF_TOKEN, valueFrom: {secretKeyRef: {name: llm-d-hf-token, key: HF_TOKEN}}}
+            - {name: PYTHONHASHSEED, value: "0"}
+          ports: [{containerPort: 8000, name: http}]
+          resources: {limits: {cpu: "16", memory: 96Gi, nvidia.com/gpu: "2"}, requests: {cpu: "16", memory: 96Gi, nvidia.com/gpu: "2"}}
+          startupProbe: {httpGet: {path: /v1/models, port: 8000}, initialDelaySeconds: 10, periodSeconds: 15, failureThreshold: 40}
+          readinessProbe: {httpGet: {path: /v1/models, port: 8000}, periodSeconds: 5, failureThreshold: 3}
+          volumeMounts:
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/envs.py, name: gp2p, subPath: envs.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/spec.py, name: gp2p, subPath: spec.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/manager.py, name: gp2p, subPath: tiering_manager.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/manager.py, name: gp2p, subPath: manager.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/data/base.py, name: gp2p, subPath: data_base.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/data/nixl.py, name: gp2p, subPath: data_nixl.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/client.py, name: gp2p, subPath: session_client.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/protocol.py, name: gp2p, subPath: session_protocol.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/server.py, name: gp2p, subPath: session_server.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/session.py, name: gp2p, subPath: session_session.py}
+            - {mountPath: /dev/shm, name: shm}
+            - {mountPath: /mnt/files-storage, name: files-storage}
+            - {mountPath: /.cache, name: cache}
+            - {mountPath: /.config, name: cfg}
+            - {mountPath: /.triton, name: triton}
+      volumes:
+        - {name: shm, emptyDir: {medium: Memory, sizeLimit: 16Gi}}
+        - {name: gp2p, configMap: {name: generic-p2p-src}}
+        - {name: files-storage, persistentVolumeClaim: {claimName: workload-pvc}}
+        - {name: cache, emptyDir: {}}
+        - {name: cfg, emptyDir: {}}
+        - {name: triton, emptyDir: {}}
