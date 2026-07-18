@@ -336,3 +336,53 @@ prefill-from-decode works when the request can name decode's ids
 (token-stable multi-turn), and cannot exist under text-append harnesses
 (kubernetes-sigs/inference-perf#649) or analysis-dropping templates
 (gpt-oss harmony) regardless of the serving stack.
+
+## Run O: agentic workload on P/D + P2P (Qwen3-30B-A3B-Thinking, EPP e2e)
+
+The agentic-serving guide's benchmark model and workload shapes, served on
+the pd-disaggregation topology, with and without the P2P stack. Model and
+engine flags follow the agentic scenario
+(`llm-d-benchmark/config/scenarios/guides/agentic-serving.yaml`):
+`Qwen/Qwen3-30B-A3B-Thinking-2507`, block size 64, qwen3 reasoning parser,
+`qwen3_xml` tool parser, temperature 0. Deviations, applied to both arms:
+prefix caching enabled (the scenario disables it; reuse is the subject
+here), `max-model-len` 131072, and the topology is 2 prefill + 4 decode at
+TP=1 (the scenario deploys 2 aggregated pods; P/D is required for the
+prefill-pulls-decode question). 6x H200 total.
+
+Calibration, measured on this rig before the arms (`configs/run-o/`):
+GPU KV 65.33 GiB/pod (engine startup log) -> 128 GiB CPU tier = 1.96x;
+pull of 8K tokens = 74 ms vs 1.21 s recompute (16x), pull overhead ~30 ms
+-> crossover ~760 tokens -> `minCachedTokenDelta: 1024`. Thinking-model
+round trip: the rendered prompt matches, the generated segment does not
+(think blocks are stripped on re-render), so pull value concentrates in
+history recovery rather than per-turn answers.
+
+Workload: the scenario's synthetic agentic profile scaled to the context
+window and a benchmarkable runtime (`qwen-agentic-syn.yaml`): 24
+conversations, dynamic system prompts 10K-100K tokens (mean 50K), 4-40
+turns (mean 12), ~1500 input / ~425 output tokens per turn, tool-call
+latency gaps 1-20 s (these evict session KV between turns, making
+re-engagement the pull-vs-recompute choice), concurrency 16, 288 requests,
+text-append via `conversation_replay` (honest here: the dominant reuse is
+input-side context). Each arm ran on a freshly re-rolled fleet.
+
+| arm | succ | duration | TTFT p50 | p95 | p99 |
+|---|---|---|---|---|---|
+| A guide (plain NIXL) | 288/288 | 304 s | 5.22 s | 18.94 s | 30.29 s |
+| B guide+P2P (sample 1) | 288/288 | 229 s | 1.09 s | 11.77 s | 29.98 s |
+| B guide+P2P (sample 2) | 288/288 | 237 s | 1.06 s | 14.79 s | 31.01 s |
+
+Arm B: 4.8x median TTFT, p95 -22% to -38%, run time -25% (+33%
+throughput), p99 at parity (both arms' ceiling is the cold first prefill
+of a 100K-token context - irreducible compute). Mechanism receipt: arm B
+pulled 1,229,504 tokens of session history in sample 1's 229 s instead of
+recomputing it; the EPP decided every pull (precise index over both roles'
+kv-events, source header, sidecar injection).
+
+The scenario's OTel trace replay (`qwen-agentic-otel.yaml`, chat API, real
+agent sessions with tool calls) serves as the authenticity check: at cold
+caches it pulled 16K tokens over 67 events with zero errors; at 16
+concurrent sessions the bundled test traces fit warm caches and pull
+little. Headline numbers come from the synthetic shapes; the trace replay
+shows the same machinery serving real agent-session structure.
