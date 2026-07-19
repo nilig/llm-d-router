@@ -59,9 +59,15 @@ full-attention group, or the model uses MLA. Both models in the tests above
 happened to be excluded, one per clause: gpt-oss-120b interleaves
 sliding-window and full attention (multiple KV groups) and so is TP-locked
 even on the V1 runner it uses, and Llama-3.1-8B runs the V2 model runner on
-this build (`gpu_worker: Using V2 Model Runner`). A single-full-attention,
-non-MLA model on the V1 runner (e.g. Qwen3-30B-A3B on this build) should
-form cross-TP sessions; untested here.
+this build (`gpu_worker: Using V2 Model Runner`). Upstream confirms the support statement: hetero-TP is supported for
+non-hybrid models on the V1 model runner only, and models that default to
+the V2 runner must be forced back with `VLLM_USE_V2_MODEL_RUNNER=0`.
+Runner selection verified by probe on this build: gpt-oss-120b and
+Qwen3-30B-A3B initialize on the V1 runner, Llama-3.1-8B on V2. The matrix
+here: gpt-oss never (hybrid attention); Llama-3.1-8B eligible if forced
+to MRV1; Qwen3-30B-A3B eligible as-is. Untested validations: rerun the
+fs isolation on Llama with `VLLM_USE_V2_MODEL_RUNNER=0`, or a Qwen
+cross-TP pair as-is.
 
 Consequence for llm-d P/D + P2P: "a prefiller pulls session history from the
 decode tier" is unavailable whenever prefill and decode run different TP, which
