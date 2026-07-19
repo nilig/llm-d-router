@@ -47,20 +47,31 @@ tier (`type: fs`) on a shared RWX PVC. Warm an 8K-token prefix on the TP=2 pod
 
 So both secondary tiers enforce the same TP boundary via different mechanisms -
 the P2P tier through the session config fingerprint, the fs tier through the
-config-hash directory namespace. The root cause is that the offloaded block's
-layout/identity depends on the tensor-parallel degree (KV heads are sharded per
-TP), so a block written under one TP is not the same block under another.
+config-hash directory namespace.
+
+Resolution of the root cause (upstream `file_mapper.py`,
+`FileMapper.from_offloading_spec`): cross-TP sharing is implemented, not
+impossible - the fingerprint is built `parallel_agnostic=True` (tp/pp/rank
+collapse out) - but the mode is demoted to TP-locked when any of three
+conditions holds: the V2 model runner is in use (its KV layout is not known
+to be parallelism-invariant), the KV cache config has more than a single
+full-attention group, or the model uses MLA. Both models in the tests above
+happened to be excluded, one per clause: gpt-oss-120b interleaves
+sliding-window and full attention (multiple KV groups) and so is TP-locked
+even on the V1 runner it uses, and Llama-3.1-8B runs the V2 model runner on
+this build (`gpu_worker: Using V2 Model Runner`). A single-full-attention,
+non-MLA model on the V1 runner (e.g. Qwen3-30B-A3B on this build) should
+form cross-TP sessions; untested here.
 
 Consequence for llm-d P/D + P2P: "a prefiller pulls session history from the
 decode tier" is unavailable whenever prefill and decode run different TP, which
 the P/D guide topology (8x TP=1 prefill + 2x TP=4 decode) always does.
 
-Open question, not a fix: is TP-invariant cross-TP KV reuse a goal? It would
-need a TP-invariant block representation, or a re-layout on read/write across
-the TP boundary - a larger change than the fingerprint check. If it is not a
-goal, the connector should at least fail the pull cleanly (see Defect 2) and
-the router should avoid emitting a cross-TP source header, since the pull can
-never succeed.
+Open items: extending the parallel-agnostic mode to the V2 model runner and
+to multi-group attention layouts (the two exclusions that bit here), and -
+wherever a deployment falls in an excluded configuration - failing the pull
+cleanly (see Defect 2) and having the router avoid emitting a cross-TP
+source header, since the pull cannot succeed there.
 
 Repro: `llama-fs-crosstp.yaml` (the two TP pods) + `llama-fs-test.sh` (warm,
 cross-read, on-disk hash-dir dump).
