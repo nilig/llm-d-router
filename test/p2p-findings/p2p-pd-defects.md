@@ -77,7 +77,12 @@ Open items: extending the parallel-agnostic mode to the V2 model runner and
 to multi-group attention layouts (the two exclusions that bit here), and -
 wherever a deployment falls in an excluded configuration - failing the pull
 cleanly (see Defect 2) and having the router avoid emitting a cross-TP
-source header, since the pull cannot succeed there.
+source header, since the pull cannot succeed there. On the first item,
+[vllm#48414](https://github.com/vllm-project/vllm/pull/48414) (stacked on
+#48408) is in flight: it stores offloaded KV in a canonical
+parallelism-free layout - one copy per block, no parallelism inputs in the
+transfer path - and fails uncertifiable configs at startup instead of
+silently demoting.
 
 Repro: `llama-fs-crosstp.yaml` (the two TP pods) + `llama-fs-test.sh` (warm,
 cross-read, on-disk hash-dir dump).
