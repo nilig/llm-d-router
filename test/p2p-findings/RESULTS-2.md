@@ -337,6 +337,63 @@ prefill-from-decode works when the request can name decode's ids
 (kubernetes-sigs/inference-perf#649) or analysis-dropping templates
 (gpt-oss harmony) regardless of the serving stack.
 
+## Run N: EPP-e2e chat multi-turn, prefill pulls decode's history at scale (Llama-8B)
+
+Run M proved the cross-role transfer on a single request; Run N runs it
+end-to-end under the EPP, on a multi-turn chat workload at concurrency,
+across a P/D pair.
+
+Rig: `meta-llama/Llama-3.1-8B-Instruct`, 4 prefill + 4 decode (TP=1),
+then 2 prefill + 4 decode at saturation (`llama-pd.yaml`). Driver
+`chat_load.py`: concurrent conversations (48 at 4P, 96 at 2P), live
+history (each turn resends the accumulated chat), natural EOS (no
+`ignore_eos` - the same round-trip-stability requirement as Run M).
+Chat-completions rendered by the GPU engines (the CPU render image
+v0.23.0 lacks `/v1/chat/completions/render`;
+`llama-chat-render-svc.yaml`). Arms: A = precise prefix-cache placement,
+no pull (`epp-llama-a.yaml`); B = precise + `p2p-source-producer`,
+`minCachedTokenDelta: 1024` (`epp-llama-b.yaml`).
+
+Mechanism (arm B): EPP-decided per-turn prefill<-decode pulls fired on
+every turn where the scheduled prefill worker lacked the history. **477K
+tokens pulled (4P, C=48)** and **1.65M tokens (2P, C=96)**; the decode
+session accepted the pull on all decode pods. Per-turn TTFT stayed flat
+as the conversation grew (arm B):
+
+| turn | prompt (K tok) | TTFT p50 (s) | TTFT p95 (s) |
+|---|---|---|---|
+| 0 | 5.0  | 1.00 | 1.69 |
+| 1 | 7.1  | 0.10 | 0.12 |
+| 2 | 9.2  | 0.13 | 0.20 |
+| 3 | 11.3 | 0.15 | 0.17 |
+| 4 | 13.4 | 0.16 | 0.18 |
+| 5 | 15.5 | 0.18 | 0.21 |
+| 6 | 17.6 | 0.20 | 0.23 |
+| 7 | 19.7 | 0.21 | 0.23 |
+
+Turn 0 pays the cold prefill (1.0s p50); every later turn's history
+arrives by pull and TTFT holds at 0.1-0.2s even as the prompt grows to
+~20K tokens.
+
+BUT arm-A parity: on Llama-8B the recompute this replaces is cheap - a
+~2K-token answer re-prefills in ~60ms, about the pull's own cost - so arm
+A (recompute) and arm B (pull) tie on TTFT, and tails are dominated by
+decode first-token under batching, not prefill. Verdict at this model
+scale: the pull's value is prefill **capacity** (GPU-seconds saved), not
+user-visible latency. The latency win needs a regime where the recompute
+is expensive (longer history, slower/larger prefill, or prefill
+saturated) - which Run O (Qwen3-30B agentic) then demonstrates.
+
+Three config bugs cost hours (recorded so they do not recur): a
+token-heavy system prompt (~3.3 tok/word) blew `max-model-len`; a
+chat-render 404 from the old CPU render image; and a stale `modelName` in
+the token-producer config renders 404 silently and starves the whole
+producer chain (check `modelName` when cloning EPP configs).
+
+Configs: `configs/run-n` (`chat_load.py` driver, `epp-llama-a.yaml` /
+`epp-llama-b.yaml` arms, `llama-pd.yaml` rig,
+`llama-chat-render-svc.yaml`).
+
 ## Run O: agentic workload on P/D + P2P (Qwen3-30B-A3B-Thinking, EPP e2e)
 
 The agentic-serving guide's benchmark model and workload shapes, served on
