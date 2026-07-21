@@ -35,7 +35,9 @@ routing + pull (armD) is the best config of the four.**
 `armC.yaml` = armC with δ2048 (unused here; δ2048 fires pulls that cost more than
 they save). Engine spec (both roles): `lws-prefill.yaml`, `lws-decode.yaml` — the
 prefill spec shown is `offload_prompt_only:false`; armD flipped that one flag to
-`true` (offload only the prompt/prefix KV).
+`true` — the setting that *matches* approx routing (approx never indexes decode blocks,
+and GLM's `delta.reasoning` decode isn't reused as a next-turn prefix, so offloading
+decode KV would be waste). See Caveats.
 
 ## Pull vs recompute — 24K prefix, unloaded (mechanism proof)
 
@@ -49,18 +51,20 @@ prefill spec shown is `offload_prompt_only:false`; armD flipped that one flag to
 
 ## Results — c128 agentic, ~929 s each, 0 errors
 
-| Metric | armA approx/off | armB precise/off | armC-16k precise/pull | **armD approx/pull** |
-|--------|----------------:|-----------------:|----------------------:|---------------------:|
-| TTFT p50 (ms) | 2,963 | 3,802 | 3,177 | **2,953** |
-| TTFT p90 (ms) | 9,226 | 11,755 | 9,970 | **8,833** |
-| TTFT p99 (ms) | 24,925 | 24,119 | 25,084 | 24,360 |
-| Req latency p50 (ms) | 21,202 | 21,795 | 21,525 | 21,311 |
-| Req latency p99 (ms) | 242,822 | 237,808 | 249,164 | 260,161 |
-| Inter-token p50 (ms) | 54.7 | 55.6 | 56.1 | 55.6 |
-| Output tok/s | 2,078 | 2,016 | 1,982 | 2,049 |
-| Requests done | 3,237 | 3,336 | 3,131 | 3,236 |
-| KV pulled cross-engine | ~0 | ~0 | 163 GB | 33.8 GB |
-| External hits (tokens) | ~0 | ~0 | 1.77 M | 364 K |
+Grouped by routing: approx (A, D) | precise (B, C).
+
+| Metric | armA approx/off | **armD approx/pull** | armB precise/off | armC-16k precise/pull |
+|--------|----------------:|---------------------:|-----------------:|----------------------:|
+| TTFT p50 (ms) | 2,963 | **2,953** | 3,802 | 3,177 |
+| TTFT p90 (ms) | 9,226 | **8,833** | 11,755 | 9,970 |
+| TTFT p99 (ms) | 24,925 | 24,360 | 24,119 | 25,084 |
+| Req latency p50 (ms) | 21,202 | 21,311 | 21,795 | 21,525 |
+| Req latency p99 (ms) | 242,822 | 260,161 | 237,808 | 249,164 |
+| Inter-token p50 (ms) | 54.7 | 55.6 | 55.6 | 56.1 |
+| Output tok/s | 2,078 | 2,049 | 2,016 | 1,982 |
+| Requests done | 3,237 | 3,236 | 3,336 | 3,131 |
+| KV pulled cross-engine | ~0 | 33.8 GB | ~0 | 163 GB |
+| External hits (tokens) | ~0 | 364 K | ~0 | 1.77 M |
 
 ## Findings
 
@@ -86,8 +90,15 @@ prefill spec shown is `offload_prompt_only:false`; armD flipped that one flag to
 - **c128 is saturated** (req-latency p99 ~240-260 s = queue/decode-bound). This is the
   *worst* regime for the pull, not the best. A concurrency ladder (c16/c32/c64) is needed
   to find where the pull's transfer cost is dominated by its recompute saving.
-- **armD is not a clean single-variable arm** — it changes both routing (approx) and
-  `offload_prompt_only` (true) vs the others.
+- **`offload_prompt_only` matches the router — so armD isn't a loose confound.** Offloading
+  decode KV (`false`) only helps when a producer *indexes* those blocks (**precise** does via
+  kv-events; **approx** does not) *and* the model reuses its decode as a next-turn prefix. GLM
+  emits reasoning in `delta.reasoning` and doesn't feed it back, and approx never indexes decode
+  — so `true` is the only coherent setting for approx (`false` would offload decode KV nothing
+  can reach). armD is thus "approx configured correctly," and armC (precise+`false`) vs armD
+  (approx+`true`) is a fair best-recipe comparison. Corollary: **armA (approx+`false`) is itself
+  slightly mis-set** — it offloads decode KV approx can't use, so part of armD's edge is that
+  `true` offloads less (less GPU→CPU contention).
 
 ## Operating the cell (hard-won)
 
