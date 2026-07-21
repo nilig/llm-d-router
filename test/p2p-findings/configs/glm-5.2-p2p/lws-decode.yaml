@@ -1,0 +1,532 @@
+apiVersion: leaderworkerset.x-k8s.io/v1
+kind: LeaderWorkerSet
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"leaderworkerset.x-k8s.io/v1","kind":"LeaderWorkerSet","metadata":{"annotations":{},"labels":{"llm-d.ai/model":"GLM-5.2-FP8","llm-d.ai/role":"decode"},"name":"wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode","namespace":"nilig-p2p"},"spec":{"leaderWorkerTemplate":{"size":2,"workerTemplate":{"metadata":{"labels":{"llm-d.ai/accelerator-variant":"gpu","llm-d.ai/accelerator-vendor":"nvidia","llm-d.ai/guide":"wide-ep-lws","llm-d.ai/inference-serving":"true","llm-d.ai/model":"GLM-5.2-FP8","llm-d.ai/role":"decode"}},"spec":{"affinity":{"podAffinity":{"preferredDuringSchedulingIgnoredDuringExecution":[{"podAffinityTerm":{"labelSelector":{"matchLabels":{"llm-d.ai/model":"GLM-5.2-FP8","llm-d.ai/role":"decode"}},"topologyKey":"backend.coreweave.cloud/leafgroup-name"},"weight":100}]}},"containers":[{"args":["find /dev/shm -type f -delete\n\n# Hotfix: add kv_quant_mode to MLAAttention.get_kv_cache_spec (vllm#48379)\n# PR #47716 fixed deepseek_v4 and sparse_swa but missed mla_attention.py\npython3 -c \"\np='/usr/local/lib/python3.12/dist-packages/vllm/model_executor/layers/attention/mla_attention.py'\ns=open(p).read()\nif 'get_kv_quant_mode' not in s:\n  s=s.replace('    MLAAttentionSpec,\\n)', '    MLAAttentionSpec,\\n    get_kv_quant_mode,\\n)')\n  s=s.replace('            cache_dtype_str=vllm_config.cache_config.cache_dtype,\\n        )',\n              '            cache_dtype_str=vllm_config.cache_config.cache_dtype,\\n            kv_quant_mode=get_kv_quant_mode(vllm_config.cache_config.cache_dtype),\\n        )')\n  open(p,'w').write(s); print('PATCHED mla_attention.py')\nelse: print('mla_attention.py already patched')\n\"\n\n# Hotfix: offloading set_ overflow for packed non-uniform KV caches\n# The indexer group's offset+page_size exceeds block_stride in the packed\n# layout. Replace set_() with as_strided() to avoid bounds check failure.\npython3 -c \"\nimport re\np='/usr/local/lib/python3.12/dist-packages/vllm/distributed/kv_transfer/kv_connector/v1/offloading/worker.py'\ns=open(p).read()\npat = (r'(tensors_per_block\\[layer_name\\] = \\(\\n)'\n       r'(\\s+)torch\\.tensor\\(\\n'\n       r'\\s+\\[\\],\\n'\n       r'\\s+dtype=torch\\.int8,\\n'\n       r'\\s+device=layer_kv_cache\\.device,\\n'\n       r'\\s+\\)\\.set_\\(\\n'\n       r'\\s+layer_kv_cache\\.untyped_storage\\(\\),\\n'\n       r'\\s+byte_offset,\\n'\n       r'\\s+\\(num_blocks, page\\),\\n'\n       r'\\s+\\(block_stride_bytes, 1\\),\\n'\n       r'\\s+\\),\\n'\n       r'(\\s+)\\)')\nrepl = (r'\\1'\n        r'\\2torch.as_strided(\\n'\n        r'\\2    torch.empty(0, dtype=torch.int8, device=layer_kv_cache.device).set_(layer_kv_cache.untyped_storage()),\\n'\n        r'\\2    (num_blocks, page),\\n'\n        r'\\2    (block_stride_bytes, 1),\\n'\n        r'\\2    byte_offset,\\n'\n        r'\\2),\\n'\n        r'\\3)')\nnew_s, n = re.subn(pat, repl, s)\nif n \u003e 0:\n  open(p,'w').write(new_s); print('PATCHED worker.py')\nelse:\n  print('worker.py: no match for set_ pattern')\n\"\n\n# Scale MAX_TOKENS with number of decode pods\nexport MAX_TOKENS=$(( ${MAX_TOKENS_PER_NODE:-128} * LWS_GROUP_SIZE ))\n\n# Wide-EP (multi-node): reserve VRAM for NVSHMEM symmetric heap\nGPU_MEM_UTIL=${DECODE_GPU_MEM_UTIL:-0.95}\n\n# DSpark speculative decoding (multi-node only — single-node is memory-bandwidth bound)\nSPEC_ARGS=\"\"\n# bf16/auto KV - same fp8 sparse-MLA crash workaround as\n# prefill.yaml; see comment there and PINNED-IMAGES.md.\nKV_CACHE_DTYPE_ARGS=\"\"\nMAX_BATCHED_TOKENS=${MAX_TOKENS}\nMAX_SEQS=${MAX_TOKENS}\nif [ \"${ENABLE_DSPARK:-0}\" = \"1\" ] \u0026\u0026 [ \"${LWS_GROUP_SIZE:-1}\" -gt 1 ]; then\n  GPU_MEM_UTIL=$(python3 -c \"print(round($GPU_MEM_UTIL - 0.07, 2))\")\n  MAX_SEQS=$(( MAX_TOKENS / 4 ))\n  MAX_BATCHED_TOKENS=$(( MAX_SEQS * (DSPARK_NUM_TOKENS + 1) ))\n  SPEC_ARGS=\"--speculative-config {\\\"model\\\":\\\"${DSPARK_MODEL}\\\",\\\"num_speculative_tokens\\\":${DSPARK_NUM_TOKENS},\\\"method\\\":\\\"dspark\\\"}\"\n  KV_CACHE_DTYPE_ARGS=\"\"\nfi\n\n# DeepEP low-latency requires: qp_depth \u003e= (max_dispatch_tokens + 1) * 2\nexport NVSHMEM_QP_DEPTH=$(( (MAX_BATCHED_TOKENS + 1) * 2 ))\n\nMTP_ARGS=\"\"\nif [ \"${ENABLE_MTP:-1}\" = \"1\" ]; then\n  MTP_ARGS=\"--speculative-config {\\\"method\\\":\\\"mtp\\\",\\\"num_speculative_tokens\\\":${MTP_NUM_TOKENS:-3}}\"\nfi\n\nSTART_RANK=$(( ${LWS_WORKER_INDEX:-0} * DP_SIZE_LOCAL ))\n\nPROFILER_ARGS=\"\"\nif [ \"${ENABLE_PROFILING:-0}\" = \"1\" ]; then\n  mkdir -p /var/cache/vllm/profile\n  PROFILER_ARGS=\"--profiler-config {\\\"profiler\\\":\\\"torch\\\",\\\"torch_profiler_dir\\\":\\\"/var/cache/vllm/profile\\\",\\\"torch_profiler_record_shapes\\\":true,\\\"torch_profiler_with_memory\\\":true,\\\"max_iterations\\\":3}\"\nfi\n\n# P2P: the base's inline NixlConnector-only kv_transfer_config is\n# replaced by the same MultiConnector as the prefill pool - NIXL\n# (P/D transfer) plus tiered offloading with the P2P secondary\n# tier, per the p2p guide's \"P/D variant\" JSON. Deltas vs that\n# guide JSON:\n# - cpu_bytes_to_use spliced from KV_OFFLOAD_CPU_BYTES (default\n#   107374182400 = 100 GiB; per rank -\u003e 8 x 100 GiB per pod).\n# - eviction_policy lru kept from the base prefill's tiered mode.\n# - kv_load_failure_policy fail kept from the base, both at the\n#   MultiConnector level and on the Nixl entry - MultiConnector\n#   children do not inherit the top-level field.\n# - p2p tier host is this pod's IP; vLLM offsets the 7777 base\n#   port by each engine's GLOBAL DP rank (leader pod binds\n#   7777-7784, worker pod 7785-7792).\nKV_TRANSFER_CONFIG='{\"kv_connector\":\"MultiConnector\",\n                      \"kv_role\":\"kv_both\",\n                      \"kv_load_failure_policy\":\"fail\",\n                      \"kv_connector_extra_config\":{\n                        \"connectors\":[\n                          {\"kv_connector\":\"NixlConnector\",\"kv_role\":\"kv_both\",\n                           \"kv_load_failure_policy\":\"fail\"},\n                          {\"kv_connector\":\"OffloadingConnector\",\"kv_role\":\"kv_both\",\n                           \"kv_connector_extra_config\":{\n                             \"spec_name\":\"TieringOffloadingSpec\",\n                             \"cpu_bytes_to_use\":'\"${KV_OFFLOAD_CPU_BYTES:-107374182400}\"',\n                             \"offload_prompt_only\":false,\n                             \"eviction_policy\":\"lru\",\n                             \"secondary_tiers\":[{\"type\":\"p2p\",\"host\":\"'\"${POD_IP}\"'\",\"port\":7777}]\n                        }}]}}'\n\n# P2P: KV events feed the router's precise prefix index. vLLM\n# offsets the ZMQ bind port (5557) by each engine's GLOBAL DP\n# rank (leader pod binds 5557-5564, worker pod 5565-5572); the\n# topic names port 8000 - the routing-proxy serving base that\n# the EPP sees as this pod's endpoints (vLLM itself binds\n# 8200-8207) - and the EPP remaps it per rank (SPEC.md, A2).\nKV_EVENTS_CONFIG='{\"enable_kv_cache_events\":true,\"publisher\":\"zmq\",\"endpoint\":\"tcp://*:5557\",\"topic\":\"kv@'\"${POD_IP}\"':8000@zai-org/GLM-5.2-FP8\"}'\n\nexec vllm serve $PROFILER_ARGS $SPEC_ARGS $MTP_ARGS $KV_CACHE_DTYPE_ARGS \\\n  zai-org/GLM-5.2-FP8 \\\n  --port 8200 \\\n  --trust-remote-code \\\n  --gpu-memory-utilization $GPU_MEM_UTIL \\\n  --max-model-len ${MAX_MODEL_LEN:-120000} \\\n  --disable-access-log-for-endpoints=/health,/metrics \\\n  --data-parallel-multi-port-external-lb \\\n  --data-parallel-supervisor-port=8208 \\\n  --enable-expert-parallel \\\n  --tensor-parallel-size $TP_SIZE \\\n  --max-num-batched-tokens ${MAX_BATCHED_TOKENS} \\\n  --max-num-seqs ${MAX_SEQS} \\\n  --data-parallel-size $((LWS_GROUP_SIZE * DP_SIZE_LOCAL)) \\\n  --data-parallel-size-local $DP_SIZE_LOCAL \\\n  --data-parallel-address ${LWS_LEADER_ADDRESS} \\\n  --data-parallel-rpc-port 5555 \\\n  --data-parallel-start-rank $START_RANK \\\n  --kv_transfer_config \"$KV_TRANSFER_CONFIG\" \\\n  --kv-events-config \"$KV_EVENTS_CONFIG\" \\\n  --all2all-backend deepep_low_latency \\\n  --moe-backend deep_gemm \\\n  --reasoning-parser glm45 \\\n  --tool-call-parser glm47 \\\n  --enable-auto-tool-choice \\\n  ${KV_CACHE_MEMORY_BYTES:+--kv-cache-memory-bytes=$KV_CACHE_MEMORY_BYTES}"],"command":["/bin/bash","-c"],"env":[{"name":"HF_TOKEN","valueFrom":{"secretKeyRef":{"key":"HF_TOKEN","name":"llm-d-hf-token"}}},{"name":"HF_HOME","value":"/mnt/hf-cache"},{"name":"DECODE_GPU_MEM_UTIL","value":""},{"name":"MAX_MODEL_LEN","value":"119990"},{"name":"ENABLE_PROFILING","value":"0"},{"name":"ENABLE_MTP","value":"0"},{"name":"MTP_NUM_TOKENS","value":"3"},{"name":"ENABLE_DSPARK","value":"0"},{"name":"DSPARK_MODEL","value":"RedHatAI/GLM-5.2-speculator.dspark"},{"name":"DSPARK_NUM_TOKENS","value":"7"},{"name":"VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS","value":"1"},{"name":"MAX_TOKENS_PER_NODE","value":"32"},{"name":"DP_SIZE_LOCAL","value":"8"},{"name":"TP_SIZE","value":"1"},{"name":"KV_OFFLOAD_CPU_BYTES","value":"107374182400"},{"name":"TRITON_LIBCUDA_PATH","value":"/usr/lib64"},{"name":"VLLM_SKIP_P2P_CHECK","value":"1"},{"name":"VLLM_RANDOMIZE_DP_DUMMY_INPUTS","value":"1"},{"name":"VLLM_USE_DEEP_GEMM","value":"1"},{"name":"NVIDIA_GDRCOPY","value":"enabled"},{"name":"NVSHMEM_REMOTE_TRANSPORT","value":"ibgda"},{"name":"NVSHMEM_IB_ENABLE_IBGDA","value":"true"},{"name":"NVSHMEM_BOOTSTRAP_UID_SOCK_IFNAME","value":"eth0"},{"name":"GLOO_SOCKET_IFNAME","value":"eth0"},{"name":"NCCL_SOCKET_IFNAME","value":"eth0"},{"name":"NCCL_IB_HCA","value":"ibp"},{"name":"NVSHMEM_HCA_PREFIX","value":"ibp"},{"name":"VLLM_MOE_DP_CHUNK_SIZE","value":"${MAX_TOKENS}"},{"name":"VLLM_COMPUTE_NANS_IN_LOGITS","value":"1"},{"name":"VLLM_HTTP_TIMEOUT_KEEP_ALIVE","value":"120"},{"name":"VLLM_LOGGING_LEVEL","value":"INFO"},{"name":"PYTHONHASHSEED","value":"0"},{"name":"VLLM_NIXL_SIDE_CHANNEL_HOST","valueFrom":{"fieldRef":{"fieldPath":"status.podIP"}}},{"name":"VLLM_P2P_SIDE_CHANNEL_HOST","valueFrom":{"fieldRef":{"fieldPath":"status.podIP"}}},{"name":"POD_IP","valueFrom":{"fieldRef":{"fieldPath":"status.podIP"}}},{"name":"CUDA_CACHE_PATH","value":"/var/cache/vllm/cuda"},{"name":"CCACHE_DIR","value":"/var/cache/vllm/ccache"},{"name":"VLLM_CACHE_ROOT","value":"/var/cache/vllm/vllm"},{"name":"FLASHINFER_WORKSPACE_BASE","value":"/var/cache/vllm/flashinfer"}],"image":"vllm/vllm-openai:nightly-6a9f24aa8cb856235528d01a829a4ba85fc1c19d@sha256:0eb4c29337c727adb36d88e96b109f1fd262f0e5708bc77dc8e65c02fa89acdc","imagePullPolicy":"Always","livenessProbe":{"failureThreshold":3,"httpGet":{"path":"/health","port":"supervisor"},"periodSeconds":30,"timeoutSeconds":5},"name":"vllm","ports":[{"containerPort":8200,"name":"vllm-rank0","protocol":"TCP"},{"containerPort":8201,"name":"vllm-rank1","protocol":"TCP"},{"containerPort":8202,"name":"vllm-rank2","protocol":"TCP"},{"containerPort":8203,"name":"vllm-rank3","protocol":"TCP"},{"containerPort":8204,"name":"vllm-rank4","protocol":"TCP"},{"containerPort":8205,"name":"vllm-rank5","protocol":"TCP"},{"containerPort":8206,"name":"vllm-rank6","protocol":"TCP"},{"containerPort":8207,"name":"vllm-rank7","protocol":"TCP"},{"containerPort":8208,"name":"supervisor","protocol":"TCP"},{"containerPort":5600,"name":"nixl","protocol":"TCP"},{"containerPort":7777,"name":"p2p","protocol":"TCP"},{"containerPort":5557,"name":"kv-events","protocol":"TCP"}],"readinessProbe":{"failureThreshold":3,"httpGet":{"path":"/readyz","port":"supervisor"},"periodSeconds":10,"timeoutSeconds":5},"resources":{"limits":{"ephemeral-storage":"1Ti","memory":"1500Gi","nvidia.com/gpu":"8","rdma/ib":"8"},"requests":{"cpu":32,"ephemeral-storage":"1Ti","memory":"1500Gi","nvidia.com/gpu":"8","rdma/ib":"8"}},"securityContext":{"capabilities":{"add":["IPC_LOCK","SYS_RAWIO"]},"runAsGroup":0,"runAsUser":0},"startupProbe":{"failureThreshold":2700,"httpGet":{"path":"/health","port":"supervisor"},"initialDelaySeconds":0,"periodSeconds":1,"timeoutSeconds":5},"volumeMounts":[{"mountPath":"/dev/shm","name":"dshm"},{"mountPath":"/var/cache/vllm","name":"jit-cache"},{"mountPath":"/mnt/hf-cache","name":"hf-cache"},{"mountPath":"/usr/local/lib/python3.12/dist-packages/vllm/envs.py","name":"gp2p","subPath":"envs.py"},{"mountPath":"/usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/spec.py","name":"gp2p","subPath":"spec.py"},{"mountPath":"/usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/manager.py","name":"gp2p","subPath":"manager.py"},{"mountPath":"/usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/data/base.py","name":"gp2p","subPath":"data_base.py"},{"mountPath":"/usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/data/nixl.py","name":"gp2p","subPath":"data_nixl.py"},{"mountPath":"/usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/client.py","name":"gp2p","subPath":"session_client.py"},{"mountPath":"/usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/protocol.py","name":"gp2p","subPath":"session_protocol.py"},{"mountPath":"/usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/server.py","name":"gp2p","subPath":"session_server.py"},{"mountPath":"/usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/session.py","name":"gp2p","subPath":"session_session.py"},{"mountPath":"/usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/manager.py","name":"gp2p","subPath":"tiering_manager.py"}]},{"args":["--collector.disable-defaults","--collector.infiniband","--collector.netstat","--collector.netstat.fields=(.*Retrans.*|.*Timeout.*|.*LossProbe.*|.*FastRetrans.*|.*SackRecovery.*|.*Estab.*|.*Segs.*|.*Drops.*|.*Overflow.*|.*MemoryPressure.*|.*AutoCork.*|.*DSACK.*|.*Reorder.*|.*OFO.*|.*DelayedACK.*)","--collector.pressure","--collector.schedstat","--collector.cpu","--path.sysfs=/host/sys","--path.procfs=/host/proc"],"image":"quay.io/prometheus/node-exporter:v1.9.0","imagePullPolicy":"IfNotPresent","name":"node-exporter","ports":[{"containerPort":9100,"name":"node-metrics","protocol":"TCP"}],"resources":{"limits":{"memory":"64Mi"},"requests":{"cpu":"50m","memory":"64Mi"}},"securityContext":{"allowPrivilegeEscalation":false,"readOnlyRootFilesystem":true},"volumeMounts":[{"mountPath":"/host/sys","name":"sys","readOnly":true},{"mountPath":"/host/proc","name":"proc","readOnly":true}]}],"initContainers":[{"args":["--port=8000","--vllm-port=8200","--data-parallel-size=8","--kv-connector=nixlv2","--enable-p2p-pull","--p2p-connector-port=7777","--zap-log-level=1","--secure-proxy=false","--enable-prefiller-sampling"],"image":"ghcr.io/vmaroon/llm-d-router-disagg-sidecar:dp-rank-aware-dev@sha256:37f7f1283355fbf189003af6a6185b43e0930d3a4683ecfea65c31fd96dc7904","imagePullPolicy":"Always","name":"routing-proxy","ports":[{"containerPort":8000,"name":"rank0","protocol":"TCP"},{"containerPort":8001,"name":"rank1","protocol":"TCP"},{"containerPort":8002,"name":"rank2","protocol":"TCP"},{"containerPort":8003,"name":"rank3","protocol":"TCP"},{"containerPort":8004,"name":"rank4","protocol":"TCP"},{"containerPort":8005,"name":"rank5","protocol":"TCP"},{"containerPort":8006,"name":"rank6","protocol":"TCP"},{"containerPort":8007,"name":"rank7","protocol":"TCP"}],"restartPolicy":"Always","securityContext":{"allowPrivilegeEscalation":false,"runAsNonRoot":true}}],"serviceAccountName":"glm-5-2","volumes":[{"emptyDir":{"medium":"Memory","sizeLimit":"1500Gi"},"name":"dshm"},{"hostPath":{"path":"/mnt/local/hf-cache","type":"DirectoryOrCreate"},"name":"hf-cache"},{"hostPath":{"path":"/mnt/local/jit-cache","type":"DirectoryOrCreate"},"name":"jit-cache"},{"hostPath":{"path":"/sys","type":"Directory"},"name":"sys"},{"hostPath":{"path":"/proc","type":"Directory"},"name":"proc"},{"configMap":{"name":"generic-p2p-src"},"name":"gp2p"}]}}},"replicas":1}}
+  creationTimestamp: "2026-07-20T18:56:49Z"
+  generation: 3
+  labels:
+    llm-d.ai/model: GLM-5.2-FP8
+    llm-d.ai/role: decode
+  name: wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode
+  namespace: nilig-p2p
+  resourceVersion: "34480386"
+  uid: 89af15ea-8406-4ea4-a310-992f69f89312
+spec:
+  leaderWorkerTemplate:
+    restartPolicy: RecreateGroupOnPodRestart
+    size: 2
+    workerTemplate:
+      metadata:
+        labels:
+          llm-d.ai/accelerator-variant: gpu
+          llm-d.ai/accelerator-vendor: nvidia
+          llm-d.ai/guide: wide-ep-lws
+          llm-d.ai/inference-serving: "true"
+          llm-d.ai/model: GLM-5.2-FP8
+          llm-d.ai/role: decode
+      spec:
+        affinity:
+          podAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    llm-d.ai/model: GLM-5.2-FP8
+                    llm-d.ai/role: decode
+                topologyKey: backend.coreweave.cloud/leafgroup-name
+              weight: 100
+        containers:
+        - args:
+          - |-
+            find /dev/shm -type f -delete
+
+            # Hotfix: add kv_quant_mode to MLAAttention.get_kv_cache_spec (vllm#48379)
+            # PR #47716 fixed deepseek_v4 and sparse_swa but missed mla_attention.py
+            python3 -c "
+            p='/usr/local/lib/python3.12/dist-packages/vllm/model_executor/layers/attention/mla_attention.py'
+            s=open(p).read()
+            if 'get_kv_quant_mode' not in s:
+              s=s.replace('    MLAAttentionSpec,\n)', '    MLAAttentionSpec,\n    get_kv_quant_mode,\n)')
+              s=s.replace('            cache_dtype_str=vllm_config.cache_config.cache_dtype,\n        )',
+                          '            cache_dtype_str=vllm_config.cache_config.cache_dtype,\n            kv_quant_mode=get_kv_quant_mode(vllm_config.cache_config.cache_dtype),\n        )')
+              open(p,'w').write(s); print('PATCHED mla_attention.py')
+            else: print('mla_attention.py already patched')
+            "
+
+            # Hotfix: offloading set_ overflow for packed non-uniform KV caches
+            # The indexer group's offset+page_size exceeds block_stride in the packed
+            # layout. Replace set_() with as_strided() to avoid bounds check failure.
+            python3 -c "
+            import re
+            p='/usr/local/lib/python3.12/dist-packages/vllm/distributed/kv_transfer/kv_connector/v1/offloading/worker.py'
+            s=open(p).read()
+            pat = (r'(tensors_per_block\[layer_name\] = \(\n)'
+                   r'(\s+)torch\.tensor\(\n'
+                   r'\s+\[\],\n'
+                   r'\s+dtype=torch\.int8,\n'
+                   r'\s+device=layer_kv_cache\.device,\n'
+                   r'\s+\)\.set_\(\n'
+                   r'\s+layer_kv_cache\.untyped_storage\(\),\n'
+                   r'\s+byte_offset,\n'
+                   r'\s+\(num_blocks, page\),\n'
+                   r'\s+\(block_stride_bytes, 1\),\n'
+                   r'\s+\),\n'
+                   r'(\s+)\)')
+            repl = (r'\1'
+                    r'\2torch.as_strided(\n'
+                    r'\2    torch.empty(0, dtype=torch.int8, device=layer_kv_cache.device).set_(layer_kv_cache.untyped_storage()),\n'
+                    r'\2    (num_blocks, page),\n'
+                    r'\2    (block_stride_bytes, 1),\n'
+                    r'\2    byte_offset,\n'
+                    r'\2),\n'
+                    r'\3)')
+            new_s, n = re.subn(pat, repl, s)
+            if n > 0:
+              open(p,'w').write(new_s); print('PATCHED worker.py')
+            else:
+              print('worker.py: no match for set_ pattern')
+            "
+
+            # Scale MAX_TOKENS with number of decode pods
+            export MAX_TOKENS=$(( ${MAX_TOKENS_PER_NODE:-128} * LWS_GROUP_SIZE ))
+
+            # Wide-EP (multi-node): reserve VRAM for NVSHMEM symmetric heap
+            GPU_MEM_UTIL=${DECODE_GPU_MEM_UTIL:-0.95}
+
+            # DSpark speculative decoding (multi-node only — single-node is memory-bandwidth bound)
+            SPEC_ARGS=""
+            # bf16/auto KV - same fp8 sparse-MLA crash workaround as
+            # prefill.yaml; see comment there and PINNED-IMAGES.md.
+            KV_CACHE_DTYPE_ARGS=""
+            MAX_BATCHED_TOKENS=${MAX_TOKENS}
+            MAX_SEQS=${MAX_TOKENS}
+            if [ "${ENABLE_DSPARK:-0}" = "1" ] && [ "${LWS_GROUP_SIZE:-1}" -gt 1 ]; then
+              GPU_MEM_UTIL=$(python3 -c "print(round($GPU_MEM_UTIL - 0.07, 2))")
+              MAX_SEQS=$(( MAX_TOKENS / 4 ))
+              MAX_BATCHED_TOKENS=$(( MAX_SEQS * (DSPARK_NUM_TOKENS + 1) ))
+              SPEC_ARGS="--speculative-config {\"model\":\"${DSPARK_MODEL}\",\"num_speculative_tokens\":${DSPARK_NUM_TOKENS},\"method\":\"dspark\"}"
+              KV_CACHE_DTYPE_ARGS=""
+            fi
+
+            # DeepEP low-latency requires: qp_depth >= (max_dispatch_tokens + 1) * 2
+            export NVSHMEM_QP_DEPTH=$(( (MAX_BATCHED_TOKENS + 1) * 2 ))
+
+            MTP_ARGS=""
+            if [ "${ENABLE_MTP:-1}" = "1" ]; then
+              MTP_ARGS="--speculative-config {\"method\":\"mtp\",\"num_speculative_tokens\":${MTP_NUM_TOKENS:-3}}"
+            fi
+
+            START_RANK=$(( ${LWS_WORKER_INDEX:-0} * DP_SIZE_LOCAL ))
+
+            PROFILER_ARGS=""
+            if [ "${ENABLE_PROFILING:-0}" = "1" ]; then
+              mkdir -p /var/cache/vllm/profile
+              PROFILER_ARGS="--profiler-config {\"profiler\":\"torch\",\"torch_profiler_dir\":\"/var/cache/vllm/profile\",\"torch_profiler_record_shapes\":true,\"torch_profiler_with_memory\":true,\"max_iterations\":3}"
+            fi
+
+            # P2P: the base's inline NixlConnector-only kv_transfer_config is
+            # replaced by the same MultiConnector as the prefill pool - NIXL
+            # (P/D transfer) plus tiered offloading with the P2P secondary
+            # tier, per the p2p guide's "P/D variant" JSON. Deltas vs that
+            # guide JSON:
+            # - cpu_bytes_to_use spliced from KV_OFFLOAD_CPU_BYTES (default
+            #   107374182400 = 100 GiB; per rank -> 8 x 100 GiB per pod).
+            # - eviction_policy lru kept from the base prefill's tiered mode.
+            # - kv_load_failure_policy fail kept from the base, both at the
+            #   MultiConnector level and on the Nixl entry - MultiConnector
+            #   children do not inherit the top-level field.
+            # - p2p tier host is this pod's IP; vLLM offsets the 7777 base
+            #   port by each engine's GLOBAL DP rank (leader pod binds
+            #   7777-7784, worker pod 7785-7792).
+            KV_TRANSFER_CONFIG='{"kv_connector":"MultiConnector",
+                                  "kv_role":"kv_both",
+                                  "kv_load_failure_policy":"fail",
+                                  "kv_connector_extra_config":{
+                                    "connectors":[
+                                      {"kv_connector":"NixlConnector","kv_role":"kv_both",
+                                       "kv_load_failure_policy":"fail"},
+                                      {"kv_connector":"OffloadingConnector","kv_role":"kv_both",
+                                       "kv_connector_extra_config":{
+                                         "spec_name":"TieringOffloadingSpec",
+                                         "cpu_bytes_to_use":'"${KV_OFFLOAD_CPU_BYTES:-107374182400}"',
+                                         "offload_prompt_only":false,
+                                         "eviction_policy":"lru",
+                                         "secondary_tiers":[{"type":"p2p","host":"'"${POD_IP}"'","port":7777}]
+                                    }}]}}'
+
+            # P2P: KV events feed the router's precise prefix index. vLLM
+            # offsets the ZMQ bind port (5557) by each engine's GLOBAL DP
+            # rank (leader pod binds 5557-5564, worker pod 5565-5572); the
+            # topic names port 8000 - the routing-proxy serving base that
+            # the EPP sees as this pod's endpoints (vLLM itself binds
+            # 8200-8207) - and the EPP remaps it per rank (SPEC.md, A2).
+            KV_EVENTS_CONFIG='{"enable_kv_cache_events":true,"publisher":"zmq","endpoint":"tcp://*:5557","topic":"kv@'"${POD_IP}"':8000@zai-org/GLM-5.2-FP8"}'
+
+            exec vllm serve $PROFILER_ARGS $SPEC_ARGS $MTP_ARGS $KV_CACHE_DTYPE_ARGS \
+              zai-org/GLM-5.2-FP8 \
+              --port 8200 \
+              --trust-remote-code \
+              --gpu-memory-utilization $GPU_MEM_UTIL \
+              --max-model-len ${MAX_MODEL_LEN:-120000} \
+              --disable-access-log-for-endpoints=/health,/metrics \
+              --data-parallel-multi-port-external-lb \
+              --data-parallel-supervisor-port=8208 \
+              --enable-expert-parallel \
+              --tensor-parallel-size $TP_SIZE \
+              --max-num-batched-tokens ${MAX_BATCHED_TOKENS} \
+              --max-num-seqs ${MAX_SEQS} \
+              --data-parallel-size $((LWS_GROUP_SIZE * DP_SIZE_LOCAL)) \
+              --data-parallel-size-local $DP_SIZE_LOCAL \
+              --data-parallel-address ${LWS_LEADER_ADDRESS} \
+              --data-parallel-rpc-port 5555 \
+              --data-parallel-start-rank $START_RANK \
+              --kv_transfer_config "$KV_TRANSFER_CONFIG" \
+              --kv-events-config "$KV_EVENTS_CONFIG" \
+              --all2all-backend deepep_low_latency \
+              --moe-backend deep_gemm \
+              --reasoning-parser glm45 \
+              --tool-call-parser glm47 \
+              --enable-auto-tool-choice \
+              ${KV_CACHE_MEMORY_BYTES:+--kv-cache-memory-bytes=$KV_CACHE_MEMORY_BYTES}
+          command:
+          - /bin/bash
+          - -c
+          env:
+          - name: HF_TOKEN
+            valueFrom:
+              secretKeyRef:
+                key: HF_TOKEN
+                name: llm-d-hf-token
+          - name: HF_HOME
+            value: /mnt/hf-cache
+          - name: DECODE_GPU_MEM_UTIL
+            value: ""
+          - name: MAX_MODEL_LEN
+            value: "119990"
+          - name: ENABLE_PROFILING
+            value: "0"
+          - name: ENABLE_MTP
+            value: "0"
+          - name: MTP_NUM_TOKENS
+            value: "3"
+          - name: ENABLE_DSPARK
+            value: "0"
+          - name: DSPARK_MODEL
+            value: RedHatAI/GLM-5.2-speculator.dspark
+          - name: DSPARK_NUM_TOKENS
+            value: "7"
+          - name: VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS
+            value: "1"
+          - name: MAX_TOKENS_PER_NODE
+            value: "32"
+          - name: DP_SIZE_LOCAL
+            value: "8"
+          - name: TP_SIZE
+            value: "1"
+          - name: KV_OFFLOAD_CPU_BYTES
+            value: "107374182400"
+          - name: TRITON_LIBCUDA_PATH
+            value: /usr/lib64
+          - name: VLLM_SKIP_P2P_CHECK
+            value: "1"
+          - name: VLLM_RANDOMIZE_DP_DUMMY_INPUTS
+            value: "1"
+          - name: VLLM_USE_DEEP_GEMM
+            value: "1"
+          - name: NVIDIA_GDRCOPY
+            value: enabled
+          - name: NVSHMEM_REMOTE_TRANSPORT
+            value: ibgda
+          - name: NVSHMEM_IB_ENABLE_IBGDA
+            value: "true"
+          - name: NVSHMEM_BOOTSTRAP_UID_SOCK_IFNAME
+            value: eth0
+          - name: GLOO_SOCKET_IFNAME
+            value: eth0
+          - name: NCCL_SOCKET_IFNAME
+            value: eth0
+          - name: NCCL_IB_HCA
+            value: ibp
+          - name: NVSHMEM_HCA_PREFIX
+            value: ibp
+          - name: VLLM_MOE_DP_CHUNK_SIZE
+            value: ${MAX_TOKENS}
+          - name: VLLM_COMPUTE_NANS_IN_LOGITS
+            value: "1"
+          - name: VLLM_HTTP_TIMEOUT_KEEP_ALIVE
+            value: "120"
+          - name: VLLM_LOGGING_LEVEL
+            value: INFO
+          - name: PYTHONHASHSEED
+            value: "0"
+          - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+          - name: VLLM_P2P_SIDE_CHANNEL_HOST
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+          - name: POD_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+          - name: CUDA_CACHE_PATH
+            value: /var/cache/vllm/cuda
+          - name: CCACHE_DIR
+            value: /var/cache/vllm/ccache
+          - name: VLLM_CACHE_ROOT
+            value: /var/cache/vllm/vllm
+          - name: FLASHINFER_WORKSPACE_BASE
+            value: /var/cache/vllm/flashinfer
+          image: vllm/vllm-openai:nightly-6a9f24aa8cb856235528d01a829a4ba85fc1c19d@sha256:0eb4c29337c727adb36d88e96b109f1fd262f0e5708bc77dc8e65c02fa89acdc
+          imagePullPolicy: Always
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: supervisor
+            periodSeconds: 30
+            timeoutSeconds: 5
+          name: vllm
+          ports:
+          - containerPort: 8200
+            name: vllm-rank0
+            protocol: TCP
+          - containerPort: 8201
+            name: vllm-rank1
+            protocol: TCP
+          - containerPort: 8202
+            name: vllm-rank2
+            protocol: TCP
+          - containerPort: 8203
+            name: vllm-rank3
+            protocol: TCP
+          - containerPort: 8204
+            name: vllm-rank4
+            protocol: TCP
+          - containerPort: 8205
+            name: vllm-rank5
+            protocol: TCP
+          - containerPort: 8206
+            name: vllm-rank6
+            protocol: TCP
+          - containerPort: 8207
+            name: vllm-rank7
+            protocol: TCP
+          - containerPort: 8208
+            name: supervisor
+            protocol: TCP
+          - containerPort: 5600
+            name: nixl
+            protocol: TCP
+          - containerPort: 7777
+            name: p2p
+            protocol: TCP
+          - containerPort: 5557
+            name: kv-events
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /readyz
+              port: supervisor
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            limits:
+              ephemeral-storage: 1Ti
+              memory: 1500Gi
+              nvidia.com/gpu: "8"
+              rdma/ib: "8"
+            requests:
+              cpu: "32"
+              ephemeral-storage: 1Ti
+              memory: 1500Gi
+              nvidia.com/gpu: "8"
+              rdma/ib: "8"
+          securityContext:
+            capabilities:
+              add:
+              - IPC_LOCK
+              - SYS_RAWIO
+            runAsGroup: 0
+            runAsUser: 0
+          startupProbe:
+            failureThreshold: 2700
+            httpGet:
+              path: /health
+              port: supervisor
+            initialDelaySeconds: 0
+            periodSeconds: 1
+            timeoutSeconds: 5
+          volumeMounts:
+          - mountPath: /dev/shm
+            name: dshm
+          - mountPath: /var/cache/vllm
+            name: jit-cache
+          - mountPath: /mnt/hf-cache
+            name: hf-cache
+          - mountPath: /usr/local/lib/python3.12/dist-packages/vllm/envs.py
+            name: gp2p
+            subPath: envs.py
+          - mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/spec.py
+            name: gp2p
+            subPath: spec.py
+          - mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/manager.py
+            name: gp2p
+            subPath: manager.py
+          - mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/data/base.py
+            name: gp2p
+            subPath: data_base.py
+          - mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/data/nixl.py
+            name: gp2p
+            subPath: data_nixl.py
+          - mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/client.py
+            name: gp2p
+            subPath: session_client.py
+          - mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/protocol.py
+            name: gp2p
+            subPath: session_protocol.py
+          - mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/server.py
+            name: gp2p
+            subPath: session_server.py
+          - mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/session.py
+            name: gp2p
+            subPath: session_session.py
+          - mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/manager.py
+            name: gp2p
+            subPath: tiering_manager.py
+        - args:
+          - --collector.disable-defaults
+          - --collector.infiniband
+          - --collector.netstat
+          - --collector.netstat.fields=(.*Retrans.*|.*Timeout.*|.*LossProbe.*|.*FastRetrans.*|.*SackRecovery.*|.*Estab.*|.*Segs.*|.*Drops.*|.*Overflow.*|.*MemoryPressure.*|.*AutoCork.*|.*DSACK.*|.*Reorder.*|.*OFO.*|.*DelayedACK.*)
+          - --collector.pressure
+          - --collector.schedstat
+          - --collector.cpu
+          - --path.sysfs=/host/sys
+          - --path.procfs=/host/proc
+          image: quay.io/prometheus/node-exporter:v1.9.0
+          imagePullPolicy: IfNotPresent
+          name: node-exporter
+          ports:
+          - containerPort: 9100
+            name: node-metrics
+            protocol: TCP
+          resources:
+            limits:
+              memory: 64Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+          volumeMounts:
+          - mountPath: /host/sys
+            name: sys
+            readOnly: true
+          - mountPath: /host/proc
+            name: proc
+            readOnly: true
+        initContainers:
+        - args:
+          - --port=8000
+          - --vllm-port=8200
+          - --data-parallel-size=8
+          - --kv-connector=nixlv2
+          - --enable-p2p-pull
+          - --p2p-connector-port=7777
+          - --zap-log-level=1
+          - --secure-proxy=false
+          - --enable-prefiller-sampling
+          image: ghcr.io/vmaroon/llm-d-router-disagg-sidecar:dp-rank-aware-dev@sha256:37f7f1283355fbf189003af6a6185b43e0930d3a4683ecfea65c31fd96dc7904
+          imagePullPolicy: Always
+          name: routing-proxy
+          ports:
+          - containerPort: 8000
+            name: rank0
+            protocol: TCP
+          - containerPort: 8001
+            name: rank1
+            protocol: TCP
+          - containerPort: 8002
+            name: rank2
+            protocol: TCP
+          - containerPort: 8003
+            name: rank3
+            protocol: TCP
+          - containerPort: 8004
+            name: rank4
+            protocol: TCP
+          - containerPort: 8005
+            name: rank5
+            protocol: TCP
+          - containerPort: 8006
+            name: rank6
+            protocol: TCP
+          - containerPort: 8007
+            name: rank7
+            protocol: TCP
+          resources: {}
+          restartPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+        serviceAccountName: glm-5-2
+        volumes:
+        - emptyDir:
+            medium: Memory
+            sizeLimit: 1500Gi
+          name: dshm
+        - hostPath:
+            path: /mnt/local/hf-cache
+            type: DirectoryOrCreate
+          name: hf-cache
+        - hostPath:
+            path: /mnt/local/jit-cache
+            type: DirectoryOrCreate
+          name: jit-cache
+        - hostPath:
+            path: /sys
+            type: Directory
+          name: sys
+        - hostPath:
+            path: /proc
+            type: Directory
+          name: proc
+        - configMap:
+            name: generic-p2p-src
+          name: gp2p
+  networkConfig:
+    subdomainPolicy: Shared
+  replicas: 1
+  rolloutStrategy:
+    rollingUpdateConfiguration:
+      maxSurge: 0
+      maxUnavailable: 1
+      partition: 0
+    type: RollingUpdate
+  startupPolicy: LeaderCreated
+status:
+  conditions:
+  - lastTransitionTime: "2026-07-20T20:08:47Z"
+    message: Replicas are progressing
+    observedGeneration: 3
+    reason: GroupsProgressing
+    status: "False"
+    type: Progressing
+  - lastTransitionTime: "2026-07-20T20:08:47Z"
+    message: All replicas are ready
+    observedGeneration: 3
+    reason: AllGroupsReady
+    status: "True"
+    type: Available
+  hpaPodSelector: leaderworkerset.sigs.k8s.io/name=wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode,leaderworkerset.sigs.k8s.io/worker-index=0
+  observedGeneration: 3
+  readyReplicas: 1
+  replicas: 1
+  updatedReplicas: 1

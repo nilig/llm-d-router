@@ -1,0 +1,9 @@
+[tick 1] aiperf=agentx-aiperf-c128-niliga-jsqfh status=Running | [pf-0 run=0 wait=0 hits=503040 load=46.60GB] [pf-0-1 run=0 wait=0 hits=1262784 load=116.97GB]
+[tick 2] aiperf=agentx-aiperf-c128-niliga-jsqfh status=Running | [pf-0 run=0 wait=0 hits=503040 load=46.60GB] [pf-0-1 run=0 wait=0 hits=1262784 load=116.97GB]
+[tick 3] aiperf=agentx-aiperf-c128-niliga-jsqfh status=Running | [pf-0 run=0 wait=0 hits=503040 load=46.60GB] [pf-0-1 run=1 wait=0 hits=1262784 load=116.97GB]
+[tick 4] aiperf=agentx-aiperf-c128-niliga-jsqfh status=Running | [pf-0 run=1 wait=0 hits=582272 load=53.93GB] [pf-0-1 run=0 wait=0 hits=1262784 load=116.97GB]
+[tick 5] aiperf=agentx-aiperf-c128-niliga-jsqfh status=Running | [pf-0 run=0 wait=0 hits=582272 load=53.93GB] [pf-0-1 run=1 wait=0 hits=1262784 load=116.97GB]
+[tick 6] aiperf=agentx-aiperf-c128-niliga-jsqfh status=Running | [pf-0 run=1 wait=0 hits=582272 load=53.93GB] [pf-0-1 run=0 wait=0 hits=1262784 load=116.97GB]
+[tick 7] aiperf=agentx-aiperf-c128-niliga-jsqfh status=Running | [pf-0 run=0 wait=0 hits=620480 load=57.47GB] [pf-0-1 run=0 wait=0 hits=1262784 load=116.97GB]
+[tick 8] aiperf= status=DONE/GONE | [pf-0 run=0 wait=0 hits=620480 load=57.47GB] [pf-0-1 run=0 wait=0 hits=1262784 load=116.97GB]
+[DONE tick 8] terminal=GONE
