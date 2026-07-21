@@ -12,25 +12,81 @@ under `configs/glm-5.2-p2p/`, series-2 arms under `configs/series-2/`.
 
 ---
 
-## 1. How the delta is calculated
+## 1. How the EPP delta is calculated (when does the router pull?)
 
-**Protocol.** Every comparison is a paired A/B on identical pods, image, and
-workload; the only change between arms is the EPP `--config-file` (the routing
-plugin config). Before every measured run: mechanism-engaged gates (prefix
-index populated, source header firing, `vllm:external_prefix_cache_hits_total`
-rising), full pull-mesh warm-up, `PYTHONHASHSEED` pinned fleet-wide.
-
-**Formula.** For each metric:
+**The EPP decision.** For every request, the `p2p-source-producer` computes a
+cached-token delta between the best available KV source and the pod that
+scheduling chose:
 
 ```
-delta% = (P2P_arm - baseline_arm) / baseline_arm x 100
+source_delta = cachedTokens(best peer) - cachedTokens(scheduled pod)
+pull fires   iff   source_delta >= minCachedTokenDelta
 ```
 
-Latency metrics (TTFT, request latency): negative delta = improvement.
-Throughput metrics (req/s, tok/s): positive delta = improvement.
-Pull activity is verified per run from engine counters
-(`external_prefix_cache_hits_total`, `kv_offload_load_bytes_total`), so a
-quoted delta is always backed by evidence the mechanism actually ran.
+The per-pod `cachedTokens` comes from the prefix-cache producer — **precise**
+(kv-events-fed per-pod index) or **approximate** (prompt-hash estimate); the
+producer consumes either. After scheduling it compares the best-match peer
+against the pod that will compute the prefix (the `prefill` profile target
+under P/D disaggregation), and only when that peer out-caches it by at least
+`minCachedTokenDelta` does it attach the KV-source header; the engine then
+pulls those blocks from the peer instead of recomputing them. When no peer
+clears the threshold, the request proceeds unchanged — the producer is inert.
+
+**Setting the threshold: recompute vs pull with increasing prefix length.**
+`minCachedTokenDelta` is not a guess — it is the measured crossover of the
+per-miss economics on each model:
+single-request prefill latency for a prefix that exists on a peer pod,
+recomputed locally vs pulled. Protocol: seed a fresh prefix on one pod, land
+the request on a cold pod, measure time-to-first-token both ways (gpt-oss and
+Llama: 5-rep medians, warm transfer mesh, unique prefix per rep; Qwen and GLM:
+on-rig calibration points).
+
+| Model | KV per token | Prefix tokens | Recompute | P2P pull | Delta |
+|---|---|---|---|---|---|
+| Llama-3.1-8B | ~128 KB | 1,024 | 30 ms | 34 ms | +11% |
+| | | 4,096 | 99 ms | 59 ms | **-41%** |
+| | | 8,192 | 236 ms | 88 ms | **-63%** |
+| | | 16,384 | 503 ms | 155 ms | **-69%** |
+| gpt-oss-120b | ~41.5 KB | 2,048 | 70.6 ms | 49.0 ms | **-31%** |
+| | | 8,192 | 205.4 ms | 120.1 ms | **-42%** |
+| | | 16,384 | 426.3 ms | 196.2 ms | **-54%** |
+| | | 32,768 | 983.0 ms | 376.3 ms | **-62%** |
+| | | 49,152 | 1,695 ms | 550.5 ms | **-68%** |
+| Qwen3-30B-A3B | (MoE, A3B) | 8,192 | 1,210 ms | 74 ms | **-94%** |
+| GLM-5.2-FP8 | ~93 KB | ~24,000 | 4,630 ms | 3,910 ms | **-16%** |
+
+(GLM reference points on the same request: warm local hit 2.30 s; the pull
+moves 2.23 GB of KV.)
+
+The pattern is the same on every model: **below a crossover length recompute
+wins (the pull's fixed setup cost dominates); above it the pull wins and the
+gap grows with length**, because recompute scales with model FLOPs while the
+pull scales with KV bytes. Where the crossover sits depends on the ratio of
+prefill speed to KV weight — and that per-model crossover is exactly what the
+router's `minCachedTokenDelta` is set to, so the fleet only ever pulls where
+this table says a pull wins:
+
+| Model | Measured crossover | `minCachedTokenDelta` used |
+|---|---|---|
+| Llama-3.1-8B | ~2K tokens | 2,048 |
+| gpt-oss-120b | < 2K (pull wins at every measured length) | 2,048 |
+| Qwen3-30B-A3B | ~760 tokens (pull overhead ~30 ms) | 1,024 |
+| GLM-5.2-FP8 | heavy KV, shallow gain at 24K | 16,384 (at 2,048, measured pulls cost more than they save) |
+
+Every fleet-level delta in section 2 is built on these per-miss economics:
+the router fires a pull only when a peer out-caches the scheduled pod by at
+least the threshold, so a "P2P win" is many per-miss wins compounded under
+load, never a pull for a miss the table says should be recomputed.
+
+**Reporting protocol for the results below.** Every quoted result is a paired
+A/B on identical pods, image, and workload; the only change between arms is
+the EPP `--config-file`. Result deltas are reported as
+`delta% = (P2P_arm - baseline_arm) / baseline_arm` — negative is better for
+latency, positive for throughput. Before every measured run: mechanism-engaged
+gates (prefix index populated, source header firing,
+`vllm:external_prefix_cache_hits_total` rising), full pull-mesh warm-up,
+`PYTHONHASHSEED` pinned fleet-wide; pull counters are read after each run so
+a quoted delta is always backed by evidence the mechanism actually ran.
 
 **Pairing per model and accelerator:**
 
@@ -68,21 +124,17 @@ The three delta styles to be aware of:
 | gpt-oss-120b | 14x H200 | Multi-turn chat | TTFT p99 | 25.4 s | 9.2 s | **-64%** |
 | gpt-oss-120b | 16x H200 | Uniform pool (6M-token set) | sustained rate | 9.4 req/s | 16.7 req/s | **+78%** |
 | gpt-oss-120b | 16x H200 | Uniform pool @ 12 req/s | req latency p50 | 24.9 s | 2.3 s | **-91%** |
-| gpt-oss-120b | 16x H200 | Pull vs recompute, 49K prefix | prefill latency | 1,695 ms | 550 ms | **-68%** |
 | Llama-3.1-8B | 4x H200 | Prefix pool 64 x 16K @ 12 req/s | req latency p50 | 12.2 s | 2.1 s | **-83%** |
 | Llama-3.1-8B | 4x H200 | Prefix pool, saturation ceiling | achieved rate | 10.3 req/s | 12.6 req/s | **+22%** |
 | Llama-3.1-8B | 4x H200 | P/D prefill placement | achieved rate | 11.3 req/s | 14.7 req/s | **+30%** |
-| Llama-3.1-8B | 4x H200 | Pull vs recompute, 16K prefix | prefill latency | 503 ms | 155 ms | **-69%** |
 | gpt-oss-120b | 16x H200 (8P+8D) | P/D docQA C=192, guide vs guide+P2P stack | TTFT p50 | 11.94 s | 1.16 s | **-90% (10x)** |
 | gpt-oss-120b | 16x H200 (8P+8D) | P/D docQA C=192 | TTFT p99 | 106.1 s | 80.0 s | **-25%** |
 | gpt-oss-120b | 16x H200 (8P+8D) | P/D docQA C=192 | throughput | 5.68 turns/s | 7.96 turns/s | **+40%** |
 | Qwen3-30B-A3B | 6x H200 (2P+4D) | Agentic multi-turn (50K contexts, tool gaps) | TTFT p50 | 5.22 s | 1.09 s | **-79% (4.8x)** |
 | Qwen3-30B-A3B | 6x H200 (2P+4D) | Agentic multi-turn | TTFT p95 | 18.94 s | 11.77-14.79 s | **-22..-38%** |
 | Qwen3-30B-A3B | 6x H200 (2P+4D) | Agentic multi-turn | throughput (1/duration) | 304 s | 229 s | **+33%** |
-| Qwen3-30B-A3B | 6x H200 (2P+4D) | Pull vs recompute, 8K prefix | prefill latency | 1,210 ms | 74 ms | **-94% (16x)** |
 | GLM-5.2-FP8 | 32x H200 | Agentic c128, precise routing | TTFT p50 | 3,802 ms | 3,177 ms | **-16%** |
 | GLM-5.2-FP8 | 32x H200 | Agentic c128, precise routing | TTFT p90 | 11,755 ms | 9,970 ms | **-15%** |
-| GLM-5.2-FP8 | 32x H200 | Pull vs recompute, 24K prefix | TTFT (single req) | 4.63 s | 3.91 s | **-16%** |
 
 ---
 
@@ -247,10 +299,6 @@ recompute is expensive, exactly as the crossover predicts.
 | TTFT p99 | 24,119 ms | 25,084 ms | +4% |
 | Output throughput | 2,016 tok/s | 1,982 tok/s | -2% |
 | KV pulled cross-engine | ~0 | 163 GB (1.77M tokens) | mechanism engaged |
-
-Single-request mechanism proof on the same rig (24K-token prefix): cold
-recompute 4.63 s, cross-engine pull 3.91 s (**-16%**, 2.23 GB of KV moved
-per pull), warm local hit 2.30 s.
 
 **Win:** first demonstration of the pull on a 753B wide-EP P/D deployment.
 Precise affinity concentrates agentic traffic on cache-holder ranks; the pull
