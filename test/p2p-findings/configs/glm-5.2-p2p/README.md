@@ -66,6 +66,48 @@ Grouped by routing: approx (A, D) | precise (B, C).
 | KV pulled cross-engine | ~0 | 33.8 GB | ~0 | 163 GB |
 | External hits (tokens) | ~0 | 364 K | ~0 | 1.77 M |
 
+## Concurrency ladder (2x2x3 grid)
+
+Every arm at c32/c64/c128, TTFT p50 / p90 (ms), ~15-min run per cell, zero
+errors in every completed cell:
+
+| Conc | armA approx/off | armD approx/pull | armB precise/off | armC-16k precise/pull |
+|---|---|---|---|---|
+| c32 | 1,665 / 4,095 | 1,621 / 3,917 | 2,265 / 7,557 | 1,649 / 4,136 |
+| c64 | 2,234 / 4,897 | 2,276 / 5,449 | 2,801 / 9,823 | 2,581 / 7,139 |
+| c128 | 2,963 / 9,226 | 2,953 / 8,833 | 3,802 / 11,755 | 3,177 / 9,970 |
+
+The pull's rescue of precise routing (B -> C): c32 **-27% p50 / -45% p90**,
+c64 -8% / -27%, c128 -16% / -15%. At c32 precise+pull ties the best arm in
+the grid — the pull erases affinity's concentration penalty at moderate load.
+Pull volume under precise: 41 / 93 / 163 GB at c32/c64/c128; under approx at
+c32: ~0 (no placement-vs-cache divergence to cover). armD's engine ran
+`offload_prompt_only:true` (see Caveats); all other arms `false`.
+
+## Measured crossover (recompute vs pull, single request)
+
+Direct-to-engine sweep (`crossover-sweep.sh`): seed a fresh prefix on engine
+A (prefill-0 rank 0), repeat it against engine B (prefill-0-1 rank 8) with
+the sidecar's `kv_transfer_params.p2p` block (`remote_host` = A's pod IP,
+`remote_port` 7777) injected in the request body. Every point verified
+byte-exact from B's `kv_offload_load_bytes_total` (loaded GB = tokens x
+93 KB within 1%).
+
+| prompt tokens | recompute | pull | delta | KV moved |
+|---|---|---|---|---|
+| 34,214 | 4.51 s | 2.51 s | -44% | 3.2 GB |
+| 48,109 | 6.38 s | 1.98 s | -69% | 4.5 GB |
+| 65,111 | 8.78 s | 1.98 s | -78% | 6.0 GB |
+| 98,220 | 13.75 s | 2.29 s | -83% | 9.1 GB |
+
+Pull time is nearly flat (~2.2 s session floor, ~4.5 GB/s effective);
+recompute scales at ~144 us/token. Crossover = 2.2 s / 144 us = **~15K
+tokens**, validating `minCachedTokenDelta: 16384`. Control
+(`crossover-sweep-v1-nopull-control.tsv`): the identical sweep *without* the
+injected p2p block never pulls (pull time = recompute time, 0 bytes loaded)
+— the engine does not fetch from peers autonomously; the EPP/sidecar
+directive is what triggers a pull.
+
 ## Findings
 
 1. **The pull fires off both a precise and an approximate source index.** armC-16k

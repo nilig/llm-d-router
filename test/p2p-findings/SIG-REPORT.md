@@ -53,10 +53,15 @@ on-rig calibration points).
 | | | 32,768 | 983.0 ms | 376.3 ms | **-62%** |
 | | | 49,152 | 1,695 ms | 550.5 ms | **-68%** |
 | Qwen3-30B-A3B | (MoE, A3B) | 8,192 | 1,210 ms | 74 ms | **-94%** |
-| GLM-5.2-FP8 | ~93 KB | ~24,000 | 4,630 ms | 3,910 ms | **-16%** |
+| GLM-5.2-FP8 | ~93 KB | 34,214 | 4,511 ms | 2,512 ms | **-44%** |
+| | | 48,109 | 6,378 ms | 1,983 ms | **-69%** |
+| | | 65,111 | 8,784 ms | 1,980 ms | **-78%** |
+| | | 98,220 | 13,747 ms | 2,292 ms | **-83%** |
 
-(GLM reference points on the same request: warm local hit 2.30 s; the pull
-moves 2.23 GB of KV.)
+(GLM sweep: every pull verified byte-exact from engine counters — 3.2-9.1 GB
+loaded per point, matching tokens x 93 KB within 1%. The pull time is nearly
+flat, ~2.2 s (session floor + ~4.5 GB/s effective transfer), while recompute
+scales at ~144 us/token — so the gap grows without bound with prefix length.)
 
 The pattern is the same on every model: **below a crossover length recompute
 wins (the pull's fixed setup cost dominates); above it the pull wins and the
@@ -71,15 +76,13 @@ this table says a pull wins:
 | Llama-3.1-8B | ~2K tokens | 2,048 |
 | gpt-oss-120b | < 2K (pull wins at every measured length) | 2,048 |
 | Qwen3-30B-A3B | ~760 tokens (pull overhead ~30 ms) | 1,024 |
-| GLM-5.2-FP8 | not swept — bracketed by two measurements | 16,384, conservative point inside the bracket |
+| GLM-5.2-FP8 | ~15K tokens (pull floor ~2.2 s / recompute 144 us per token) | 16,384 — sits on the measured crossover |
 
-GLM is the one model without a swept crossover. Its threshold comes from a
-two-point bracket: at 2,048 the pulls demonstrably lose (each fired pull cost
-more than the recompute it replaced, measured under load), and at ~24,000 the
-pull wins by 16% (single calibration point). The crossover cannot be derived
-from one point — the pull's fixed setup cost and per-byte cost cannot be
-separated — so 16,384 is an engineering choice inside the proven bracket; a
-Llama-style length sweep on GLM is the outstanding measurement.
+The GLM threshold was first set as an engineering bracket (2,048 measurably
+fired net-loss pulls under load; a single ~24K calibration point won) and the
+length sweep afterwards confirmed it: the measured crossover, pull-floor
+divided by per-token recompute cost, lands at ~15K tokens — within 10% of the
+16,384 in production use.
 
 Every fleet-level delta in section 2 is built on these per-miss economics:
 the router fires a pull only when a peer out-caches the scheduled pod by at
@@ -104,7 +107,7 @@ a quoted delta is always backed by evidence the mechanism actually ran.
 | Llama-3.1-8B-Instruct | 4x H200, TP=1 (P/D variant: 4 prefill + 1 decode) | Load, no P2P (identical placement) | Load + P2P | 2,048 (crossover-derived) | inference-perf via llm-d-benchmark | single |
 | gpt-oss-120b, P/D | 16x H200: 8 prefill + 8 decode, TP=1 | pd-disaggregation guide verbatim (plain `NixlConnector`) | guide + full P2P stack (`MultiConnector` Nixl + Offloading p2p tier, sidecar `--enable-p2p-pull`, precise producer + `p2p-source-producer`) | 2,048 | llm-d-benchmark docQA profile, C=192 (mechanism-gated) | paired A/B, clean re-roll per arm |
 | Qwen3-30B-A3B-Thinking | 6x H200: 2 prefill + 4 decode, TP=1 | agentic guide on plain NIXL | guide + P2P stack | 1,024 (rig-calibrated: 8K pull 74 ms vs 1.21 s recompute, crossover ~760) | llm-d-benchmark agentic synthetic, C=16 | P2P arm sampled twice |
-| GLM-5.2-FP8 (753B MoE) | 32x H200: 1P + 1D, wide-EP DEP16 per role | armB: precise affinity, no pull | armC-16k: same precise affinity + `p2p-source-producer` | 16,384 (GLM KV is ~2x heavier per token; 2,048 fires pulls that cost more than they save) | aiperf agentx (Weka agentic traces), c128 | single |
+| GLM-5.2-FP8 (753B MoE) | 32x H200: 1P + 1D, wide-EP DEP16 per role | armB: precise affinity, no pull | armC-16k: same precise affinity + `p2p-source-producer` | 16,384 (= the measured ~15K crossover; 2,048 fired net-loss pulls) | aiperf agentx (Weka agentic traces), c32/c64/c128 ladder | single per cell |
 
 The three delta styles to be aware of:
 
@@ -141,8 +144,9 @@ The three delta styles to be aware of:
 | Qwen3-30B-A3B | 6x H200 (2P+4D) | Agentic multi-turn (50K contexts, tool gaps) | TTFT p50 | 5.22 s | 1.09 s | **-79% (4.8x)** |
 | Qwen3-30B-A3B | 6x H200 (2P+4D) | Agentic multi-turn | TTFT p95 | 18.94 s | 11.77-14.79 s | **-22..-38%** |
 | Qwen3-30B-A3B | 6x H200 (2P+4D) | Agentic multi-turn | throughput (1/duration) | 304 s | 229 s | **+33%** |
+| GLM-5.2-FP8 | 32x H200 | Agentic c32, precise routing | TTFT p90 | 7,557 ms | 4,136 ms | **-45%** |
+| GLM-5.2-FP8 | 32x H200 | Agentic c32, precise routing | TTFT p50 | 2,265 ms | 1,649 ms | **-27%** |
 | GLM-5.2-FP8 | 32x H200 | Agentic c128, precise routing | TTFT p50 | 3,802 ms | 3,177 ms | **-16%** |
-| GLM-5.2-FP8 | 32x H200 | Agentic c128, precise routing | TTFT p90 | 11,755 ms | 9,970 ms | **-15%** |
 
 ---
 
@@ -300,21 +304,26 @@ recompute is expensive, exactly as the crossover predicts.
 | P2P EPP | armC-16k: armB + `p2p-source-producer` (`minCachedTokenDelta: 16384`) |
 | Workload | aiperf agentx (SemiAnalysis Weka agentic traces), concurrency 128, 900 s profiling, ~3.1-3.3K requests, 0 errors |
 
-| Metric | armB (precise, no pull) | armC-16k (precise + pull) | Delta |
-|---|---|---|---|
-| TTFT p50 | 3,802 ms | 3,177 ms | **-16%** |
-| TTFT p90 | 11,755 ms | 9,970 ms | **-15%** |
-| TTFT p99 | 24,119 ms | 25,084 ms | +4% |
-| Output throughput | 2,016 tok/s | 1,982 tok/s | -2% |
-| KV pulled cross-engine | ~0 | 163 GB (1.77M tokens) | mechanism engaged |
+TTFT p50 / p90 (ms) across the concurrency ladder, ~15-min run per cell,
+zero errors everywhere:
 
-**Win:** first demonstration of the pull on a 753B wide-EP P/D deployment.
-Precise affinity concentrates agentic traffic on cache-holder ranks; the pull
-lets the picker route to a less-loaded rank and fetch the prefix, recovering
-16% median TTFT for ~2% throughput cost. Same-direction result as the gpt-oss
-conversational scenarios, on a model whose per-token KV is ~2x heavier.
-(Single run per arm; the c32/c64 precise cells are queued pending cluster
-GPU capacity.)
+| Concurrency | armB (precise, no pull) | armC-16k (precise + pull) | Delta p50 | Delta p90 | KV pulled |
+|---|---|---|---|---|---|
+| c32 | 2,265 / 7,557 | 1,649 / 4,136 | **-27%** | **-45%** | 41 GB |
+| c64 | 2,801 / 9,823 | 2,581 / 7,139 | -8% | **-27%** | 93 GB |
+| c128 | 3,802 / 11,755 | 3,177 / 9,970 | **-16%** | -15% | 163 GB |
+
+At c128 additionally: p99 24,119 vs 25,084 (+4%), throughput 2,016 vs 1,982
+tok/s (-2%) — the pull trades ~2% throughput for the TTFT wins.
+
+**Win:** first demonstration of the pull on a 753B wide-EP P/D deployment,
+across a load ladder. Precise affinity concentrates agentic traffic on
+cache-holder ranks; the pull lets the picker route to a less-loaded rank and
+fetch the prefix. At moderate load (c32) it erases the concentration penalty
+entirely — precise+pull ties the best load-balanced arm in the full 2x2 grid
+— and the pull fires exactly where the theory says: 437K tokens pulled under
+precise at c32 while the approx arm at the same load pulled ~0 (no
+placement-vs-cache divergence to cover). Single run per cell.
 
 ---
 
@@ -347,9 +356,10 @@ GPU capacity.)
 
 One-line summary for the SIG: **P2P KV sharing converts a prefix-cache miss
 from "recompute" into "copy at a fraction of the cost" (-68% at 49K on
-gpt-oss, 16x on Qwen3-30B at 8K); measured value is largest where misses are
-frequent and expensive — working sets larger than any pod's cache (+78%
-throughput), conversational and agentic tails (2-4x p99 TTFT on gpt-oss, 4.8x
-median on Qwen3-30B P/D, 10x median for the P/D stack at C=192) — it fires on
-both precise and approximate indexes up to 753B wide-EP scale, and it is
+gpt-oss, 16x on Qwen3-30B at 8K, -83% at 98K on GLM-5.2); measured value is
+largest where misses are frequent and expensive — working sets larger than
+any pod's cache (+78% throughput), conversational and agentic tails (2-4x p99
+TTFT on gpt-oss, 4.8x median on Qwen3-30B P/D, 10x median for the P/D stack
+at C=192, -45% p90 rescuing precise routing on GLM) — it fires on both
+precise and approximate indexes up to 753B wide-EP scale, and it is
 inert-and-free where it has nothing to do.**
