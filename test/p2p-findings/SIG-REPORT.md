@@ -71,7 +71,15 @@ this table says a pull wins:
 | Llama-3.1-8B | ~2K tokens | 2,048 |
 | gpt-oss-120b | < 2K (pull wins at every measured length) | 2,048 |
 | Qwen3-30B-A3B | ~760 tokens (pull overhead ~30 ms) | 1,024 |
-| GLM-5.2-FP8 | heavy KV, shallow gain at 24K | 16,384 (at 2,048, measured pulls cost more than they save) |
+| GLM-5.2-FP8 | not swept — bracketed by two measurements | 16,384, conservative point inside the bracket |
+
+GLM is the one model without a swept crossover. Its threshold comes from a
+two-point bracket: at 2,048 the pulls demonstrably lose (each fired pull cost
+more than the recompute it replaced, measured under load), and at ~24,000 the
+pull wins by 16% (single calibration point). The crossover cannot be derived
+from one point — the pull's fixed setup cost and per-byte cost cannot be
+separated — so 16,384 is an engineering choice inside the proven bracket; a
+Llama-style length sweep on GLM is the outstanding measurement.
 
 Every fleet-level delta in section 2 is built on these per-miss economics:
 the router fires a pull only when a peer out-caches the scheduled pod by at
