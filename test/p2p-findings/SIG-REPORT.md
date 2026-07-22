@@ -53,15 +53,22 @@ on-rig calibration points).
 | | | 32,768 | 983.0 ms | 376.3 ms | **-62%** |
 | | | 49,152 | 1,695 ms | 550.5 ms | **-68%** |
 | Qwen3-30B-A3B | (MoE, A3B) | 8,192 | 1,210 ms | 74 ms | **-94%** |
-| GLM-5.2-FP8 | ~93 KB | 34,214 | 4,511 ms | 2,512 ms | **-44%** |
+| GLM-5.2-FP8 | ~93 KB | 8,070 | 996 ms | 1,688 ms | +69% |
+| | | 13,648 | 1,738 ms | 1,760 ms | **+1% — crossover** |
+| | | 21,617 | 2,760 ms | 1,796 ms | **-35%** |
+| | | 34,214 | 4,511 ms | 2,512 ms | **-44%** |
 | | | 48,109 | 6,378 ms | 1,983 ms | **-69%** |
 | | | 65,111 | 8,784 ms | 1,980 ms | **-78%** |
 | | | 98,220 | 13,747 ms | 2,292 ms | **-83%** |
 
-(GLM sweep: every pull verified byte-exact from engine counters — 3.2-9.1 GB
+(GLM sweep: every pull verified byte-exact from engine counters — 0.75-9.1 GB
 loaded per point, matching tokens x 93 KB within 1%. The pull time is nearly
-flat, ~2.2 s (session floor + ~4.5 GB/s effective transfer), while recompute
-scales at ~144 us/token — so the gap grows without bound with prefix length.)
+flat, ~1.7-2.3 s (session floor + ~4.5 GB/s effective transfer), while
+recompute scales at ~130-144 us/token — so the gap grows without bound with
+prefix length. One transient to know: the *first* pull on a cold transfer
+mesh pays ~5-6 s of session establishment (measured 6.6 s for a 0.19 GB
+warm-up pull); all sweep points and all fleet results are steady-state,
+warm-mesh numbers.)
 
 The pattern is the same on every model: **below a crossover length recompute
 wins (the pull's fixed setup cost dominates); above it the pull wins and the
@@ -76,13 +83,13 @@ this table says a pull wins:
 | Llama-3.1-8B | ~2K tokens | 2,048 |
 | gpt-oss-120b | < 2K (pull wins at every measured length) | 2,048 |
 | Qwen3-30B-A3B | ~760 tokens (pull overhead ~30 ms) | 1,024 |
-| GLM-5.2-FP8 | ~15K tokens (pull floor ~2.2 s / recompute 144 us per token) | 16,384 — sits on the measured crossover |
+| GLM-5.2-FP8 | **~13.6K tokens, measured tie** (1.74 s vs 1.76 s at 13,648) | 16,384 — just above the measured crossover |
 
 The GLM threshold was first set as an engineering bracket (2,048 measurably
-fired net-loss pulls under load; a single ~24K calibration point won) and the
-length sweep afterwards confirmed it: the measured crossover, pull-floor
-divided by per-token recompute cost, lands at ~15K tokens — within 10% of the
-16,384 in production use.
+fired net-loss pulls under load) and the length sweep then bracketed and hit
+the crossover directly: recompute wins at 8K (+69%), dead tie at 13.6K, pull
+wins from ~22K on (-35%) — so `minCachedTokenDelta: 16384` fires pulls only
+in the measured-win region, with margin.
 
 Every fleet-level delta in section 2 is built on these per-miss economics:
 the router fires a pull only when a peer out-caches the scheduled pod by at

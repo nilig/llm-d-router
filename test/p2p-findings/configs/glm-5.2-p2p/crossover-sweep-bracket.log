@@ -1,0 +1,6 @@
+[06:48:28] source engine A podIP=10.0.15.53 (rank0, p2p port 7777)
+[06:48:53] MESHWARM first-pull=6.559251s loaded=0.19GB (cold-mesh datum)
+[06:49:10] L=8150 tokens=8070 cold=0.996114s warm=0.307271s pull=1.687986s Bload=0.75GB(exp 0.75) PULL_OK
+[06:49:28] L=15200 tokens=13648 cold=1.737579s warm=0.360100s pull=1.760498s Bload=1.26GB(exp 1.27) PULL_OK
+[06:49:49] L=24000 tokens=21617 cold=2.759991s warm=0.248784s pull=1.796221s Bload=2.00GB(exp 2.01) PULL_OK
+[06:49:49] SWEEP3 COMPLETE

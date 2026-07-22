@@ -95,18 +95,25 @@ byte-exact from B's `kv_offload_load_bytes_total` (loaded GB = tokens x
 
 | prompt tokens | recompute | pull | delta | KV moved |
 |---|---|---|---|---|
+| 8,070 | 1.00 s | 1.69 s | +69% | 0.75 GB |
+| 13,648 | 1.74 s | 1.76 s | +1% (tie) | 1.26 GB |
+| 21,617 | 2.76 s | 1.80 s | -35% | 2.0 GB |
 | 34,214 | 4.51 s | 2.51 s | -44% | 3.2 GB |
 | 48,109 | 6.38 s | 1.98 s | -69% | 4.5 GB |
 | 65,111 | 8.78 s | 1.98 s | -78% | 6.0 GB |
 | 98,220 | 13.75 s | 2.29 s | -83% | 9.1 GB |
 
-Pull time is nearly flat (~2.2 s session floor, ~4.5 GB/s effective);
-recompute scales at ~144 us/token. Crossover = 2.2 s / 144 us = **~15K
-tokens**, validating `minCachedTokenDelta: 16384`. Control
-(`crossover-sweep-v1-nopull-control.tsv`): the identical sweep *without* the
-injected p2p block never pulls (pull time = recompute time, 0 bytes loaded)
-— the engine does not fetch from peers autonomously; the EPP/sidecar
-directive is what triggers a pull.
+Pull time is nearly flat (~1.7-2.3 s session floor, ~4.5 GB/s effective);
+recompute scales at ~130-144 us/token. **Measured crossover: dead tie at
+13,648 tokens**; `minCachedTokenDelta: 16384` sits just above it, so fired
+pulls are always in the win region. Two controls: (1)
+`crossover-sweep-v1-nopull-control.tsv` — the identical sweep *without* the
+injected p2p block never pulls (pull time = recompute time, 0 bytes loaded):
+the engine does not fetch from peers autonomously; the EPP/sidecar directive
+is what triggers a pull. (2) The *first* pull on a cold transfer mesh pays
+~5-6 s of session establishment (6.6 s measured for a 0.19 GB warm-up pull;
+`crossover-sweep-bracket.tsv` MESHWARM line) — single-point pull-proofs on a
+fresh fleet measure this transient, not the steady-state pull.
 
 ## Findings
 
