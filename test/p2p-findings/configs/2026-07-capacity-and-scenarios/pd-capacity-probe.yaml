@@ -1,0 +1,151 @@
+---
+# Minimal capacity-only probe for the blog's Use Case 3 topology claim:
+# gpt-oss-120b, P/D, TP=1 both legs, MultiConnector (NIXL + Offloading P2P
+# tier), "exactly as the pd-disaggregation guide ships" otherwise (no
+# explicit --gpu-memory-utilization / --max-model-len override). No
+# routing/sidecar/load - just read "GPU KV cache size" from each engine's
+# own startup log.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pdcap-prefill
+  namespace: nilig-p2p
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pdcap-prefill
+  template:
+    metadata:
+      labels:
+        app: pdcap-prefill
+    spec:
+      containers:
+      - name: modelserver
+        image: vllm/vllm-openai:nightly-4080263bb2c5d10deac17aaeb88e0823bc35bca9
+        command: ["vllm", "serve"]
+        args:
+        - "openai/gpt-oss-120b"
+        - "--disable-access-log-for-endpoints=/health,/metrics,/v1/models"
+        - "--tensor-parallel-size=1"
+        - "--block-size=128"
+        - "--no-disable-hybrid-kv-cache-manager"
+        - "--kv-transfer-config"
+        - >-
+          {"kv_connector":"MultiConnector","kv_role":"kv_both",
+          "kv_connector_extra_config":{"connectors":[
+          {"kv_connector":"NixlConnector","kv_role":"kv_both"},
+          {"kv_connector":"OffloadingConnector","kv_role":"kv_both",
+          "kv_connector_extra_config":{"spec_name":"TieringOffloadingSpec",
+          "cpu_bytes_to_use":94489280512,"offload_prompt_only":false,
+          "secondary_tiers":[{"type":"p2p","host":"$(POD_IP)","port":7777}]}}]}}
+        env:
+        - name: HF_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: llm-d-hf-token
+              key: HF_TOKEN
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: VLLM_P2P_SIDE_CHANNEL_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: HOME
+          value: /tmp
+        resources:
+          limits:
+            cpu: "8"
+            memory: 160Gi
+            nvidia.com/gpu: "1"
+          requests:
+            cpu: "8"
+            memory: 160Gi
+            nvidia.com/gpu: "1"
+        volumeMounts:
+        - mountPath: /dev/shm
+          name: shm
+      volumes:
+      - name: shm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 100Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pdcap-decode
+  namespace: nilig-p2p
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pdcap-decode
+  template:
+    metadata:
+      labels:
+        app: pdcap-decode
+    spec:
+      containers:
+      - name: modelserver
+        image: vllm/vllm-openai:nightly-4080263bb2c5d10deac17aaeb88e0823bc35bca9
+        command: ["vllm", "serve"]
+        args:
+        - "openai/gpt-oss-120b"
+        - "--disable-access-log-for-endpoints=/health,/metrics,/v1/models"
+        - "--tensor-parallel-size=1"
+        - "--block-size=128"
+        - "--port=8200"
+        - "--no-disable-hybrid-kv-cache-manager"
+        - "--kv-transfer-config"
+        - >-
+          {"kv_connector":"MultiConnector","kv_role":"kv_both",
+          "kv_connector_extra_config":{"connectors":[
+          {"kv_connector":"NixlConnector","kv_role":"kv_both"},
+          {"kv_connector":"OffloadingConnector","kv_role":"kv_both",
+          "kv_connector_extra_config":{"spec_name":"TieringOffloadingSpec",
+          "cpu_bytes_to_use":94489280512,"offload_prompt_only":false,
+          "secondary_tiers":[{"type":"p2p","host":"$(POD_IP)","port":7777}]}}]}}
+        env:
+        - name: HF_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: llm-d-hf-token
+              key: HF_TOKEN
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: VLLM_P2P_SIDE_CHANNEL_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: HOME
+          value: /tmp
+        resources:
+          limits:
+            cpu: "8"
+            memory: 160Gi
+            nvidia.com/gpu: "1"
+          requests:
+            cpu: "8"
+            memory: 160Gi
+            nvidia.com/gpu: "1"
+        volumeMounts:
+        - mountPath: /dev/shm
+          name: shm
+      volumes:
+      - name: shm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 100Gi

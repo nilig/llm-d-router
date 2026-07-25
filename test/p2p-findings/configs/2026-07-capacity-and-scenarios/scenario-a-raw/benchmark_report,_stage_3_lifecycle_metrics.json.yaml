@@ -1,0 +1,248 @@
+metrics:
+  latency:
+    inter_token_latency:
+      max: 0.09105830499902368
+      mean: 0.0009219843635550424
+      min: 0.0
+      p0p1: 0.0
+      p1: 0.0
+      p10: 0.0
+      p25: 0.0
+      p5: 0.0
+      p50: 0.0
+      p75: 0.0
+      p90: 0.004824388958513737
+      p95: 0.005554978316649794
+      p99: 0.008584947511553738
+      p99p9: 0.03834512649625367
+      units: s/token
+    normalized_time_per_output_token:
+      max: 0.016967871631946293
+      mean: 0.012294663036086274
+      min: 1.7857994911774766e-05
+      p0p1: 1.798231643038657e-05
+      p1: 0.01051405595736209
+      p10: 0.011099928716742266
+      p25: 0.01148426424196469
+      p5: 0.0109171405387236
+      p50: 0.012040792431643701
+      p75: 0.012987302820693002
+      p90: 0.013953553414467024
+      p95: 0.014670159702821916
+      p99: 0.0162286928921395
+      p99p9: 0.016912266610205295
+      units: s/token
+    request_latency:
+      max: 1.1060696602798998
+      mean: 0.7807397815117535
+      min: 0.6629894920624793
+      p0p1: 0.6689355842894874
+      p1: 0.6764634468406439
+      p10: 0.7066447055432945
+      p25: 0.7264864514581859
+      p5: 0.6972669222624972
+      p50: 0.7622388550080359
+      p75: 0.8161825183779001
+      p90: 0.8809589518234133
+      p95: 0.9208926134975627
+      p99: 1.0244181717978789
+      p99p9: 1.0648136104713217
+      units: s
+    time_per_output_token:
+      max: 0.007502209364126126
+      mean: 0.004638390775784449
+      min: 4.488796313381659e-06
+      p0p1: 4.81676052181891e-06
+      p1: 0.0038203843399101205
+      p10: 0.004142502209703837
+      p25: 0.004262739214085279
+      p5: 0.0040691745559126415
+      p50: 0.004458480532125003
+      p75: 0.0049337238334190734
+      p90: 0.005404415796285556
+      p95: 0.005835880276936223
+      p99: 0.0066223966732311965
+      p99p9: 0.007365076945738603
+      units: s/token
+    time_to_first_token:
+      max: 0.6060821050778031
+      mean: 0.3436251930795455
+      min: 0.2589594009332359
+      p0p1: 0.2605363554758951
+      p1: 0.2655759212654084
+      p10: 0.29122346118092535
+      p25: 0.30529980605933815
+      p5: 0.28561229235492647
+      p50: 0.33100330363959074
+      p75: 0.36815977620426565
+      p90: 0.4163409985601902
+      p95: 0.44666770875919604
+      p99: 0.5181307267490775
+      p99p9: 0.6052803955152631
+      units: s
+  requests:
+    failures: 0
+    input_length:
+      max: 48256.0
+      mean: 48256.0
+      min: 48256.0
+      p0p1: 48256.0
+      p1: 48256.0
+      p10: 48256.0
+      p25: 48256.0
+      p5: 48256.0
+      p50: 48256.0
+      p75: 48256.0
+      p90: 48256.0
+      p95: 48256.0
+      p99: 48256.0
+      p99p9: 48256.0
+      units: count
+    output_length:
+      max: 48322.0
+      mean: 314.48333333333335
+      min: 56.0
+      p0p1: 56.0
+      p1: 59.0
+      p10: 61.0
+      p25: 62.0
+      p5: 60.0
+      p50: 63.0
+      p75: 64.0
+      p90: 65.0
+      p95: 65.0
+      p99: 66.0
+      p99p9: 48320.082
+      units: count
+    total: 960
+  throughput:
+    output_tokens_per_sec: 4963.654487402604
+    requests_per_sec: 15.783521609208556
+    total_tokens_per_sec: 766613.2732613707
+  time:
+    duration: 59.984067644923925
+scenario:
+  load:
+    args:
+      api:
+        headers: null
+        response_format: null
+        session_id_header_key: null
+        slo_tpot_header: null
+        slo_ttft_header: null
+        slo_unit: null
+        streaming: true
+        type: completion
+      circuit_breakers: null
+      data:
+        conversation_replay: null
+        corpus_file_path: null
+        input_distribution: null
+        multimodal: null
+        otel_trace_replay: null
+        output_distribution: null
+        path: null
+        shared_prefix:
+          enable_multi_turn_chat: false
+          multimodal: null
+          num_unique_system_prompts: 128
+          num_users_per_system_prompt: 32
+          output_distribution: null
+          output_len: 64
+          question_distribution: null
+          question_len: 256
+          seed: null
+          system_prompt_len: 48000
+        trace: null
+        type: shared_prefix
+        visionarena: null
+        weka_trace_replay: null
+      load:
+        base_seed: 1784954084070
+        circuit_breakers: []
+        interval: 1.0
+        lora_traffic_split: null
+        num_workers: 128
+        request_timeout: null
+        stages:
+        - concurrency_level: null
+          duration: 60
+          num_requests: null
+          rate: 4.0
+        - concurrency_level: null
+          duration: 60
+          num_requests: null
+          rate: 8.0
+        - concurrency_level: null
+          duration: 60
+          num_requests: null
+          rate: 12.0
+        - concurrency_level: null
+          duration: 60
+          num_requests: null
+          rate: 16.0
+        - concurrency_level: null
+          duration: 60
+          num_requests: null
+          rate: 20.0
+        - concurrency_level: null
+          duration: 60
+          num_requests: null
+          rate: 24.0
+        sweep: null
+        trace: null
+        type: constant
+        worker_max_concurrency: 100
+        worker_max_tcp_connections: 2500
+      metrics: null
+      report:
+        goodput: null
+        prometheus:
+          per_stage: false
+          summary: true
+        request_lifecycle:
+          per_adapter: true
+          per_adapter_stage: false
+          per_request: true
+          per_stage: true
+          percentiles:
+          - 0.1
+          - 1.0
+          - 5.0
+          - 10.0
+          - 25.0
+          - 50.0
+          - 75.0
+          - 90.0
+          - 95.0
+          - 99.0
+          - 99.9
+          summary: true
+        session_lifecycle:
+          per_session: false
+          per_stage: true
+          summary: true
+      server:
+        api_key: null
+        base_url: http://10.16.0.215:8081
+        cert_path: null
+        ignore_eos: true
+        key_path: null
+        model_name: openai/gpt-oss-120b
+        type: vllm
+      storage:
+        google_cloud_storage: null
+        local_storage:
+          path: /requests/inference-perf-1784954071-f3ecjc_1
+          report_file_prefix: null
+        simple_storage_service: null
+      tokenizer:
+        pretrained_model_name_or_path: openai/gpt-oss-120b
+        token: null
+        trust_remote_code: null
+    metadata:
+      stage: 3
+    name: inference-perf
+  model:
+    name: unknown
+version: '0.1'

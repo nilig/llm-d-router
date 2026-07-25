@@ -1,0 +1,20 @@
+# TEST SCAFFOLDING (not for commit): overlays the request-finalization fix
+# (offloading connector scheduler) onto the engine. Currently Or's variant,
+# orozery/vllm@fa07027d, from the p2p-fix-or ConfigMap.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: decode
+spec:
+  template:
+    spec:
+      containers:
+        - name: modelserver
+          volumeMounts:
+            - mountPath: /usr/local/lib/python3.12/dist-packages/vllm/distributed/kv_transfer/kv_connector/v1/offloading/scheduler.py
+              name: p2pfix
+              subPath: offloading_scheduler.py
+      volumes:
+        - name: p2pfix
+          configMap:
+            name: p2p-fix-or
