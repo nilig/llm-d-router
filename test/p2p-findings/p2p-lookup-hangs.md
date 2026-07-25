@@ -116,6 +116,18 @@ attempt lost requests to this hang. A production version should also clear
 the deadline map on request finish, and the hot re-poll loop deserves an
 upstream backoff independent of the deadline.
 
+Deterministic repro (`repro_defect3.py`, no GPU / no HTTP / no second pod):
+drives the real `TieringOffloadingManager.lookup()` against a primary tier
+stub whose block is permanently write-in-flight (returns `HIT_PENDING`), via
+`object.__new__` + the three attributes the `HIT_PENDING` path touches
+(`_req_state`, `primary_tier`, `_maybe_process_finished_jobs`). Verified on
+`nightly-0ba2aa35a` (== `main`@70009fb9 for this path): stock returns
+`HIT_PENDING` on all 1,000 rapid calls and still after 8.5s (the request would
+hang to the client timeout); with the `defect3` deadline inserted it downgrades
+to `MISS` after 8s and recomputes. Confirms the bug is live in current `main`
+and tier-agnostic (the `HIT_PENDING` wait is in the shared tiering manager, not
+the P2P session).
+
 ## Fix for defects 1 and 2 (validated): `defect12_fix_lookup-deadline-sticky-miss.diff`, one file (`session/client.py`), ~30 lines
 
 1. Consumer-side lookup deadline (8s = server's 5s straggler deadline plus
