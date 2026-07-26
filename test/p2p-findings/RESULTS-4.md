@@ -205,4 +205,64 @@ run confirms it isn't broken by anything that changed since.
 
 ---
 
-<!-- UC4 section appended below if that run completes. -->
+## UC4: Llama-3.1-8B P/D multi-turn chat (prefill-pulls-from-decode) — mechanism confirmed, small scale
+
+### Background and scope
+
+UC4 targets the harder cross-role mechanism: a fresh turn's prefill leg
+pulling the *previous turn's decode-generated answer* as session history,
+so it doesn't recompute the whole growing conversation from scratch. This
+only works when the model's chat template is round-trip-stable
+(`tokenize(generated_text) == generated_token_ids`) — proven true for
+Llama-3.1-8B, proven FALSE for gpt-oss's harmony template (a same-pod
+control hit exactly the prefix boundary and 0 hits on its own generated
+segment — see [[project_pd_multiturn_experiment]], "ROOT CAUSE (settled
+2026-07-18)"). That investigation got this working end-to-end once
+(`llama-chat-pull3.sh`, 1P+1D, hand-primed session) and again at larger
+scale ("Run N", 4P+4D and 2P+4D, EPP-driven, 477K-1.65M tokens pulled per
+run) — but only after several days of chasing cross-TP rejection,
+cold-session first-miss hangs, and the retokenization dead-end above.
+
+Tonight's run reuses that precedent directly: same-TP=1 both roles, EPP
+arm B (precise + p2p producers on the prefill profile only, delta 1024),
+natural EOS (no `ignore_eos` — forced continuation breaks the
+retokenization chain), the actual generated text carried forward as each
+turn's assistant message (not a filler, unlike UC3's docQA driver — this
+one's whole point depends on it).  Scaled down to **2P+2D** (from Run N's
+4P+4D) and **16 conversations × 6 turns** for time budget. Applied both
+UC3 lessons preemptively (routing-proxy sidecar on both roles; shm sized
+above `cpu_bytes_to_use`) — this rig came up clean on the first deploy,
+no repeat of UC3's two bugs. Manifests:
+[configs/uc4-llama-pd-resolved](configs/uc4-llama-pd-resolved).
+
+### Result
+
+96/96 turns succeeded, 0 failures, duration 5.2s, throughput 18.4 turns/s,
+TTFT p50=549ms/p95=1030ms
+([configs/uc4-llama-pd-resolved/uc4_chat_out.log](configs/uc4-llama-pd-resolved/uc4_chat_out.log)).
+This workload is short (6-word topics, ≤150-token answers) and fast enough
+that it mostly didn't generate the placement pressure needed to force a
+cross-pod pull — matching the same low-concurrency-favors-affinity pattern
+observed in UC3's initial smoke test.
+
+One prefill pod (`kfgzq`) shows only local `store` activity (its own
+requests never needed to pull). The other (`rfxmv`) shows **both**
+`kv_offload_load_bytes_total` (16.7MB) and `store` — a genuine, if modest,
+confirmed prefill-pulls-from-decode event: at least one turn's prefill
+leg landed on a pod that didn't own the conversation's history and
+successfully pulled it from decode instead of recomputing. Small next to
+Run N's 477K-1.65M tokens/run (different scale, different concurrency —
+not a discrepancy), but non-zero, and that's the bar for "the mechanism
+still works": zero fingerprint-mismatch, zero peer-down, zero disconnect,
+zero hang signatures anywhere in the logs; zero pod restarts across all 4
+pods.
+
+**Conclusion: prefill-pulls-from-decode is confirmed healthy on the fixed
+stack** — the harder of the two P/D mechanisms, reproduced cleanly on the
+first attempt tonight (after applying UC3's lessons up front), where the
+original investigation needed several days to work through cross-TP
+rejection, cold-session hangs, and the retokenization dead-end. Not
+re-derived tonight: Run N's actual throughput/latency comparison (TTFT
+parity verdict — "a capacity story, not latency, at this model scale") —
+that finding stands from the original investigation; this run only
+confirms the underlying mechanism hasn't regressed.

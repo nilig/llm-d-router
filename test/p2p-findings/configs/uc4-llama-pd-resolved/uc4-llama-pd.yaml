@@ -1,0 +1,194 @@
+---
+# UC4 re-validation: Llama-3.1-8B P/D multi-turn chat, prefill-pulls-from-
+# decode (cross-role, same-TP=1 both sides -- Llama's V2 model runner needs
+# forcing to MRV1 for hetero-TP, irrelevant here since both roles are TP=1
+# anyway). Llama's chat template is round-trip-stable (tokenize(generated)
+# == generated ids), unlike gpt-oss's harmony template -- this is what
+# lets prefill pull the decode-generated answer as session history on the
+# next turn (see project_pd_multiturn_experiment memory,
+# llama-chat-pull3.sh finding). 2P+2D scaled down from Run N's 4P+4D for
+# tonight's time budget. Same combined overlay as UC2/UC3
+# (#48021-merged + #49877 + #49850, no defect12). Both roles run their own
+# routing-proxy sidecar (lesson from UC3: the decode sidecar's NIXL P/D
+# handler always dials the prefill peer on port 8000).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: uc4-llama-prefill
+  namespace: nilig-p2p
+  labels: {app: uc4-llama, role: prefill}
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: uc4-llama, role: prefill}}
+  template:
+    metadata:
+      labels:
+        app: uc4-llama
+        role: prefill
+        llm-d.ai/role: prefill
+        llm-d.ai/inferenceServing: "true"
+        llm-d.ai/uc: uc4
+    spec:
+      initContainers:
+      - name: routing-proxy
+        image: quay.io/niliguy/llm-d-router-disagg-sidecar:p2p-rename-43aea48e
+        args: ["--port=8000", "--vllm-port=8200", "--kv-connector=nixlv2", "--p2p-connector-port=7777", "--secure-proxy=false"]
+        env: [{name: POD_IP, valueFrom: {fieldRef: {fieldPath: status.podIP}}}]
+        ports: [{containerPort: 8000, name: proxy}]
+        restartPolicy: Always
+        securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true}
+      containers:
+      - name: modelserver
+        image: vllm/vllm-openai:nightly-1240c74c0a47473449cf0c3a9c2d87a1e159f73b
+        command: ["sh", "-c", "rm -f /dev/shm/vllm_offload_*.mmap 2>/dev/null; exec vllm serve \"$@\"", "sh"]
+        args:
+        - meta-llama/Llama-3.1-8B-Instruct
+        - --port=8200
+        - --disable-access-log-for-endpoints=/health,/metrics,/v1/models
+        - --tensor-parallel-size=1
+        - --block-size=64
+        - --max-model-len=20000
+        - --gpu-memory-utilization=0.6
+        - --kv-transfer-config
+        - '{"kv_connector":"MultiConnector","kv_role":"kv_both","kv_connector_extra_config":{"connectors":[{"kv_connector":"NixlConnector","kv_role":"kv_both"},{"kv_connector":"OffloadingConnector","kv_role":"kv_both","kv_connector_extra_config":{"spec_name":"TieringOffloadingSpec","cpu_bytes_to_use":17179869184,"offload_prompt_only":false,"secondary_tiers":[{"type":"p2p","host":"$(POD_IP)","port":7777}]}}]}}'
+        - --kv-events-config
+        - '{"enable_kv_cache_events":true,"publisher":"zmq","endpoint":"tcp://*:5556","topic":"kv@$(POD_IP):8000@meta-llama/Llama-3.1-8B-Instruct"}'
+        env:
+        - {name: HF_TOKEN, valueFrom: {secretKeyRef: {name: llm-d-hf-token, key: HF_TOKEN}}}
+        - {name: POD_IP, valueFrom: {fieldRef: {fieldPath: status.podIP}}}
+        - {name: VLLM_NIXL_SIDE_CHANNEL_HOST, valueFrom: {fieldRef: {fieldPath: status.podIP}}}
+        - {name: VLLM_NIXL_SIDE_CHANNEL_PORT, value: "5600"}
+        - {name: PYTHONHASHSEED, value: "0"}
+        - {name: HOME, value: /tmp}
+        ports: [{containerPort: 8200, name: http}, {containerPort: 5600, name: nixl}, {containerPort: 7777, name: p2p}, {containerPort: 5556, name: kv-events}]
+        resources: {limits: {cpu: "8", memory: 48Gi, nvidia.com/gpu: "1"}, requests: {cpu: "8", memory: 48Gi, nvidia.com/gpu: "1"}}
+        volumeMounts:
+        - {name: dshm, mountPath: /dev/shm}
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/base.py, subPath: base.py }
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/manager.py, subPath: manager.py }
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/__init__.py, subPath: session___init__.py }
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/client.py, subPath: session_client.py }
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/protocol.py, subPath: session_protocol.py }
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/server.py, subPath: session_server.py }
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/session.py, subPath: session_session.py }
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/control/zmq.py, subPath: control_zmq.py }
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/control/base.py, subPath: control_base.py }
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/distributed/kv_transfer/kv_connector/v1/offloading/scheduler.py, subPath: offloading_scheduler.py }
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/distributed/kv_transfer/kv_connector/v1/offloading/metrics.py, subPath: offloading_metrics.py }
+        startupProbe: {httpGet: {path: /health, port: 8200}, initialDelaySeconds: 30, periodSeconds: 10, failureThreshold: 60}
+        readinessProbe: {httpGet: {path: /health, port: 8200}, periodSeconds: 5, failureThreshold: 3}
+      volumes:
+      - {name: dshm, emptyDir: {medium: Memory, sizeLimit: 24Gi}}
+      - {name: gp2p, configMap: {name: combined-overlay-uc2resume}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: uc4-llama-prefill, namespace: nilig-p2p}
+spec:
+  selector: {app: uc4-llama, role: prefill}
+  ports: [{name: proxy, port: 8000, targetPort: 8000}, {name: kv-events, port: 5556, targetPort: 5556}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: uc4-llama-decode
+  namespace: nilig-p2p
+  labels: {app: uc4-llama, role: decode}
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: uc4-llama, role: decode}}
+  template:
+    metadata:
+      labels:
+        app: uc4-llama
+        role: decode
+        llm-d.ai/role: decode
+        llm-d.ai/inferenceServing: "true"
+        llm-d.ai/uc: uc4
+    spec:
+      initContainers:
+      - name: routing-proxy
+        image: quay.io/niliguy/llm-d-router-disagg-sidecar:p2p-rename-43aea48e
+        args: ["--port=8000", "--vllm-port=8200", "--kv-connector=nixlv2", "--enable-p2p-pull", "--p2p-connector-port=7777", "--secure-proxy=false"]
+        env: [{name: POD_IP, valueFrom: {fieldRef: {fieldPath: status.podIP}}}]
+        ports: [{containerPort: 8000, name: proxy}]
+        restartPolicy: Always
+        securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true}
+      containers:
+      - name: modelserver
+        image: vllm/vllm-openai:nightly-1240c74c0a47473449cf0c3a9c2d87a1e159f73b
+        command: ["sh", "-c", "rm -f /dev/shm/vllm_offload_*.mmap 2>/dev/null; exec vllm serve \"$@\"", "sh"]
+        args:
+        - meta-llama/Llama-3.1-8B-Instruct
+        - --port=8200
+        - --disable-access-log-for-endpoints=/health,/metrics,/v1/models
+        - --tensor-parallel-size=1
+        - --block-size=64
+        - --max-model-len=20000
+        - --gpu-memory-utilization=0.6
+        - --kv-transfer-config
+        - '{"kv_connector":"MultiConnector","kv_role":"kv_both","kv_connector_extra_config":{"connectors":[{"kv_connector":"NixlConnector","kv_role":"kv_both"},{"kv_connector":"OffloadingConnector","kv_role":"kv_both","kv_connector_extra_config":{"spec_name":"TieringOffloadingSpec","cpu_bytes_to_use":17179869184,"offload_prompt_only":false,"secondary_tiers":[{"type":"p2p","host":"$(POD_IP)","port":7777}]}}]}}'
+        - --kv-events-config
+        - '{"enable_kv_cache_events":true,"publisher":"zmq","endpoint":"tcp://*:5556","topic":"kv@$(POD_IP):8000@meta-llama/Llama-3.1-8B-Instruct"}'
+        env:
+        - {name: HF_TOKEN, valueFrom: {secretKeyRef: {name: llm-d-hf-token, key: HF_TOKEN}}}
+        - {name: POD_IP, valueFrom: {fieldRef: {fieldPath: status.podIP}}}
+        - {name: VLLM_NIXL_SIDE_CHANNEL_HOST, valueFrom: {fieldRef: {fieldPath: status.podIP}}}
+        - {name: VLLM_NIXL_SIDE_CHANNEL_PORT, value: "5600"}
+        - {name: VLLM_P2P_SIDE_CHANNEL_HOST, valueFrom: {fieldRef: {fieldPath: status.podIP}}}
+        - {name: PYTHONHASHSEED, value: "0"}
+        - {name: HOME, value: /tmp}
+        ports: [{containerPort: 8200, name: http}, {containerPort: 5600, name: nixl}, {containerPort: 7777, name: p2p}, {containerPort: 5556, name: kv-events}]
+        resources: {limits: {cpu: "8", memory: 48Gi, nvidia.com/gpu: "1"}, requests: {cpu: "8", memory: 48Gi, nvidia.com/gpu: "1"}}
+        volumeMounts:
+        - {name: dshm, mountPath: /dev/shm}
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/base.py, subPath: base.py }
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/manager.py, subPath: manager.py }
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/__init__.py, subPath: session___init__.py }
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/client.py, subPath: session_client.py }
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/protocol.py, subPath: session_protocol.py }
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/server.py, subPath: session_server.py }
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/session.py, subPath: session_session.py }
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/control/zmq.py, subPath: control_zmq.py }
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/control/base.py, subPath: control_base.py }
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/distributed/kv_transfer/kv_connector/v1/offloading/scheduler.py, subPath: offloading_scheduler.py }
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/distributed/kv_transfer/kv_connector/v1/offloading/metrics.py, subPath: offloading_metrics.py }
+        startupProbe: {httpGet: {path: /health, port: 8200}, initialDelaySeconds: 30, periodSeconds: 10, failureThreshold: 60}
+        readinessProbe: {httpGet: {path: /health, port: 8200}, periodSeconds: 5, failureThreshold: 3}
+      volumes:
+      - {name: dshm, emptyDir: {medium: Memory, sizeLimit: 24Gi}}
+      - {name: gp2p, configMap: {name: combined-overlay-uc2resume}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: uc4-llama-decode, namespace: nilig-p2p}
+spec:
+  selector: {app: uc4-llama, role: decode}
+  ports: [{name: proxy, port: 8000, targetPort: 8000}, {name: kv-events, port: 5556, targetPort: 5556}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: uc4-llama-render, namespace: nilig-p2p}
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: uc4-llama-render}}
+  template:
+    metadata: {labels: {app: uc4-llama-render}}
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - name: vllm-render
+        image: docker.io/vllm/vllm-openai-cpu:v0.23.0
+        command: ["vllm", "launch", "render", "meta-llama/Llama-3.1-8B-Instruct", "--port=8000"]
+        env:
+        - {name: HF_TOKEN, valueFrom: {secretKeyRef: {name: llm-d-hf-token, key: HF_TOKEN}}}
+        - {name: HOME, value: /tmp}
+        ports: [{containerPort: 8000}]
+        resources: {requests: {cpu: "2", memory: 8Gi}, limits: {memory: 16Gi}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: uc4-llama-render, namespace: nilig-p2p}
+spec:
+  selector: {app: uc4-llama-render}
+  ports: [{port: 8000, targetPort: 8000}]

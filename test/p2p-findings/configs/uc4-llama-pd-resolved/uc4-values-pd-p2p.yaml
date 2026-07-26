@@ -1,0 +1,57 @@
+router:
+  epp:
+    image: { tag: main, pullPolicy: Always }
+    pluginsConfigFile: "uc4.yaml"
+    pluginsCustomConfig:
+      uc4.yaml: |
+        apiVersion: llm-d.ai/v1alpha1
+        kind: EndpointPickerConfig
+        plugins:
+          - type: disagg-headers-handler
+          - type: always-disagg-pd-decider
+          - type: disagg-profile-handler
+            parameters: { deciderPluginName: always-disagg-pd-decider }
+          - type: prefill-filter
+          - type: decode-filter
+          - type: token-producer
+            parameters:
+              modelName: meta-llama/Llama-3.1-8B-Instruct
+              vllm: { url: "http://uc4-llama-render:8000" }
+          - type: endpoint-notification-source
+          - type: metrics-data-source
+            parameters: { scheme: "http", path: "/metrics", insecureSkipVerify: true }
+          - type: core-metrics-extractor
+          - type: precise-prefix-cache-producer
+            parameters:
+              tokenProcessorConfig: { blockSize: 64 }
+              kvEventsConfig: { topicFilter: "kv@", discoverPods: true, podDiscoveryConfig: { socketPort: 5556 } }
+          - type: p2p-source-producer
+            parameters:
+              prefixMatchInfoProducerName: precise-prefix-cache-producer
+              prefillProfileName: prefill
+              minCachedTokenDelta: 1024
+          - type: prefix-cache-scorer
+            parameters: { prefixMatchInfoProducerName: precise-prefix-cache-producer }
+          - type: queue-scorer
+          - type: kv-cache-utilization-scorer
+          - type: active-request-scorer
+        dataLayer:
+          sources:
+            - pluginRef: metrics-data-source
+              extractors: [ { pluginRef: core-metrics-extractor } ]
+            - pluginRef: endpoint-notification-source
+              extractors: [ { pluginRef: precise-prefix-cache-producer } ]
+        schedulingProfiles:
+          - name: prefill
+            plugins:
+              - pluginRef: prefill-filter
+              - { pluginRef: prefix-cache-scorer, weight: 3 }
+              - { pluginRef: queue-scorer, weight: 2 }
+              - { pluginRef: kv-cache-utilization-scorer, weight: 2 }
+          - name: decode
+            plugins:
+              - pluginRef: decode-filter
+              - { pluginRef: active-request-scorer, weight: 2 }
+              - { pluginRef: prefix-cache-scorer, weight: 3 }
+  modelServers:
+    matchLabels: { llm-d.ai/uc: uc4 }

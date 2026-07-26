@@ -1,0 +1,4 @@
+Launching 16 conversations x 6 turns, concurrency=16
+duration=5.2s ok=96 fail=0 total=96/96
+TTFT p50=549ms p95=1030ms
+throughput=18.42 turns/s
