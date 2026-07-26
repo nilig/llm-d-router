@@ -132,7 +132,14 @@ on main).
    Fix direction (grounded in an existing pattern in the same file): don't
    clear `st.load` immediately in `finish()`; arm `aborted_at` and let the
    same abort-ack/timeout mechanism used elsewhere resolve it. Posted as a
-   review comment on the PR.
+   review comment on the PR:
+   https://github.com/vllm-project/vllm/pull/49877#issuecomment-5083883758
+   Also posted a short scope update on issue #49829 cross-linking this
+   (not duplicating it), clarifying that #49877 closes the overlap-based
+   P2P cause but not the finish()-cleanup path to HIT_PENDING, and that
+   #49850 bounds how long later requests wait on the leak without cleaning
+   it (it never touches manager.py/complete_write()/_transfer_jobs):
+   https://github.com/vllm-project/vllm/issues/49829#issuecomment-5083888444
 
 3. **End-to-end GPU validation, our own workload** (not Etelis's harness).
    Redeployed the same uc2-llama 4-pod rig, same nightly, same hi-rate
