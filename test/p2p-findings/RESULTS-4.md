@@ -124,4 +124,85 @@ removes the trigger that caused disconnects in the first place.
 
 ---
 
-<!-- UC3 and UC4 sections appended below as those runs complete. -->
+## UC3: gpt-oss-120b P/D docQA (prefill-to-prefill P2P) — mechanism confirmed clean
+
+### Background and scope
+
+UC3's original investigation ([[project_pd_multiturn_experiment]]) established
+that gpt-oss's hybrid/interleaved-sliding-window attention permanently blocks
+cross-TP P2P sessions (config-fingerprint mismatch, not a bug — a vLLM
+connector limitation), so prefill-pulls-from-decode never forms for this
+model. The mechanism that DOES work and DOES win is **prefill-to-prefill**
+pull: docQA's per-conversation document prefix gets computed once by whichever
+prefill pod first serves it, and other prefill pods that later serve requests
+against the same document pull it from the CPU tier instead of recomputing —
+proven clean on 2026-07-18 (8P+8D TP=1, C=192: armA guide-only p50 11.94/p95
+71.6/p99 106.1s at 5.68 t/s vs armB guide+P2P p50 1.16/p95 55.2/p99 80.0s at
+7.96 t/s, both 1152/1152, driven by 52M P2P external-hit tokens).
+
+Tonight's run re-validates that this mechanism is still healthy on the fixed
+stack (`#48021`+`#49877`+`#49850`), scaled down for time budget: **4P+4D**
+(from 8P+8D) and **48 conversations at C=48** (from 192 at C=192) — same
+per-turn shape (6 turns, 256 input/256 output tokens, 49,152-token private
+system-prompt document per conversation). This is a mechanism-health check,
+not a fresh throughput A/B: no plain-NixlConnector baseline arm was run
+tonight (each fresh rig deploy cost significant unplanned time — see below —
+and re-deriving the win itself wasn't the point; the original comparison
+above already establishes it). Manifests:
+[configs/uc3-gptoss-pd-resolved](configs/uc3-gptoss-pd-resolved).
+
+### Two real deploy bugs found and fixed (own manifest, not product defects)
+
+1. **`cpu_bytes_to_use` exceeded `/dev/shm` size.** Set the CPU tier to 64GiB
+   but sized the pod's shm `emptyDir` at 24Gi — `SharedOffloadRegion.__init__`
+   failed with `OSError: [Errno 14] Bad address` on `mmap_obj.madvise()`,
+   crash-looping every pod. Fixed: shm sized to 80Gi (> `cpu_bytes_to_use`),
+   matching the established "shm > cpu_bytes" rule
+   ([[project_p2p_well_lit_path_plan]]).
+2. **Prefill pods were missing their own routing-proxy sidecar.** Built
+   prefill as a bare engine on port 8200 (matching the ad-hoc
+   `llama-pd.yaml` reference rig, which is curl-driven with no EPP). But the
+   *decode* sidecar's NIXL P/D handler always dials the prefill peer on port
+   8000, expecting every model-server pod — prefill included — to run its
+   own routing-proxy in front of the engine, uniformly. Without it: `dial
+   tcp <prefill-ip>:8000: connect: connection refused`, every request 502.
+   Fixed by adding the same `routing-proxy` init-container pattern to
+   prefill (port 8000 → engine 8200, no `--enable-p2p-pull` needed there —
+   only the leg that *initiates* a pull needs that flag).
+
+### Mechanism gate
+
+Full P/D round-trip confirmed first (single chat completion, 200 OK, correct
+NIXL transfer). A 17-request low-concurrency burst against one shared prefix
+landed entirely on one prefill pod — zero P2P activity — which is *expected*,
+not a defect: the original investigation's own finding is that
+`prefix-cache-scorer`'s affinity term dominates at low concurrency, and the
+mechanism only engages once real concurrent pressure forces placement
+divergence across the prefill fleet.
+
+### docQA result (48 conversations × 6 turns, C=48, 49,152-token system
+prompt each — [configs/uc3-gptoss-pd-resolved/uc3_docqa_out.log](configs/uc3-gptoss-pd-resolved/uc3_docqa_out.log))
+
+288/288 turns succeeded, 0 failures, duration 128.8s, throughput 2.24
+turns/s, TTFT p50=3.05s / p95=76.2s / p99=99.0s (tail dominated by the
+49K-token cold prefill cost on a request's first turn against a given
+document, at C=48 saturating 4 prefill pods).
+
+All 4 prefill pods show **both** `kv_offload_load_bytes_total` and
+`kv_offload_store_bytes_total` firing (load 90MB-17.3GB, store 10.5-76.5GB
+per pod) — confirming genuine cross-pod pull activity under real placement
+divergence, not just "didn't crash." Zero pod restarts across all 8 pods.
+Zero duplicate-fetch, disconnect, traceback, `EngineDeadError`,
+`HIT_PENDING`-expiry, or fingerprint-mismatch signatures anywhere in the
+logs.
+
+**Conclusion: the prefill-to-prefill P2P mechanism for gpt-oss docQA is
+healthy on the fixed stack** — same mechanism, same topology class, same
+workload shape as the original clean win, no regressions, no crashes, no
+lookup-hang symptoms. The throughput win itself (10x p50, +40% tput) was
+established in the original investigation and isn't re-derived here; this
+run confirms it isn't broken by anything that changed since.
+
+---
+
+<!-- UC4 section appended below if that run completes. -->
