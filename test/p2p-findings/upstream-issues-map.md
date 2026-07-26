@@ -15,7 +15,7 @@ directly on GitHub.
 | [#49809](https://github.com/vllm-project/vllm/issues/49809) | reconnect to a reaped peer trips `AssertionError: ZmqConnection already exists`; dead conn never released | P2P control transport (`tiering/p2p/control/zmq.py`) | crash | pd-defects Defect 2 | [#49823](https://github.com/vllm-project/vllm/pull/49823) open, validated (5 fail stock / 16 pass patched), our review comment posted on the PR directly |
 | [#49820](https://github.com/vllm-project/vllm/issues/49820) | symmetric producer accepts a fetch it cannot serve, never sends `TransferDone(success=False)` -> consumer deferred full `_LOAD_TIMEOUT_S=30s`. ROOT CAUSE FOUND 2026-07-26 -- see below | P2P session (`tiering/p2p/session/*`) | stall | new (post-Liran residual) | [#49877](https://github.com/vllm-project/vllm/pull/49877) open, VALIDATED at 3 levels incl. our own GPU repro -- works end-to-end, 1 narrower gap remains -- see below |
 | [#49829](https://github.com/vllm-project/vllm/issues/49829) | `TieringOffloadingManager.lookup()` returns `HIT_PENDING` unconditionally, no deadline, no downgrade-to-MISS | shared tiering manager (`tiering/manager.py`) -- NOT P2P-specific | stall | lookup-hangs Defect 3 | [#49850](https://github.com/vllm-project/vllm/pull/49850) DRAFT (author flags end-to-end/scale validation as pending); we validated unit-level and posted 2 confirmed review findings -- see below |
-| -- | the generic/symmetric P2P secondary tier itself (peer lookup + serving via `ParentManager`) -- the tier all four bugs above exercise | P2P tier, foundational | -- | -- | [#48021](https://github.com/vllm-project/vllm/pull/48021) open, APPROVED by orozery 2026-07-22, not yet merged (contains the one-fetch contract fixing lookup-hangs Defect 1+2) |
+| -- | the generic/symmetric P2P secondary tier itself (peer lookup + serving via `ParentManager`) -- the tier all four bugs above exercise | P2P tier, foundational | -- | -- | [#48021](https://github.com/vllm-project/vllm/pull/48021) **MERGED** 2026-07-26T08:45:48Z by orozery (`da3a252fd13f51c22657bfc8650936f2fbb5b6f3`; contains the one-fetch contract fixing lookup-hangs Defect 1+2) |
 
 Distinguishing axis: #49635 and #49829 are OffloadingConnector-general (fire
 even aggregated / no P2P, different files from each other); #49809 and #49820
@@ -111,12 +111,15 @@ on main).
 **Validated at 3 levels, not just trusted from the PR description:**
 
 1. **Their own test suite, run by us.** Baseline = our `combined_overlay`
-   (exactly #48021's current head + #49823, i.e. #49877's actual base --
-   NOT stock nightly, which is missing #48021's `LookupMsg`/`LookupRespMsg`
-   protocol additions entirely). `test_issue_49820_repro.py`: 8/8 FAIL on
-   baseline. Full `tests/v1/kv_offload/tiering/p2p/` with #49877's
-   manager.py/client.py/server.py swapped in: **209/209 PASS**, exact match
-   to the claimed count.
+   integration baseline: nightly-1240c74c (predates #48021's merge) with
+   #48021 overlaid at `4a210582` (confirmed byte-identical to the merged
+   `da3a252fd`) + #49823 overlaid at `ba6425e2` -- NOT stock nightly, which
+   is missing #48021's `LookupMsg`/`LookupRespMsg` protocol additions
+   entirely. `test_issue_49820_repro.py`: 8/8 FAIL on baseline. Full
+   `tests/v1/kv_offload/tiering/p2p/` with #49877's manager.py/client.py/
+   server.py swapped in: **209/209 PASS**, exact match to the claimed count.
+   NOTE: #48021 MERGED 2026-07-26T08:45:48Z, after this session's testing
+   began -- confirmed no re-validation needed (file content identical).
 
 2. **A new, narrower regression we wrote and ran** (`scratchpad/
    repro_49877_finish_gap.py`), surfacing one remaining gap: `ClientRole.
@@ -197,8 +200,10 @@ Two catalogs both start at "Defect 1", causing collisions:
 
 One crash resolved (#49635, via merged #49671); one crash has an open,
 validated fix PR pending merge (#49809 -> #49823, our review comment posted
-directly on the PR); lookup-hangs Defect 1+2 covered by #48021 (open,
-APPROVED, not yet merged). Both remaining stalls trace to the same design
+directly on the PR); lookup-hangs Defect 1+2 covered by #48021, which
+**MERGED 2026-07-26T08:45:48Z** (confirmed the P2P tier files tested all
+session are byte-identical to what actually merged, so nothing needs
+re-validating). Both remaining stalls trace to the same design
 gap -- no round/generation identifier for multi-round P2P promotions under
 one `kv_request_id` (see "Root causes resolved" above). #49820 now has an
 open fix PR (#49877) VALIDATED at 3 levels including our own independent GPU
