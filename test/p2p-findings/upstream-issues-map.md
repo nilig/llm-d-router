@@ -13,7 +13,7 @@ directly on GitHub.
 |---|---|---|---|---|---|
 | [#49635](https://github.com/vllm-project/vllm/issues/49635) | late KV-offload store after request finalization -> `KeyError` (`_req_state` deleted at `tiering/manager.py:721`, indexed unguarded at `:542` via `scheduler.py:1045 _build_store_jobs`) | OffloadingConnector store path -- NOT P2P-specific | crash | neither catalog | [#49671](https://github.com/vllm-project/vllm/pull/49671) **MERGED** 2026-07-25 |
 | [#49809](https://github.com/vllm-project/vllm/issues/49809) | reconnect to a reaped peer trips `AssertionError: ZmqConnection already exists`; dead conn never released | P2P control transport (`tiering/p2p/control/zmq.py`) | crash | pd-defects Defect 2 | [#49823](https://github.com/vllm-project/vllm/pull/49823) open, validated (5 fail stock / 16 pass patched), our review comment posted on the PR directly |
-| [#49820](https://github.com/vllm-project/vllm/issues/49820) | symmetric producer accepts a fetch it cannot serve, never sends `TransferDone(success=False)` -> consumer deferred full `_LOAD_TIMEOUT_S=30s` | P2P session (`tiering/p2p/session/*`) | stall | new (post-Liran residual) | none |
+| [#49820](https://github.com/vllm-project/vllm/issues/49820) | symmetric producer accepts a fetch it cannot serve, never sends `TransferDone(success=False)` -> consumer deferred full `_LOAD_TIMEOUT_S=30s`. ROOT CAUSE FOUND 2026-07-26 -- see below | P2P session (`tiering/p2p/session/*`) | stall | new (post-Liran residual) | none |
 | [#49829](https://github.com/vllm-project/vllm/issues/49829) | `TieringOffloadingManager.lookup()` returns `HIT_PENDING` unconditionally, no deadline, no downgrade-to-MISS | shared tiering manager (`tiering/manager.py`) -- NOT P2P-specific | stall | lookup-hangs Defect 3 | [#49850](https://github.com/vllm-project/vllm/pull/49850) DRAFT (author flags end-to-end/scale validation as pending); we validated unit-level and posted 2 confirmed review findings -- see below |
 | -- | the generic/symmetric P2P secondary tier itself (peer lookup + serving via `ParentManager`) -- the tier all four bugs above exercise | P2P tier, foundational | -- | -- | [#48021](https://github.com/vllm-project/vllm/pull/48021) open, APPROVED by orozery 2026-07-22, not yet merged (contains the one-fetch contract fixing lookup-hangs Defect 1+2) |
 
@@ -31,10 +31,71 @@ fix), and Liran's #48021 also land:
 |---|---|---|
 | #49635 finalization crash | #49671 MERGED | no -- resolved |
 | #49809 reconnect crash | #49823 (open, validated) | no, once merged |
-| #49820 symmetric-fetch 30s stall | #49820 fix (TBD) | no, once written |
+| #49820 symmetric-fetch 30s stall | root cause found (`_OutboundRequestState` shared across rounds), no fix PR yet | no, once written |
 | lookup-hangs Defect 1 (duplicate-fetch teardown) | Liran's one-fetch contract in #48021 (`dupfetch=0` on a version-matched engine) | no |
 | lookup-hangs Defect 2 (pop-on-read MISS livelock) | Liran's `register_lookup` retains resolved HIT+MISS until fetch/finish (no pop-on-read) = the sticky-MISS. VERIFIED in `client.py` @145a460c | no (`defect12` Part 2 redundant) |
 | lookup-hangs Defect 3 = #49829 (`HIT_PENDING` write-in-flight, no deadline in `tiering/manager.py`) | #49850 (open, draft, validated at unit level, 2 open correctness findings) | no, once #49850's findings are addressed and it merges -- `defect3_fix_pending-wait-deadline.diff` validated the direction, but #49850's scheduler-level design supersedes it |
+
+## Root causes resolved 2026-07-26: #49820 and #49829's P2P trigger are the same design gap
+
+Found via a repro run testing whether #49820 survives the best-case combined
+stack (`nightly-1240c74c` + Liran's current `#48021` head + `#49823`
+overlaid -- verified the current `#48021` head's `manager.py`/`session/*` are
+still byte-identical to the `145a460c` pin this repo's analysis is based on).
+Result: 0 crashes on that stack (confirms #49635/#49809's signatures are
+gone), but #49820 fired 612 times and #49829's P2P trigger (below) fired 13
+times in the same run. Full DEBUG logs at `scratchpad/dbg49820/`.
+
+**The unifying design gap:** neither the P2P server's outbound-state tracking
+nor the client's load tracking has first-class support for more than one
+promotion round in flight per `kv_request_id`. Streaming/growing prefixes
+routinely issue 2-3+ sequential lookup-to-fetch rounds under one id (common,
+not an edge case) -- and both sides keep exactly ONE mutable slot per id, so
+a later round silently clobbers an earlier round's still-live state.
+
+**#49820 (server side):** `ServerRole._requests[kv_request_id].outbound` is
+one object per id, not per round. A later round's lookup resolves and calls
+`add_stored_blocks()`, which reuses the live object (no check on
+`demand_received` or round identity) and appends into its `available` dict.
+When the earlier round's transfer completes, `collect_results()` decrements
+that same object's `remaining`, hits 0, and `_finalize_outbound()`
+unconditionally nulls `st.outbound` -- discarding the later round's
+already-pinned `available` entries before its fetch even arrives. The later
+`on_fetch()` then creates a fresh empty state; nothing matches; no write is
+ever submitted. Posted: https://github.com/vllm-project/vllm/issues/49820#issuecomment-5082854891
+
+**#49829 P2P trigger (client side):** `ClientRole.request_blocks()`
+unconditionally overwrites `st.load` -- zero guard for an existing in-flight
+load. If promotion job A (many blocks) gets parked by the #49820 bug above,
+and before its 30s timeout fires the scheduler starts promotion job B for
+the SAME `kv_request_id` (the same multi-round pattern), job B's
+`request_blocks()` silently overwrites job A's tracking. The producer's
+duplicate-fetch guard then disconnects the session on job B's fetch.
+`ClientRole.close()` only ever reports the CURRENT `st.load` (job B) as
+failed -- job A is unreachable by any code path. `TieringOffloadingManager`
+never gets job A's `JobResult`, never calls `complete_write()` for its keys
+-> those primary-tier blocks stay `HIT_PENDING` forever (a genuine, unbounded
+instance -- the P2P path orozery asked about). Two leaks confirmed: the
+primary-tier block AND the `_transfer_jobs` dict entry itself (only popped
+when `get_finished_jobs()` yields that job_id, which never happens here).
+Posted: https://github.com/vllm-project/vllm/issues/49829#issuecomment-5083283225
+
+Trace evidence: `kv_request_id=a0169db5-...` (3 rounds, 250/71/179 blocks,
+#49820) and `kv_request_id=cb8f34bd-...` (job 253 = 245 blocks parked, job
+264 = 1 block same id 1s later, duplicate-fetch disconnect, #49829's
+trigger) -- both in `scratchpad/dbg49820/`. 13 duplicate-fetch disconnects
+total in the run (grep-counted, matches exactly).
+
+Both comments Codex-reviewed to final; the #49820 comment required two
+correction passes (my first draft wrongly credited `add_fetch_demand()`'s
+`remaining` overwrite as load-bearing -- the actual mechanism is
+`add_stored_blocks()` reusing the live object, verified directly in code);
+the #49829 comment was confirmed accurate as posted, no edits needed.
+
+Next step (not done): a deterministic regression test -- submit load A,
+submit load B same `kv_request_id` before A completes, disconnect, assert
+both get terminal failure, assert neither primary allocation remains
+`HIT_PENDING`.
 
 ## PR #49850 (fix for #49829): architecture + open findings
 
@@ -89,11 +150,14 @@ Two catalogs both start at "Defect 1", causing collisions:
 One crash resolved (#49635, via merged #49671); one crash has an open,
 validated fix PR pending merge (#49809 -> #49823, our review comment posted
 directly on the PR); lookup-hangs Defect 1+2 covered by #48021 (open,
-APPROVED, not yet merged). One stall has an open draft fix PR with 2 unresolved
-correctness findings (#49829 -> #49850). One stall has no PR at all: #49820
-(P2P session, symmetric fetch). Until #49850's findings are addressed and it
-un-drafts, and until #49820 gets a fix PR, these two are the current
-load-readiness blockers.
+APPROVED, not yet merged). Both remaining stalls now have a CONFIRMED root
+cause (see "Root causes resolved" above), tracing to the same design gap --
+no round/generation identifier for multi-round P2P promotions under one
+`kv_request_id`. #49829 additionally has an open draft fix PR with 2
+unresolved correctness findings (#49850). #49820 has no fix PR yet. Until
+#49850's findings are addressed and it un-drafts, and until #49820 gets a fix
+PR (or the shared root cause is fixed once, which would likely close both),
+these two remain the current load-readiness blockers.
 
 VERIFIED 2026-07-25 against `main`@70009fb9: `TieringManager.lookup()` still
 returns `LookupResult.HIT_PENDING` bare, with no deadline. Upstream added only
