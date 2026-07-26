@@ -13,7 +13,7 @@ each upstream fix lands. Status checked 2026-07-26: #49635 CLOSED
 | [#49809](https://github.com/vllm-project/vllm/issues/49809) | reconnect to a reaped peer trips `AssertionError: ZmqConnection already exists`; dead conn never released | P2P control transport (`tiering/p2p/control/zmq.py`) | crash | pd-defects Defect 2 | [#49823](https://github.com/vllm-project/vllm/pull/49823) open |
 | [#49820](https://github.com/vllm-project/vllm/issues/49820) | symmetric producer accepts a fetch it cannot serve, never sends `TransferDone(success=False)` -> consumer deferred full `_LOAD_TIMEOUT_S=30s` | P2P session (`tiering/p2p/session/*`) | stall | new (post-Liran residual) | none |
 | [#49829](https://github.com/vllm-project/vllm/issues/49829) | `TieringOffloadingManager.lookup()` returns `HIT_PENDING` unconditionally, no deadline, no downgrade-to-MISS | shared tiering manager (`tiering/manager.py`) -- NOT P2P-specific | stall | lookup-hangs Defect 3 | none |
-| -- | the generic/symmetric P2P secondary tier itself (peer lookup + serving via `ParentManager`) -- the tier all four bugs above exercise | P2P tier, foundational | -- | -- | [#48021](https://github.com/vllm-project/vllm/pull/48021) open (contains the one-fetch contract fixing lookup-hangs Defect 1+2) |
+| -- | the generic/symmetric P2P secondary tier itself (peer lookup + serving via `ParentManager`) -- the tier all four bugs above exercise | P2P tier, foundational | -- | -- | [#48021](https://github.com/vllm-project/vllm/pull/48021) open, APPROVED by orozery 2026-07-22, not yet merged (contains the one-fetch contract fixing lookup-hangs Defect 1+2) |
 
 Distinguishing axis: #49635 and #49829 are OffloadingConnector-general (fire
 even aggregated / no P2P, different files from each other); #49809 and #49820
@@ -52,8 +52,8 @@ Two catalogs both start at "Defect 1", causing collisions:
 
 One crash resolved (#49635, via merged #49671); one crash has an open,
 validated fix PR pending merge (#49809 -> #49823); lookup-hangs Defect 1+2
-covered by #48021 (open). Two stalls remain unfixed with no PR at all: #49820
-(P2P session, symmetric fetch) and #49829 (shared tiering manager,
+covered by #48021 (open, APPROVED, not yet merged). Two stalls remain unfixed
+with no PR at all: #49820 (P2P session, symmetric fetch) and #49829 (shared tiering manager,
 `HIT_PENDING` write-in-flight -- lookup-hangs Defect 3). Both have a
 documented mechanism, a deterministic repro, and a validated local patch;
 these two are the current load-readiness blockers.
