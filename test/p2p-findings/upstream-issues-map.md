@@ -13,7 +13,7 @@ directly on GitHub.
 |---|---|---|---|---|---|
 | [#49635](https://github.com/vllm-project/vllm/issues/49635) | late KV-offload store after request finalization -> `KeyError` (`_req_state` deleted at `tiering/manager.py:721`, indexed unguarded at `:542` via `scheduler.py:1045 _build_store_jobs`) | OffloadingConnector store path -- NOT P2P-specific | crash | neither catalog | [#49671](https://github.com/vllm-project/vllm/pull/49671) **MERGED** 2026-07-25 |
 | [#49809](https://github.com/vllm-project/vllm/issues/49809) | reconnect to a reaped peer trips `AssertionError: ZmqConnection already exists`; dead conn never released | P2P control transport (`tiering/p2p/control/zmq.py`) | crash | pd-defects Defect 2 | [#49823](https://github.com/vllm-project/vllm/pull/49823) open, validated (5 fail stock / 16 pass patched), our review comment posted on the PR directly |
-| [#49820](https://github.com/vllm-project/vllm/issues/49820) | symmetric producer accepts a fetch it cannot serve, never sends `TransferDone(success=False)` -> consumer deferred full `_LOAD_TIMEOUT_S=30s`. ROOT CAUSE FOUND 2026-07-26 -- see below | P2P session (`tiering/p2p/session/*`) | stall | new (post-Liran residual) | none |
+| [#49820](https://github.com/vllm-project/vllm/issues/49820) | symmetric producer accepts a fetch it cannot serve, never sends `TransferDone(success=False)` -> consumer deferred full `_LOAD_TIMEOUT_S=30s`. ROOT CAUSE FOUND 2026-07-26 -- see below | P2P session (`tiering/p2p/session/*`) | stall | new (post-Liran residual) | [#49877](https://github.com/vllm-project/vllm/pull/49877) open, VALIDATED at 3 levels incl. our own GPU repro -- works end-to-end, 1 narrower gap remains -- see below |
 | [#49829](https://github.com/vllm-project/vllm/issues/49829) | `TieringOffloadingManager.lookup()` returns `HIT_PENDING` unconditionally, no deadline, no downgrade-to-MISS | shared tiering manager (`tiering/manager.py`) -- NOT P2P-specific | stall | lookup-hangs Defect 3 | [#49850](https://github.com/vllm-project/vllm/pull/49850) DRAFT (author flags end-to-end/scale validation as pending); we validated unit-level and posted 2 confirmed review findings -- see below |
 | -- | the generic/symmetric P2P secondary tier itself (peer lookup + serving via `ParentManager`) -- the tier all four bugs above exercise | P2P tier, foundational | -- | -- | [#48021](https://github.com/vllm-project/vllm/pull/48021) open, APPROVED by orozery 2026-07-22, not yet merged (contains the one-fetch contract fixing lookup-hangs Defect 1+2) |
 
@@ -92,10 +92,58 @@ correction passes (my first draft wrongly credited `add_fetch_demand()`'s
 `add_stored_blocks()` reusing the live object, verified directly in code);
 the #49829 comment was confirmed accurate as posted, no edits needed.
 
-Next step (not done): a deterministic regression test -- submit load A,
-submit load B same `kv_request_id` before A completes, disconnect, assert
-both get terminal failure, assert neither primary allocation remains
-`HIT_PENDING`.
+Superseded by PR #49877 below, which independently implements a round-scoped
+fix and its own regression test covering this exact scenario.
+
+## PR #49877 (Etelis's fix for #49820): validated at 3 levels, works end-to-end
+
+`https://github.com/vllm-project/vllm/pull/49877`, "Scope serve state to
+fetch rounds", opened by `Etelis` (who claimed #49820) hours after the root
+cause above was posted. FIX #49820 explicitly: server keeps the current
+fetch round and not-yet-fetched supply separate (fixes the shared
+`_OutboundRequestState` mechanism); client allows only one `FetchMsg` in
+flight per id, queuing extras instead of overwriting `st.load` (fixes the
+completion-misattribution mechanism); manager adds a per-request wire-id
+suffix for symmetric consumers. Author's own testing: 209 tests passed (10
+new), plus a 2xH100 DeepSeek-V2-Lite run (191/192 requests finish vs ~20/192
+on main).
+
+**Validated at 3 levels, not just trusted from the PR description:**
+
+1. **Their own test suite, run by us.** Baseline = our `combined_overlay`
+   (exactly #48021's current head + #49823, i.e. #49877's actual base --
+   NOT stock nightly, which is missing #48021's `LookupMsg`/`LookupRespMsg`
+   protocol additions entirely). `test_issue_49820_repro.py`: 8/8 FAIL on
+   baseline. Full `tests/v1/kv_offload/tiering/p2p/` with #49877's
+   manager.py/client.py/server.py swapped in: **209/209 PASS**, exact match
+   to the claimed count.
+
+2. **A new, narrower regression we wrote and ran** (`scratchpad/
+   repro_49877_finish_gap.py`), surfacing one remaining gap: `ClientRole.
+   finish()` correctly fails every queued fetch, but for the ACTIVE
+   `st.load` it sends `AbortFetchMsg`, clears `st.load`, and produces no
+   `LoadResult`. The later `AbortAckMsg` then finds nothing to complete.
+   `P2PSecondaryTierManager.on_request_finished()` has no alternate
+   completion path. Result against #49877's own patched code: zero
+   `LoadResult`s produced -- empirically confirmed, not just traced.
+   Fix direction (grounded in an existing pattern in the same file): don't
+   clear `st.load` immediately in `finish()`; arm `aborted_at` and let the
+   same abort-ack/timeout mechanism used elsewhere resolve it. Posted as a
+   review comment on the PR.
+
+3. **End-to-end GPU validation, our own workload** (not Etelis's harness).
+   Redeployed the same uc2-llama 4-pod rig, same nightly, same hi-rate
+   profile as the #49820 repro above, with #49877's patched manager/client/
+   server. Result: harness completed both load stages in 4m36s (was 9+ min,
+   manually stopped, before); 0 restarts; 0 crash signatures; **0** `#49820`
+   stall signatures (was 612); **0** duplicate-fetch disconnects (was 13);
+   pull mechanism genuinely engaged (1193 fetch RECEIVED, 262 write_blocks,
+   131 transfer_done); **0** collapse snapshots (was frequent); max
+   concurrent deferred **12** (was up to 143). Logs: `scratchpad/dbg49877/`.
+
+**Net:** the fix genuinely works, independently verified at three levels.
+One narrower, empirically-confirmed gap remains (`finish()` on an active
+load), well-scoped with a sound fix direction.
 
 ## PR #49850 (fix for #49829): architecture + open findings
 
@@ -150,14 +198,17 @@ Two catalogs both start at "Defect 1", causing collisions:
 One crash resolved (#49635, via merged #49671); one crash has an open,
 validated fix PR pending merge (#49809 -> #49823, our review comment posted
 directly on the PR); lookup-hangs Defect 1+2 covered by #48021 (open,
-APPROVED, not yet merged). Both remaining stalls now have a CONFIRMED root
-cause (see "Root causes resolved" above), tracing to the same design gap --
-no round/generation identifier for multi-round P2P promotions under one
-`kv_request_id`. #49829 additionally has an open draft fix PR with 2
-unresolved correctness findings (#49850). #49820 has no fix PR yet. Until
-#49850's findings are addressed and it un-drafts, and until #49820 gets a fix
-PR (or the shared root cause is fixed once, which would likely close both),
-these two remain the current load-readiness blockers.
+APPROVED, not yet merged). Both remaining stalls trace to the same design
+gap -- no round/generation identifier for multi-round P2P promotions under
+one `kv_request_id` (see "Root causes resolved" above). #49820 now has an
+open fix PR (#49877) VALIDATED at 3 levels including our own independent GPU
+repro -- works end-to-end, one narrower gap remains (see "PR #49877" above).
+#49829 has an open draft fix PR with 2 unresolved correctness findings
+(#49850). Until #49877 and #49850 both merge (with #49877's finish()-gap
+addressed and #49850's findings addressed), these remain the current
+load-readiness blockers -- though the core mechanism is now proven fixable
+and the fix proven to work under load, which is a materially stronger
+position than "root cause known, no fix."
 
 VERIFIED 2026-07-25 against `main`@70009fb9: `TieringManager.lookup()` still
 returns `LookupResult.HIT_PENDING` bare, with no deadline. Upstream added only
