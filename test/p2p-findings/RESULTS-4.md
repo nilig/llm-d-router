@@ -442,3 +442,92 @@ Raw per-stage output for all four ladders:
 [ab_armB_run1.log](configs/uc2-ab-load-vs-loadp2p/ab_armB_run1.log),
 [ab_armB_run2.log](configs/uc2-ab-load-vs-loadp2p/ab_armB_run2.log),
 [ab_armA_run2.log](configs/uc2-ab-load-vs-loadp2p/ab_armA_run2.log).
+
+---
+
+## Scenario C - P/D prefill placement (partial; 2 of 3 arms)
+
+The guide lists Scenario C as "not yet run". This is a partial run: the rig,
+topology and two arms are measured; **arm 3 (`load + P2P`) was not run**, and
+it is the arm that actually exercises the pull. Treat the arm comparison
+below as inconclusive on the feature.
+
+### What was built
+
+8 prefill (TP=1) + 8 decode (TP=1), gpt-oss-120b, H200, 16 GPUs, on the same
+combined overlay as UC2 (#48021 merged + #49877 + #49850). Manifest and arm
+configs: [configs/scenario-c-pd](configs/scenario-c-pd). Arms are the guide's
+own shipped plugin sets (`epp-affinity.yaml`, `epp-affinity-p2p.yaml`,
+`epp-load-p2p.yaml`) mapped onto the P/D `prefill` scheduling profile.
+
+**P2P tier on prefill only; decode runs plain NixlConnector.** This matches
+what the guide describes (the pull is driven by `--enable-p2p-pull` on the
+decode sidecar, whose source is another *prefill* pod) and it structurally
+avoids the cross-TP fingerprint failure: in the original P/D attempt both
+roles carried the tier and reject/reconnect churn killed 7/8 prefill engines.
+Result here: **zero fingerprint rejects, zero restarts** across every run.
+That alone is a usable finding for the scenario.
+
+### Topology deviation, and why
+
+The guide's stated topology is 8 prefill (TP=1) + 2 decode (TP=4). Rebalanced
+to 8+8 at TP=1 - identical GPU count - after the 2xTP=4 decode pool appeared
+to bind. **That diagnosis was later shown wrong** and is recorded here because
+the instrument matters: `vllm:num_requests_running` read 0 on every prefill
+pod under load, which looked like an idle prefill fleet waiting on decode
+intake. Counter deltas told the opposite story - prefill was processing
+**271K tok/s across 8 pods (33.9K tok/s per pod)**, i.e. running flat out.
+The system is **prefill-compute-bound**; decode's growing `deferred` count is
+a symptom of requests queued awaiting KV, not the cause. Lesson:
+`num_requests_running` is unreliable for attributing a bottleneck on this
+stack; use counter deltas.
+
+### Measured (rates 1-4 req/s; 128 prefixes x 48K, 256-token questions, 64-token outputs)
+
+Fleet ceiling is ~2.1 req/s for this workload, so the ladder was retargeted
+from 4-24 to 1-4; at 8 req/s the rig sheds requests to the client timeout.
+Each arm: fresh cold prefill pods, warmup over all 128 prefixes under that
+arm's own placement policy, config assertion before load.
+
+| rate | arm1 `affinity` achieved / TTFT p50 | arm2 `affinity + P2P` achieved / TTFT p50 |
+|---:|---|---|
+| 1 | 0.90 / 4.8s | 0.93 / 4.6s |
+| 2 | 1.72 / 7.1s | 1.84 / 4.7s |
+| 3 | 2.11 / 12.6s | 2.21 / 15.3s |
+| 4 | 2.08 / 47.1s | 2.08 / 40.9s |
+
+600/600 requests per arm, zero failures, zero restarts in both.
+
+### The arm2 result does not measure the pull
+
+**arm2's P2P pull was inert: zero P2P session activity** (`LookupMsg` /
+`FetchMsg` / `TransferDone`) in any prefill pod's logs, despite the EPP being
+verified to have loaded `p2p-source-producer`. With affinity holding an 80.2%
+GPU prefix-cache hit rate, placement almost never diverges from the cache
+holder, so `minCachedTokenDelta` is rarely met and the pull has nothing to
+do. This reproduces the guide's own Scenario A observation that under
+affinity "the pull mostly sits idle here (placement rarely diverges from
+cache)". The arm1/arm2 deltas above are therefore **not** a P2P effect and
+should not be read as one.
+
+Arm 3 (`load + P2P`), which deliberately scatters placement and is the
+configuration under which the pull actually fires, remains unrun. Until it
+is, Scenario C has no verdict on prefill-placement P2P.
+
+### Metric caveat that also affects UC3/UC4 above
+
+`vllm:kv_offload_load_bytes_total` counts **local CPU-tier restores**, not
+only P2P pulls. Arm1 here carries no p2p producer and has zero P2P session
+activity, yet reports 23.30 GB of `kv_offload_load_bytes_total`; arm2 reports
+26.72 GB with the pull equally inert. The same is true of
+`external_prefix_cache_hits` (arm1: 762,112 hits with no P2P at all) - so
+"external" means "outside GPU cache", i.e. the offload tier, local included.
+
+Consequently the UC3 and UC4 sections above **overstate their mechanism
+evidence**: both cite load/store byte counters as proof of "genuine cross-pod
+pull activity", which those counters cannot establish on their own. Those
+claims should be read as "offload-tier activity occurred; P2P was not
+isolated". The UC2 A/B mechanism gate is unaffected - it was a controlled
+comparison (identical config, arm A at load=0 vs arm B at 2.2 GB on
+non-owner pods, p2p producer the only difference), which is what makes it
+evidence. The reliable single-arm signal is P2P session log activity.

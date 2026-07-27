@@ -1,0 +1,7 @@
+# arm=arm2-affinity-p2p endpoint=http://localhost:18095 groups=128 prefix~48000tok
+# warmup: 128 ok / 0 fail in 79s (128 prefixes populated)
+ rate   sent     ok  fail  wall_s  achieved  ttft_p50  ttft_p95  lat_p50
+    1     60     60     0    64.3      0.93      4579      8131     4847
+    2    120    120     0    65.3      1.84      4718      9033     4952
+    3    180    180     0    81.3      2.21     15297     36467    15587
+    4    240    240     0   115.4      2.08     40939     83935    41211

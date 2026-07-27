@@ -1,0 +1,206 @@
+---
+# Scenario C - P/D prefill placement (guide's "not yet run" scenario).
+# Topology: 8 prefill (TP=1) + 8 decode (TP=1), gpt-oss-120b, H200. 16 GPUs.
+#
+# DEVIATION from the guide's stated P/D topology (8 prefill TP=1 + 2 decode
+# TP=4), made deliberately and measured first: at 8P+2D the decode pool's
+# NIXL intake binds long before prefill placement does. Measured at 4-6
+# req/s offered, all 8 prefill pods sat at running=0/waiting=0 (fully idle)
+# while both decode pods held 16 requests each in waiting with
+# reason="deferred" and reason="capacity"=0 - i.e. queued on KV arrival, not
+# on decode GPU memory or compute. Each request ships ~2 GB of KV (48K
+# tokens x ~41.5 KB) and 2 intake endpoints cap the fleet near 2.3-2.8
+# req/s. With prefill idle there is no prefill queueing for placement to
+# relieve, so the three prefill-placement arms cannot separate.
+# Rebalancing decode to 8 x TP=1 keeps the GPU count identical (8+8=16) but
+# gives 4x the independent NIXL intake endpoints, moving the binding
+# constraint back onto prefill where this scenario's arms operate.
+# This confirms the guide's own warning in the Scenario C stub: "on P/D it,
+# not prefill placement, typically binds first".
+#
+# P2P tier is on PREFILL ONLY; decode runs plain NixlConnector. Two reasons:
+#   1. It is what the guide describes - the pull is driven by
+#      `--enable-p2p-pull` on the decode routing sidecar, which injects
+#      kv_transfer_params.p2p onto the PREFILL leg; the source is another
+#      PREFILL pod (p2p-source-producer prefillProfileName: prefill).
+#      Decode never needs an offloading tier for this.
+#   2. gpt-oss's hybrid/interleaved-sliding-window attention makes the P2P
+#      config fingerprint TP-dependent, so a TP=1 prefill and a TP=4 decode
+#      cannot form a session. In the original P/D attempt both roles carried
+#      the tier, and the reject->reconnect churn killed 7/8 prefill engines.
+#      With no tier on decode, no cross-TP session is ever attempted.
+#      Prefill<->prefill (all TP=1) is same-TP and works.
+#
+# Port layout per the pd-disaggregation recipe: InferencePool targetPorts is
+# pool-wide, so prefill serves the pool port (8000) from the bare engine with
+# no sidecar, and decode puts its routing-proxy on 8000 with its engine on 8200.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scenc-prefill
+  namespace: nilig-p2p
+  labels: {app: scenc, role: prefill}
+spec:
+  replicas: 8
+  selector: {matchLabels: {app: scenc, role: prefill}}
+  template:
+    metadata:
+      labels:
+        app: scenc
+        role: prefill
+        llm-d.ai/role: prefill
+        llm-d.ai/inferenceServing: "true"
+        llm-d.ai/uc: scenc
+    spec:
+      containers:
+      - name: modelserver
+        image: vllm/vllm-openai:nightly-1240c74c0a47473449cf0c3a9c2d87a1e159f73b
+        command: ["sh", "-c", "rm -f /dev/shm/vllm_offload_*.mmap 2>/dev/null; exec vllm serve \"$@\"", "sh"]
+        args:
+        - openai/gpt-oss-120b
+        - --port=8000
+        - --disable-access-log-for-endpoints=/health,/metrics,/v1/models
+        - --tensor-parallel-size=1
+        - --block-size=64
+        - --max-model-len=65536
+        - --gpu-memory-utilization=0.85
+        - --kv-transfer-config
+        - '{"kv_connector":"MultiConnector","kv_role":"kv_both","kv_connector_extra_config":{"connectors":[{"kv_connector":"NixlConnector","kv_role":"kv_both"},{"kv_connector":"OffloadingConnector","kv_role":"kv_both","kv_connector_extra_config":{"spec_name":"TieringOffloadingSpec","cpu_bytes_to_use":68719476736,"offload_prompt_only":false,"secondary_tiers":[{"type":"p2p","host":"$(POD_IP)","port":7777}]}}]}}'
+        - --kv-events-config
+        - '{"enable_kv_cache_events":true,"publisher":"zmq","endpoint":"tcp://*:5556","topic":"kv@$(POD_IP):8000@openai/gpt-oss-120b"}'
+        env:
+        - {name: HF_TOKEN, valueFrom: {secretKeyRef: {name: llm-d-hf-token, key: HF_TOKEN}}}
+        - {name: POD_IP, valueFrom: {fieldRef: {fieldPath: status.podIP}}}
+        - {name: VLLM_NIXL_SIDE_CHANNEL_HOST, valueFrom: {fieldRef: {fieldPath: status.podIP}}}
+        - {name: VLLM_NIXL_SIDE_CHANNEL_PORT, value: "5600"}
+        - {name: PYTHONHASHSEED, value: "0"}
+        - {name: HOME, value: /tmp}
+        - {name: VLLM_HTTP_TIMEOUT_KEEP_ALIVE, value: "120"}
+        ports:
+        - {containerPort: 8000, name: modelserver}
+        - {containerPort: 5600, name: nixl}
+        - {containerPort: 7777, name: p2p}
+        - {containerPort: 5556, name: kv-events}
+        resources:
+          limits: {cpu: "8", memory: 96Gi, nvidia.com/gpu: "1"}
+          requests: {cpu: "8", memory: 96Gi, nvidia.com/gpu: "1"}
+        volumeMounts:
+        - {name: dshm, mountPath: /dev/shm}
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/base.py, subPath: base.py }
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/manager.py, subPath: manager.py }
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/__init__.py, subPath: session___init__.py }
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/client.py, subPath: session_client.py }
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/protocol.py, subPath: session_protocol.py }
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/server.py, subPath: session_server.py }
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/session.py, subPath: session_session.py }
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/control/zmq.py, subPath: control_zmq.py }
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/control/base.py, subPath: control_base.py }
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/distributed/kv_transfer/kv_connector/v1/offloading/scheduler.py, subPath: offloading_scheduler.py }
+        - { name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/distributed/kv_transfer/kv_connector/v1/offloading/metrics.py, subPath: offloading_metrics.py }
+        startupProbe: {httpGet: {path: /health, port: 8000}, initialDelaySeconds: 30, periodSeconds: 15, failureThreshold: 80}
+        readinessProbe: {httpGet: {path: /health, port: 8000}, periodSeconds: 5, failureThreshold: 3}
+      volumes:
+      - {name: dshm, emptyDir: {medium: Memory, sizeLimit: 80Gi}}
+      - {name: gp2p, configMap: {name: combined-overlay-uc2resume}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: scenc-prefill, namespace: nilig-p2p}
+spec:
+  selector: {app: scenc, role: prefill}
+  ports: [{name: modelserver, port: 8000, targetPort: 8000}, {name: kv-events, port: 5556, targetPort: 5556}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scenc-decode
+  namespace: nilig-p2p
+  labels: {app: scenc, role: decode}
+spec:
+  replicas: 8
+  selector: {matchLabels: {app: scenc, role: decode}}
+  template:
+    metadata:
+      labels:
+        app: scenc
+        role: decode
+        llm-d.ai/role: decode
+        llm-d.ai/inferenceServing: "true"
+        llm-d.ai/uc: scenc
+    spec:
+      initContainers:
+      - name: routing-proxy
+        image: quay.io/niliguy/llm-d-router-disagg-sidecar:p2p-rename-43aea48e
+        args: ["--port=8000", "--vllm-port=8200", "--kv-connector=nixlv2", "--enable-p2p-pull", "--p2p-connector-port=7777", "--secure-proxy=false"]
+        env: [{name: POD_IP, valueFrom: {fieldRef: {fieldPath: status.podIP}}}]
+        ports: [{containerPort: 8000, name: proxy}]
+        restartPolicy: Always
+        securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true}
+      containers:
+      - name: modelserver
+        image: vllm/vllm-openai:nightly-1240c74c0a47473449cf0c3a9c2d87a1e159f73b
+        command: ["vllm", "serve"]
+        args:
+        - openai/gpt-oss-120b
+        - --port=8200
+        - --disable-access-log-for-endpoints=/health,/metrics,/v1/models
+        - --tensor-parallel-size=1
+        - --block-size=64
+        - --max-model-len=65536
+        - --gpu-memory-utilization=0.85
+        - --kv-transfer-config
+        - '{"kv_connector":"NixlConnector","kv_role":"kv_both"}'
+        env:
+        - {name: HF_TOKEN, valueFrom: {secretKeyRef: {name: llm-d-hf-token, key: HF_TOKEN}}}
+        - {name: POD_IP, valueFrom: {fieldRef: {fieldPath: status.podIP}}}
+        - {name: VLLM_NIXL_SIDE_CHANNEL_HOST, valueFrom: {fieldRef: {fieldPath: status.podIP}}}
+        - {name: VLLM_NIXL_SIDE_CHANNEL_PORT, value: "5600"}
+        - {name: PYTHONHASHSEED, value: "0"}
+        - {name: HOME, value: /tmp}
+        - {name: VLLM_HTTP_TIMEOUT_KEEP_ALIVE, value: "120"}
+        ports:
+        - {containerPort: 8200, name: http}
+        - {containerPort: 5600, name: nixl}
+        resources:
+          limits: {cpu: "8", memory: 96Gi, nvidia.com/gpu: "1"}
+          requests: {cpu: "8", memory: 96Gi, nvidia.com/gpu: "1"}
+        volumeMounts:
+        - {name: dshm, mountPath: /dev/shm}
+        startupProbe: {httpGet: {path: /health, port: 8200}, initialDelaySeconds: 60, periodSeconds: 15, failureThreshold: 80}
+        readinessProbe: {httpGet: {path: /health, port: 8200}, periodSeconds: 5, failureThreshold: 3}
+      volumes:
+      - {name: dshm, emptyDir: {medium: Memory, sizeLimit: 32Gi}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: scenc-decode, namespace: nilig-p2p}
+spec:
+  selector: {app: scenc, role: decode}
+  ports: [{name: proxy, port: 8000, targetPort: 8000}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: scenc-render, namespace: nilig-p2p}
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: scenc-render}}
+  template:
+    metadata: {labels: {app: scenc-render}}
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - name: vllm-render
+        image: docker.io/vllm/vllm-openai-cpu:v0.23.0
+        command: ["vllm", "launch", "render", "openai/gpt-oss-120b", "--port=8000"]
+        env:
+        - {name: HF_TOKEN, valueFrom: {secretKeyRef: {name: llm-d-hf-token, key: HF_TOKEN}}}
+        - {name: HOME, value: /tmp}
+        ports: [{containerPort: 8000}]
+        resources: {requests: {cpu: "2", memory: 8Gi}, limits: {memory: 16Gi}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: scenc-render, namespace: nilig-p2p}
+spec:
+  selector: {app: scenc-render}
+  ports: [{port: 8000, targetPort: 8000}]

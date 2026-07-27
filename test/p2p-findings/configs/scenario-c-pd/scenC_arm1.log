@@ -1,0 +1,7 @@
+# arm=arm1-affinity endpoint=http://localhost:18095 groups=128 prefix~48000tok
+# warmup: 128 ok / 0 fail in 97s (128 prefixes populated)
+ rate   sent     ok  fail  wall_s  achieved  ttft_p50  ttft_p95  lat_p50
+    1     60     60     0    66.7      0.90      4834     13412     5126
+    2    120    120     0    69.8      1.72      7077     15655     7345
+    3    180    180     0    85.4      2.11     12566     37402    12840
+    4    240    240     0   115.3      2.08     47118     80726    47391
