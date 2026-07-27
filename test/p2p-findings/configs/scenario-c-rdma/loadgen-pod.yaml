@@ -1,0 +1,21 @@
+# In-cluster ladder driver. kubectl port-forward multiplexes every request
+# over one connection and has died mid-ladder on this cluster when a
+# degrading arm's own latency pushed concurrency past the tunnel's ceiling -
+# which then reads as the arm failing rather than the tunnel failing. Driving
+# from inside the cluster removes that confound entirely.
+apiVersion: v1
+kind: Pod
+metadata: {name: scenc-loadgen, namespace: nilig-p2p, labels: {app: scenc-loadgen}}
+spec:
+  restartPolicy: Never
+  containers:
+  - name: driver
+    image: python:3.12-slim
+    command: ["sleep", "infinity"]
+    resources:
+      limits: {cpu: "4", memory: 4Gi}
+      requests: {cpu: "2", memory: 2Gi}
+    volumeMounts:
+    - {name: driver, mountPath: /driver}
+  volumes:
+  - {name: driver, configMap: {name: scenc-driver}}

@@ -1,0 +1,39 @@
+=== EPP arm gate (before) ===
+active config file: sc1.yaml
+  bytes=1740  p2p-source-producer=0  no-hit-lru-scorer=2  prefix-cache-scorer=2
+GATE OK
+=== rolling BOTH prefill and decode ===
+[1] prefill=0/8 decode=0/8
+[2] prefill=0/8 decode=0/8
+[3] prefill=0/8 decode=0/8
+[4] prefill=0/8 decode=0/8
+[5] prefill=0/8 decode=0/8
+[6] prefill=0/8 decode=0/8
+[7] prefill=0/8 decode=0/8
+[8] prefill=0/8 decode=0/8
+[9] prefill=0/8 decode=0/8
+[10] prefill=0/8 decode=0/8
+[11] prefill=0/8 decode=0/8
+[12] prefill=0/8 decode=0/8
+[13] prefill=0/8 decode=0/8
+[14] prefill=0/8 decode=0/8
+[15] prefill=0/8 decode=0/8
+[16] prefill=0/8 decode=1/8
+[17] prefill=0/8 decode=3/8
+[18] prefill=0/8 decode=5/8
+[19] prefill=7/8 decode=8/8
+[20] prefill=8/8 decode=8/8
+=== restart counts (expect all 0 on the fresh generation) ===
+[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+=== refresh port-forward (EPP pod identity may have changed) ===
+=== P/D roundtrip probe (this is what was hanging) ===
+probe 1: HTTP 200 in 1s
+=== launching arm1 ladder ===
+# arm=arm1-affinity-RDMA endpoint=http://localhost:18120 groups=128 prefix~48000tok
+# warmup: 128 ok / 0 fail in 46s (128 prefixes populated)
+ rate   sent     ok  fail  wall_s  achieved  ttft_p50  ttft_p95  lat_p50
+    1     60     60     0    60.2      1.00       904      1095     1180
+    2    120    120     0    60.7      1.98       869       945     1154
+    3    180    180     0    61.0      2.95       872      1028     1155
+    4    240    240     0    60.9      3.94       867       979     1151
+ARM1 EXIT=0

@@ -1,0 +1,7 @@
+# arm=arm3-load-p2p-RDMA endpoint=http://localhost:18120 groups=128 prefix~48000tok
+# warmup: 128 ok / 0 fail in 51s (128 prefixes populated)
+ rate   sent     ok  fail  wall_s  achieved  ttft_p50  ttft_p95  lat_p50
+    1     60     60     0    61.0      0.98      1082      3534     1375
+    2    120    120     0    63.9      1.88      2630      4591     2839
+    3    180    180     0    62.8      2.87      2646      5003     2931
+    4    240    240     0    64.8      3.71      3090      6110     3376

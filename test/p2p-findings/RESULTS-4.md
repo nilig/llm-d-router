@@ -449,9 +449,20 @@ Raw per-stage output for all four ladders:
 
 ---
 
-## Scenario C - P/D prefill placement (complete; 3 arms)
+## Scenario C - P/D prefill placement (3 arms)
 
-The guide lists Scenario C as "not yet run". All three arms are now measured,
+> **The verdict below is WRONG and is being replaced.** Every number in this
+> section was measured on a rig with no `rdma/ib` resource, so the pull ran on
+> a TCP fallback rather than RDMA. Re-running arm3 with `rdma/ib` present, and
+> nothing else changed, moves it from 1.73 req/s / 66.6s TTFT to **3.71 req/s
+> / 3.09s** at offered rate 4 - +114% throughput and 21x better TTFT. The
+> claim "load-scattering plus a working pull loses to affinity" is an artifact
+> of the transport, as is the "~2.1 req/s fleet ceiling". The section is kept
+> intact below because the mechanism analysis (hit rates, tier volumes, the
+> `num_requests_running` lesson) is still correct; only the verdict is void.
+> The corrected three-arm table is in "Scenario C re-run with RDMA" below.
+
+The guide lists Scenario C as "not yet run". All three arms are measured,
 600/600 requests each, zero failures, zero restarts.
 
 **Correction to an earlier revision of this section**: it claimed the P2P pull
@@ -562,6 +573,16 @@ returns only a subset, so its silence proves nothing; that mistake produced a
 false "P2P never engaged" claim in an earlier revision of this section.
 
 ## Scenario B - hot set, the 2 missing arms (`affinity + P2P`, `load, no P2P`)
+
+> **Transport caveat, same as Scenario C**: `scenb-agg.yaml` carries no
+> `rdma/ib`, so the `affinity + P2P` arm - the one arm here whose pull can
+> fire, and the guide's shipped default - ran on the NIXL TCP fallback. On
+> Scenario C the identical omission inverted the verdict once corrected
+> (arm3: 1.73 -> 3.71 req/s). The pull is comparatively idle under affinity
+> placement, which is the section's own finding and bounds how much the
+> transport can matter here, but the arm has **not** been re-measured with
+> RDMA. Treat the `affinity + P2P` numbers below as a lower bound, not a
+> settled result. The `load, no P2P` arm never pulls and is unaffected.
 
 The guide's own payoff-case table
 (`guides/p2p-kv-cache-sharing/benchmarking/README.md`) publishes only 2 of 4
@@ -1011,3 +1032,221 @@ assumes a cross-pod miss forces recompute. With a large local CPU tier it
 does not - the miss is absorbed by the tier. The premise holds only where
 the CPU tier cannot hold the working set, or where prefixes do not recur per
 pod often enough to populate it.
+
+## Scenario C re-run with RDMA - the earlier verdict was a transport artifact
+
+The Scenario C section above was measured without the `rdma/ib` resource on
+the pod spec. NIXL then falls back to a slower transport, which inflates the
+pull leg while leaving recompute untouched - the same trap that produced the
+inverted crossover reading, recorded in "RDMA is the variable that actually
+matters" above. Scenario C is the one scenario whose verdict *depends* on the
+pull leg, so it is the one the omission could invert. It did.
+
+Rig: identical to the original (8 prefill TP=1 + 8 decode TP=1, gpt-oss-120b,
+H200, 16 GPUs), with `rdma/ib: "1"` on limits and requests for both roles and
+the overlay refreshed to `combined-overlay-49877new` (#48021 as merged +
+#49877 at head `15b53af1` + #49850). Verified in-container before loading:
+`peer_lookup_open` present (new head live), full RDMA device list
+(`issm0-8`, `uverbs0-8`, `rdma_cm`), P/D roundtrip 200.
+
+### arm3 `load + P2P`: the arm the transport actually gated
+
+| offered | no RDMA (TCP fallback) | with RDMA | change |
+|---:|---|---|---|
+| 1 | 0.89 / 7.08s | 0.98 / 1.08s | +10% / 6.6x |
+| 2 | 1.25 / 16.63s | 1.88 / 2.63s | +50% / 6.3x |
+| 3 | 1.74 / 36.44s | 2.87 / 2.65s | +65% / 13.8x |
+| 4 | 1.73 / 66.63s | 3.71 / 3.09s | **+114% / 21.6x** |
+
+240/240 at every rate, zero failures. Warmup over all 128 prefixes also fell
+from 108s to 51s. Pull verified live: 56 P2P sessions, 431 GB pulled, zero
+restarts, zero fingerprint rejects.
+
+The shape of the no-RDMA column is the tell in hindsight - TTFT growing
+7s -> 17s -> 36s -> 67s, near-perfectly linear in offered rate, is a queue
+draining behind a fixed-bandwidth link, not a compute ceiling. With RDMA the
+same arm holds 2.6-3.1s TTFT across the whole ladder while throughput scales
+almost linearly to 3.71 req/s. The "~2.1 req/s fleet ceiling" asserted in the
+original section was therefore never a fleet property; it was the fallback
+transport's ceiling.
+
+### Operating rule found the hard way: roll prefill and decode together
+
+Switching from arm3 to arm1 by cold-rolling **only** the prefill deployment
+killed the EngineCore on all 8 decode pods simultaneously:
+
+```
+UCX  ERROR   mlx5dv_devx_obj_modify(opcode=0x503) failed, syndrome 0x5d668c: Remote I/O error
+  nixl::ucx::rkey::unpackUcpRkey(...)
+  nixlRemoteSection::addDescList(...)
+  nixlAgentData::loadRemoteSections(...)
+  nixlAgent::loadRemoteMD(...)
+```
+
+This is the **NIXL P/D connector**, not the P2P tier. Decode was holding
+remote sections for the old prefill NIXL agents and had to load metadata for
+eight brand-new ones; the rkey unpack failed against the RDMA device and took
+the engine down with it. All 8 decode pods exited within 11 seconds
+(17:07:45-17:07:56), `reason=Completed exit=0`, and the arm1 warmup that
+triggered it returned 21 ok / 107 fail before being killed.
+
+The mirror failure appeared immediately after. Once the decode pods restarted
+on their own, **prefill** was the side holding stale sections - for the decode
+agents that had just died - and every request hung instead of crashing:
+
+```
+UCX AM send failed with status -80 (Endpoint timeout)
+NIXL transfer failure: transfer_exception ... remote_host: 10.0.11.136,
+  remote_port: 5600, remote_engine_id: 0414ddf8-...
+nixlRemoteDisconnectError: NIXL_ERR_REMOTE_DISCONNECT
+```
+
+`10.0.11.136` was a **live, ready** prefill pod - the pod was healthy and its
+`/v1/completions` answered locally in 0.0s, but its NIXL agent disconnected
+the new decode agents, so decode waited forever on KV that never arrived.
+Diagnosing this needs the P/D path specifically: probing either engine
+directly passes, `/v1/models` returns 200 in 0.45s, and only
+`/v1/completions` hangs. The engines look perfectly healthy the whole time.
+
+Three things follow:
+
+- **Procedure**: in a NIXL P/D rig, an arm switch must roll both roles.
+  Rolling one side leaves the other holding stale remote sections - and it
+  fails in both directions, fatally for a consumer loading metadata, silently
+  (as a hang) for a producer refusing the new agents. Arm3 never hit this only
+  because prefill and decode were the same generation for its whole run.
+- **Robustness defect worth reporting upstream**: a peer's stale or invalid
+  metadata should fail that peer, not kill the local EngineCore.
+  `loadRemoteMD` failure is currently fatal. This is independent of the P2P
+  tier work and would affect any NIXL P/D deployment that rolls one side.
+- **Second, separable gap**: on the producer side there is no surfaced
+  timeout - the consumer's transfer sits in `NIXL_ERR_REMOTE_DISCONNECT`
+  retry while the client blocks indefinitely. The same "no deadline on a
+  cross-engine wait" shape as the P2P lookup hang recorded above.
+
+### Debug note: what did NOT cause it
+
+Two plausible-looking leads that cost time and were both wrong, recorded so
+they are not re-investigated:
+
+- **The render service.** `scenc-render`'s `/tokenize` returns HTTP 500
+  (`'OpenAIServingRender' object has no attribute 'create_tokenize'`) - but
+  that is true of every render deployment on this cluster, including ones
+  serving healthy runs, because the `token-producer` plugin does not use that
+  endpoint. It POSTs `/v1/completions/render`
+  (`pkg/epp/framework/plugins/requestcontrol/dataproducer/tokenizer/vllm_http.go:44`).
+  A render failure also cannot hang a request: the director explicitly
+  swallows it (`director.go:309-313`, "Don't fail the request if DataProducer
+  plugins fail"), bounded by `defaultHTTPRenderTimeout = 5s`.
+- **The port-forward.** Rebuilt it against a fresh EPP pod; the hang was
+  identical. Envoy was serving 404s and `/v1/models` sub-second throughout.
+
+arm3's numbers are unaffected - the mlx5 errors are confined to the
+17:07:45-17:07:56 crash window, with none during its ladder, which completed
+240/240 at every rate beforehand.
+
+### The 1-4 ladder was itself an artifact; arm2 shows the pull never fires
+
+Re-running the arms with RDMA invalidated the ladder as well as the verdict.
+The original section retargeted the ladder from 4-24 down to 1-4 because the
+rig appeared to cap near 2.1 req/s. With RDMA there is no cap in that range
+at all - `affinity + P2P` on rates 1,2,4,8,12,16 tracks offered load
+linearly the whole way with flat TTFT:
+
+| offered | achieved | TTFT p50 | TTFT p95 | ok/sent |
+|---:|---|---|---|---|
+| 1 | 1.00 | 416 ms | 489 ms | 60/60 |
+| 2 | 1.99 | 378 ms | 425 ms | 120/120 |
+| 4 | 3.97 | 371 ms | 422 ms | 240/240 |
+| 8 | 7.93 | 372 ms | 411 ms | 480/480 |
+| 12 | 11.88 | 371 ms | 411 ms | 720/720 |
+| 16 | 15.84 | 370 ms | 407 ms | 960/960 |
+
+2580/2580 requests, zero failures, zero restarts. The apparent "~2.1 req/s
+fleet ceiling" was low by roughly 8x.
+
+**Driver note**: this ladder was driven from an in-cluster pod
+(`scenc-loadgen`), not through `kubectl port-forward`. The tunnel has died
+mid-ladder on this cluster before, and it also adds latency to every request,
+so TTFT from a port-forwarded run is not comparable to TTFT from an
+in-cluster run. Arm1's 1-4 ladder above was port-forwarded; its arm1-vs-arm2
+TTFT comparison is therefore invalid and arm1 is re-run in-cluster below.
+
+**The pull never engaged in this arm.** Measured on the prefill fleet at the
+end of the ladder:
+
+- GPU prefix cache hit rate **94.6%** (129,837,120 / 137,246,445 queries)
+- external (offload-tier) hits **0.4%** of queries
+- **0** `created connected session`, **0** `accepting incoming connection`,
+  across all 8 prefill pods
+
+Checked against the ways a zero can lie: the startup banner is still in every
+pod's retained log window (so nothing rotated away), restart counts are all
+0, and the P2P secondary tier *is* created on every pod (`secondary tier` x2
+each), so the mechanism is live and simply had nothing to do. The contrast
+that settles it is arm3 on this same rig and overlay: **56 sessions, 431 GB
+pulled**.
+
+So under affinity placement `minCachedTokenDelta: 1024` is essentially never
+met - the scheduled pod already holds the prefix - and `affinity + P2P`
+degenerates to `affinity`. **arm1 vs arm2 does not measure P2P**; it measures
+the same system twice. This is the guide's own "the pull mostly sits idle
+here" observation, quantified: not "little to do" but zero sessions.
+
+That is a statement about this workload, not about P2P generally. 128 stable
+prefixes over 8 prefill pods under stable affinity means no prefix ever needs
+to move, which is precisely the case where a recovery path should stay idle.
+It does bound what the shipped `affinity + P2P` default can be credited with
+in this scenario: nothing measurable, because it never runs.
+
+### arm1 vs arm2, matched: `affinity` vs `affinity + P2P` is a clean null
+
+Arm1 re-run in-cluster on the identical ladder, so both halves share a driver,
+rates, fleet generation and warmup. The two configs are one plugin apart -
+diffed to confirm `p2p-source-producer` is the only difference between
+`sc1.yaml` and `sc2.yaml`; every other plugin, weight and profile is
+byte-identical.
+
+achieved req/s / TTFT p50:
+
+| offered | arm1 `affinity` | arm2 `affinity + P2P` | delta |
+|---:|---|---|---|
+| 1 | 1.00 / 393 ms | 1.00 / 416 ms | 0.0% / +23 ms |
+| 2 | 1.99 / 373 ms | 1.99 / 378 ms | 0.0% / +5 ms |
+| 4 | 3.97 / 373 ms | 3.97 / 371 ms | 0.0% / -2 ms |
+| 8 | 7.93 / 373 ms | 7.93 / 372 ms | 0.0% / -1 ms |
+| 12 | 11.88 / 366 ms | 11.88 / 371 ms | 0.0% / +5 ms |
+| 16 | 15.84 / 366 ms | 15.84 / 370 ms | 0.0% / +4 ms |
+
+2580/2580 per arm, zero failures, zero restarts, all restart counts 0 on both
+fleet generations. Achieved throughput is identical to three significant
+figures at every rate; TTFT differs by at most 23 ms (6%) at the lowest rate
+and under 1.5% everywhere else.
+
+Mechanism counters match too - arm1 94.6% GPU prefix hit rate
+(129,897,600/137,246,445), arm2 94.6% (129,837,120/137,246,445), and **0 P2P
+sessions in both**. The null is fully explained: the arms are the same system
+because the pull never runs.
+
+**Read this as "the pull is inert in this scenario", not "the pull does not
+help".** The two are different claims and only the first is supported here.
+The comparisons that do exercise the pull, both on RDMA, are Step 0's
+crossover (recompute vs pull - pull wins 49-88%) and UC2's A/B (local-restore
+vs pull - +1.2%, within noise).
+
+### Scenario C no longer stresses what it was built to test
+
+With the transport fixed, nothing saturates: both arms track offered load
+linearly from 1 to 16 req/s with flat ~370 ms TTFT and no failures. The
+scenario's whole premise was comparing placement strategies *at* a ceiling,
+and on this workload - 128 stable prefixes over 8 prefill pods, 94.6% local
+hit rate - there is no ceiling in range and placement barely matters.
+
+The earlier ~2.1 req/s "ceiling" was the fallback transport, so every
+placement conclusion drawn at it was really a conclusion about a saturated
+link. Making Scenario C meaningful again needs a workload that actually
+pressures placement: a working set larger than aggregate GPU cache, prefix
+churn or pod scale-out (so prefixes must move, which is when the pull is the
+recovery path), or a rate high enough to find the real ceiling. That is a
+design decision, not a re-run, so it is left for review rather than guessed
+at here.

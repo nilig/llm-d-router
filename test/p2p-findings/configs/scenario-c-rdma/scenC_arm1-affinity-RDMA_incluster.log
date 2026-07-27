@@ -1,0 +1,9 @@
+# arm=arm1-affinity-RDMA-x endpoint=http://llm-d-router-epp:8081 groups=128 prefix~48000tok
+# warmup: 128 ok / 0 fail in 36s (128 prefixes populated)
+ rate   sent     ok  fail  wall_s  achieved  ttft_p50  ttft_p95  lat_p50
+    1     60     60     0    60.0      1.00       393       538      680
+    2    120    120     0    60.2      1.99       373       415      664
+    4    240    240     0    60.5      3.97       373       411      663
+    8    480    480     0    60.6      7.93       373       400      661
+   12    720    720     0    60.6     11.88       366       409      657
+   16    960    960     0    60.6     15.84       366       410      666
