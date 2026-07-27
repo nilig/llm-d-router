@@ -4,7 +4,11 @@
 > does **not** reproduce the blog's Use Case 2 result. The pull is worth
 > about **+2% achieved throughput** at saturation — smaller than the
 > run-to-run spread — and the control arm (`load`, no pull) **does not
-> collapse**. See [UC2 paired A/B](#uc2-paired-ab-load-vs-loadp2p-4-ladders-counterbalanced).
+> collapse**. This was first measured on a rig lacking `rdma/ib` and has
+> since been **re-run with RDMA and a verified-live pull: +1.2%, same
+> verdict**, with the mechanism identified (the no-pull arm restores from
+> its local CPU tier rather than recomputing). See the RDMA re-run section
+> at the end. See [UC2 paired A/B](#uc2-paired-ab-load-vs-loadp2p-4-ladders-counterbalanced).
 
 This series closes the lookup-hang blocker that stalled the blog's UC2/3/4
 re-validation ([[project_p2p_guide_docs_pr]], "BLOG UC2/3/4 RE-VALIDATION
@@ -939,3 +943,71 @@ Overlay rebuilt on this head for future runs:
 `combined-overlay-49877new` (merged #48021 base + the four PR files at
 `15b53af1` + #49850's scheduler/metrics/base additions;
 `manager.py` taken at the PR head since the PR no longer modifies it).
+
+---
+
+## UC2 A/B re-run WITH RDMA - the verdict holds, and the mechanism is now clear
+
+The UC2 A/B above was measured on a rig **without `rdma/ib`**, so its P2P arm
+ran on a TCP fallback. Given the crossover showed RDMA swinging
+pull-vs-recompute by >100 percentage points, that verdict could not stand.
+Re-run here with `rdma/ib` on both limits and requests, and on PR #49877 at
+its current head `15b53af1`. Both verified live *inside the container*
+before measuring: `/dev/infiniband` present (`issm0-3`), and
+`peer_lookup_open` x6 in the mounted `client.py` (an identifier that exists
+only at the new head). Configs and logs:
+[configs/uc2-ab-rdma](configs/uc2-ab-rdma).
+
+### Result
+
+Achieved req/s at saturation:
+
+| offered | arm A `load` | arm B `load + P2P` | delta |
+|---:|---:|---:|---:|
+| 12 | 8.35 | 8.27 | -1.0% |
+| 16 | 8.11 | 8.60 | +6.0% |
+| 20 | 8.15 | 8.13 | -0.2% |
+| 24 | 8.30 | 8.31 | +0.1% |
+
+**Saturation mean: A = 8.227, B = 8.328 → +1.2%.** The between-arm
+difference is 0.100 req/s, *smaller* than the within-arm run-to-run spread
+measured in the original study (0.125 A / 0.215 B). Per-stage deltas swing
+both directions, the same noise signature as before.
+
+The control reproduced closely across rigs - arm A 8.227 with RDMA vs 8.117
+without (1.4% apart) - which is expected, since RDMA is irrelevant to an arm
+that never pulls, and it confirms the two studies are comparable.
+
+The pull was unambiguously live this time: gate showed the owner pod
+accepting 6 sessions with the other three pulling 2.20 GB each; mid-ladder
+the fleet had moved 81.3 GB with 9,123 P2P log lines on the owner alone.
+
+**So the original conclusion stands, on far better evidence.** It is no
+longer "the pull did not help, transport unexamined" but "the pull was
+verified working and still did not move the fleet's saturation ceiling".
+
+### Why RDMA transformed the crossover but not this
+
+Arm A logged **16.53 GB of `kv_offload_load_bytes_total` with zero P2P
+sessions**. On this pool the no-pull arm is not recomputing cross-pod
+misses - it is restoring them from its own **local CPU tier**. With 64
+prefixes of 16K tokens over 4 pods each holding a 16 GiB tier, every pod
+accumulates most prefixes after warmup.
+
+The two experiments therefore compare different things:
+
+| | what "no pull" actually does | pull result |
+|---|---|---|
+| Step 0 crossover | unique prefix, consumer has never seen it -> **true recompute** | pull wins 49-88% |
+| UC2 pool | prefix recurs, consumer already holds it -> **local CPU restore** | tied |
+
+Both arms in UC2 already avoid recompute, so the pull is competing against a
+local memory read rather than against prefill. That is why the transport
+swing that dominated Step 0 is nearly invisible here.
+
+This also explains the blog's Use Case 2 premise directly. "Load-balancing
+without the pull is catastrophic once the working set exceeds per-pod cache"
+assumes a cross-pod miss forces recompute. With a large local CPU tier it
+does not - the miss is absorbed by the tier. The premise holds only where
+the CPU tier cannot hold the working set, or where prefixes do not recur per
+pod often enough to populate it.
