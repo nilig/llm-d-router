@@ -451,16 +451,25 @@ Raw per-stage output for all four ladders:
 
 ## Scenario C - P/D prefill placement (3 arms)
 
-> **The verdict below is WRONG and is being replaced.** Every number in this
-> section was measured on a rig with no `rdma/ib` resource, so the pull ran on
-> a TCP fallback rather than RDMA. Re-running arm3 with `rdma/ib` present, and
-> nothing else changed, moves it from 1.73 req/s / 66.6s TTFT to **3.71 req/s
-> / 3.09s** at offered rate 4 - +114% throughput and 21x better TTFT. The
-> claim "load-scattering plus a working pull loses to affinity" is an artifact
-> of the transport, as is the "~2.1 req/s fleet ceiling". The section is kept
-> intact below because the mechanism analysis (hit rates, tier volumes, the
-> `num_requests_running` lesson) is still correct; only the verdict is void.
-> The corrected three-arm table is in "Scenario C re-run with RDMA" below.
+> **The numbers below are wrong; the ordering they support is not.** Every
+> number in this section was measured on a rig with no `rdma/ib` resource, so
+> the pull ran on a TCP fallback rather than RDMA. Re-running with `rdma/ib`
+> and nothing else changed moves arm3 from 1.73 req/s / 66.6s TTFT to **3.71
+> req/s / 3.09s** at offered rate 4.
+>
+> Compared like-for-like against arm3 (same driver, same 1-4 ladder, both on
+> RDMA), **`load + P2P` still loses to `affinity`**: -5.8% throughput and
+> 3.56x TTFT at rate 4. So the section's conclusion survives; what does not
+> survive is its magnitude and its absolute numbers. The throughput penalty
+> was inflated roughly 3x (-17% reported vs ~-6% actual), the TTFT penalty was
+> *understated* (1.41x reported vs 3.56x actual), and the "~2.1 req/s fleet
+> ceiling" is pure transport artifact - the rig sustains 16 req/s at flat
+> ~370ms.
+>
+> An earlier revision of this banner said the verdict was void and the claim
+> dead. That was an over-correction, recorded here rather than quietly edited.
+> The mechanism analysis (hit rates, tier volumes, the `num_requests_running`
+> lesson) was always correct. Full re-run in "Scenario C re-run with RDMA".
 
 The guide lists Scenario C as "not yet run". All three arms are measured,
 600/600 requests each, zero failures, zero restarts.
@@ -1069,6 +1078,33 @@ same arm holds 2.6-3.1s TTFT across the whole ladder while throughput scales
 almost linearly to 3.71 req/s. The "~2.1 req/s fleet ceiling" asserted in the
 original section was therefore never a fleet property; it was the fallback
 transport's ceiling.
+
+### But the arm ordering survives: arm3 still loses to arm1 on RDMA
+
+The lift above is arm3 against its own no-RDMA self, which is the wrong
+question for the section's verdict. Against arm1 - same driver
+(port-forwarded), same 1-4 ladder, both on RDMA, so directly comparable:
+
+| offered | arm3 vs arm1, no RDMA | arm3 vs arm1, RDMA |
+|---:|---|---|
+| 1 | -1.1% / 1.47x TTFT | -2.0% / 1.20x |
+| 2 | -27.3% / 2.35x | -5.1% / 3.03x |
+| 3 | -17.5% / 2.90x | -2.7% / 3.03x |
+| 4 | -16.8% / 1.41x | **-5.8% / 3.56x** |
+
+**`load + P2P` still loses to `affinity` on the P/D prefill leg.** RDMA lifts
+both arms; it does not reorder them. What the transport distorted was the
+size of the gap, in both directions - the throughput penalty was overstated
+by about 3x (-17% vs ~-6%), and the TTFT penalty was *understated* (1.41x vs
+3.56x). The original section's conclusion was right for a reason it had not
+established, which is why the fix here is a re-measurement rather than a
+retraction.
+
+This also leaves the guide's placement stance intact. It never rested on this
+section alone, and its other pillar - Maroon's GLM c16-c128 ladder - was
+measured on a rig that does carry `rdma/ib`
+(`configs/glm-5.2-p2p/lws-{prefill,decode}.yaml`), so it was never exposed to
+this artifact.
 
 ### Operating rule found the hard way: roll prefill and decode together
 
