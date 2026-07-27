@@ -1,0 +1,28 @@
+### ARM affinity-p2p ###
+STATUS: deployed
+REVISION: 20
+waiting for cold scenb-agg + epp...
+13:14:54 scenb-agg ready=16/16 epp=0 bad=[]
+13:15:15 scenb-agg ready=0/16 epp=0 bad=[]
+13:15:36 scenb-agg ready=0/16 epp=1 bad=[]
+13:15:57 scenb-agg ready=0/16 epp=1 bad=[]
+13:16:19 scenb-agg ready=0/16 epp=1 bad=[]
+13:16:40 scenb-agg ready=0/16 epp=1 bad=[]
+13:17:01 scenb-agg ready=0/16 epp=1 bad=[]
+13:17:22 scenb-agg ready=0/16 epp=1 bad=[]
+13:17:43 scenb-agg ready=0/16 epp=1 bad=[]
+13:18:04 scenb-agg ready=0/16 epp=1 bad=[]
+13:18:25 scenb-agg ready=0/16 epp=1 bad=[]
+13:18:47 scenb-agg ready=0/16 epp=1 bad=[]
+13:19:08 scenb-agg ready=9/16 epp=1 bad=[]
+13:19:29 scenb-agg ready=16/16 epp=1 bad=[]
+gate: epp loaded arm correctly (p2p-source-producer=3 occurrences, expect yes)
+# arm=affinity-p2p hot=8x48000tok out=512
+# warmup: 8 ok / 0 fail in 11s (8 hot prefixes seeded)
+offered   sent     ok  fail  wall_s  achieved  ttft_p50  lat_p50
+     12    720    720     0    60.9     11.83       716      885
+     24   1440   1440     0    60.9     23.66       713      842
+     36   2160   2160     0    65.1     33.19       723      918
+     48   2880   2880     0    66.8     43.12       769     1052
+--- pull mechanism spot-check (INFO-level session log, all pods, no v:5/DEBUG needed) ---
+total 'created connected session' occurrences across all 16 pods: 0

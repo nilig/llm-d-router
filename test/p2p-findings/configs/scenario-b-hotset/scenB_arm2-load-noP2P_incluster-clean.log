@@ -1,0 +1,7 @@
+# arm=load-no-p2p hot=8x48000tok out=512
+# warmup: 8 ok / 0 fail in 3s (8 hot prefixes seeded)
+offered   sent     ok  fail  wall_s  achieved  ttft_p50  lat_p50
+     12    720    720     0    60.2     11.96       187      295
+     24   1440   1440     0    61.8     23.30       190      316
+     36   2160   2160     0    61.6     35.04       196      362
+     48   2880   2880     0    62.6     46.04       199      382

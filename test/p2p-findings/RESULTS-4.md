@@ -556,3 +556,123 @@ per-request lookup/fetch traces are `logger.debug` and need
 `VLLM_LOGGING_LEVEL=DEBUG`. And query **per pod** - `kubectl logs -l <label>`
 returns only a subset, so its silence proves nothing; that mistake produced a
 false "P2P never engaged" claim in an earlier revision of this section.
+
+## Scenario B - hot set, the 2 missing arms (`affinity + P2P`, `load, no P2P`)
+
+The guide's own payoff-case table
+(`guides/p2p-kv-cache-sharing/benchmarking/README.md`) publishes only 2 of 4
+arms: `affinity` and `load + P2P`. Missing:
+**`affinity + P2P`** - the shipped default, never measured in the payoff case
+it exists for - and **`load, no P2P`**, the recompute floor. Both measured
+here, 16x gpt-oss-120b aggregated, same combined-overlay-uc2resume fixed
+stack (#48021 merged + #49877 + #49850) as UC2/UC3/UC4/Scenario C above.
+Manifest and arm configs: [configs/scenario-b-hotset](configs/scenario-b-hotset)
+(rig `scenb-agg.yaml`; arms `scenb-arm-affinity-p2p.yaml` /
+`scenb-arm-load.yaml`, the guide's own `epp-affinity-p2p.yaml` /
+`epp-load.yaml` embedded byte-for-byte, diffed to confirm). Driver:
+`scenB_hotset.py` (8 hot prefixes x 48K tokens, 512-token decode-heavy
+outputs, rates 12/24/36/48, 120s client timeout matching the guide's failure
+column).
+
+**Both arms complete, 0 restarts across the fleet in either run.** Neither
+number should be read as a direct drop-in replacement for the guide's
+existing 2 columns without the caveats below - both arms surfaced a real
+mechanism finding, not just a throughput number.
+
+### Measured (achieved req/s / latency p50 / failures per stage)
+
+| offered | `affinity` (guide, published) | `affinity + P2P` (this run) | `load, no P2P` (this run) | `load + P2P` (guide, published) |
+|---:|---|---|---|---|
+| 12 req/s | 9.9 / 11.8s / 0 | 11.83 / 0.89s / 0 | 11.96 / 0.30s / 0 | 11.3 / 5.6s / 0 |
+| 24 req/s | 14.7 / 27.0s / 0 | 23.66 / 0.84s / 0 | 23.30 / 0.32s / 0 | 20.9 / 9.6s / 0 |
+| 36 req/s | 15.3 / 53.8s / 0 | 33.19 / 0.92s / 0 | 35.04 / 0.36s / 0 | 29.1 / 15.9s / 0 |
+| 48 req/s | 13.1 / 75.3s / 672 | 43.12 / 1.05s / 0 | 46.04 / 0.38s / 0 | 34.3 / 26.0s / 0 |
+
+TTFT p50 (both new arms, all 4 stages): affinity+P2P 713-769ms; load-no-P2P
+187-199ms.
+
+### `affinity + P2P`: mechanism confirmed, but the throughput gap vs. the guide's column is not a P2P effect
+
+Per-pod `vllm:request_success_total` after the run: exactly **8 pods at 901
+requests each, 8 pods at 0** - affinity concentration is working exactly as
+designed, one owner per hot prefix, matching the guide's own "8 owner pods"
+framing precisely.
+
+**The P2P pull never engaged**: 0 occurrences of `created connected session
+for` (INFO level, no `VLLM_LOGGING_LEVEL=DEBUG` needed) across all 16 pods.
+This reproduces the same pattern already recorded twice above (Scenario A's
+own note, Scenario C's arm2 finding) - affinity rarely diverges from the
+best-cached pod, so `minCachedTokenDelta` is rarely met and the pull has
+nothing to do. **Since the pull never fired, it cannot be what makes this
+arm outperform the guide's published affinity throughput with zero failures
+instead of 672** - the gap is small at low offered rate (1.2x at 12 req/s,
+1.6x at 24) and widens sharply as offered rate approaches the guide's own
+reported collapse point (2.2x at 36, 3.3x at 48, exactly where the guide's
+arm sheds 672 requests and this run has none). The most likely explanation
+is engine-build drift: this
+run is on `nightly-1240c74c0a...`, a materially later build than whatever
+produced the guide's original number, and the same "absolute numbers shift,
+mechanism conclusions don't" caveat already applies to UC2 above. This is
+inference, not verified - pinning it exactly would need a stock-affinity
+control run on this same build, which is outside this task's scope (2 missing
+arms, not a 3rd control). Flagging it rather than either hiding the gap or
+overclaiming a cause.
+
+### `load, no P2P`: EPP-level mechanism confirmed correct, but this is not a clean recompute floor
+
+Gate confirmed `p2p-source-producer` absent from the loaded config (0
+occurrences, as expected) and the scheduling profile is exactly
+`weighted-random-picker` + `queue-scorer`(w3) + `kv-cache-utilization-scorer`
+(w2) - no prefix-affinity scoring at all, matching `epp-load.yaml` verbatim.
+
+**But the underlying vLLM engine's own native per-pod prefix cache captures
+almost everything anyway**: `vllm:prefix_cache_hits_total /
+prefix_cache_queries_total` = 98.7% (33.85M / 34.28M cached tokens, aggregate
+across both attempts on these pods - see methodology note below),
+`vllm:external_prefix_cache_hits_total` = 0 (confirming these are local
+hits, not P2P pulls - correct for this arm). Root cause, read directly from
+`pkg/epp/framework/plugins/scheduling/picker/weightedrandom/picker.go`:
+`weighted-random-picker` is **A-Res weighted sampling, probability
+proportional to score** (`keyᵢ = Uᵢ^(1/wᵢ)`), not uniform selection. With
+only 8 unique hot prefixes spread across 16 pods (a far lower prefix:pod
+ratio than Scenario A's uniform pool at 128:16), and placement weighted by
+queue/kv-utilization scores that correlate with "just served this request",
+incidental same-pod repeat-hits for the same prefix are common even with
+zero prefix-affinity scoring in the config. **This arm is not isolating an
+always-recompute worst case** the way Scenario A's `load, no P2P` does at a
+much higher prefix:pod ratio - it is measuring how well simple load-based
+placement does when it incidentally benefits from native caching at this
+specific hot-set size. That is a real and useful number (and arguably softens
+the case that the pull is doing essential work at this specific hot-set:pod
+ratio), but it should not be read as "the cost of recomputing every hot
+prefix from scratch".
+
+### Methodology: `kubectl port-forward` failed under this arm's own degraded state, taking down the whole tunnel
+
+First attempt at this arm ran through the same port-forward pattern as every
+other scenario in this file (`kubectl port-forward svc/llm-d-router-epp`).
+Stages 1-2 completed clean; stage 3 (36 req/s) started shedding requests
+mid-stage as latency climbed past 30s p50, and stage 4 (48 req/s) reported
+**100% failure** - not a real engine-side collapse: the tunnel log shows
+repeated `connection reset by peer` starting mid-stage-3, ending in `lost
+connection to pod`. Engine-side queue depth was confirmed drained (0
+running / 0 waiting on every pod) immediately after, and a rerun of the
+identical ladder from an in-cluster pod (`kubectl exec` against
+`http://llm-d-router-epp:8081` directly, no local-machine tunnel) came back
+completely clean - the numbers in the table above are from that rerun.
+
+**Why arm 1 never hit this and arm 2 did**: by Little's Law, concurrent
+open connections scale with rate x latency. Arm 1's sub-second latency
+throughout keeps concurrent connections low even at 48 req/s offered; arm 2's
+climbing latency under genuine load (before the native-cache rescue kicks in
+enough to flatten it - see above) pushed concurrent long-lived streaming
+connections past whatever ceiling this specific tunnel could hold. **A
+degrading arm can silently fail its OWN measurement tool exactly when it is
+about to produce the most interesting data** - this is the same
+verify-the-gateway-path-not-just-the-feature-path lesson as the render-
+bottleneck plateau, applied to the client side instead of a shared backend
+service. For any future high-concurrency ladder (especially one expected to
+degrade, unlike a clean-scaling arm), prefer an in-cluster load generator
+over `kubectl port-forward` from the start rather than discovering the limit
+mid-run. Both raw logs kept: `scenB_arm2-load-noP2P_portforward-FAILED.log`,
+`scenB_arm2-load-noP2P_incluster-clean.log`.
