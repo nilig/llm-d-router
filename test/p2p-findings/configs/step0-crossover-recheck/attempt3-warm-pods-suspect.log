@@ -1,0 +1,8 @@
+# source(A)=scenb-agg-f588d87b-4wz4z ip=10.0.3.170 target(B)=scenb-agg-f588d87b-t4wzf model=openai/gpt-oss-120b
+# warm-mesh calibration pull: 0.152s (4312 tokens) - discarded, session-establishment only
+ tokens  recompute_ms   pull_ms   delta
+   2048          76.7      93.3     22%  (tokens rc~2155 pull~2151)
+   8192         249.4     271.7      9%  (tokens rc~8623 pull~8607)
+  16384         500.9     544.7      9%  (tokens rc~17184 pull~17197)
+  32768        1837.5     980.2    -47%  (tokens rc~34370 pull~34412)
+  49152        2574.8    1266.4    -51%  (tokens rc~51666 pull~51604)

@@ -676,3 +676,126 @@ degrade, unlike a clean-scaling arm), prefer an in-cluster load generator
 over `kubectl port-forward` from the start rather than discovering the limit
 mid-run. Both raw logs kept: `scenB_arm2-load-noP2P_portforward-FAILED.log`,
 `scenB_arm2-load-noP2P_incluster-clean.log`.
+
+## Step 0 crossover re-check: the pull has not gotten faster - it has gotten relatively slower
+
+Motivation: several results this session (Scenario B's affinity+P2P
+throughput, the UC2 A/B's no-pull baseline no longer collapsing) raised the
+question of whether the *baseline* got better or P2P itself got worse. The
+cleanest way to answer that without scheduler/placement/concurrency
+confounds is to re-run the guide's own Step 0 methodology (single-request,
+cold-pod, recompute vs. pull, no EPP/routing involved at all) and diff
+directly against its original table. Configs, driver, and all 4 attempt
+logs (including the 3 invalid ones, kept as evidence for the traps below):
+[configs/step0-crossover-recheck](configs/step0-crossover-recheck).
+
+**Provenance caveat, stated up front**: the original table's exact vLLM
+build was never pinned - `capacity-number-provenance.md` on this same
+branch admits it explicitly ("no specific SHA recorded"), only "nightly +
+`generic_p2p` branch." This re-check can show WHAT changed in the raw
+numbers; it cannot pin down WHY against an unknown prior build. Rig: 2x
+gpt-oss-120b aggregated (`scenb-agg` scaled to 2 replicas), same fixed
+stack as the rest of this session (nightly-1240c74c0a... +
+combined-overlay-uc2resume).
+
+### Two invalid attempts before the real one - both caught by the same discipline this file already uses elsewhere
+
+**Attempt 1 - silent pull-fallback, mistaken for "pull adds nothing."**
+Copied an older GLM crossover script's approach: inject
+`kv_transfer_params.p2p` directly into the request body against the bare
+engine port (8200), bypassing the sidecar. Result looked like a real
+finding - delta ~0% at every length, recompute and pull statistically
+indistinguishable - but `vllm:external_prefix_cache_hits_total` and
+`prompt_tokens_by_source_total{source="external_kv_transfer"}` both stayed
+at exactly 0.0 for the entire run, and no session-establishment log line
+appeared on either pod, not even during warm-mesh calibration. Every
+"pull" request had silently recomputed instead. Root cause not fully
+diagnosed (the field names matched the sidecar's own constants exactly,
+`pkg/common/request/constants.go`), but the fix sidesteps needing to know
+why: route through the sidecar's own proven header mechanism
+(`x-kv-cache-source-host-port`, `pkg/sidecar/proxy/chat_completions.go:135`)
+instead of guessing the bare engine's wire format - the same mechanism the
+EPP itself uses for every real pull in this whole campaign. Confirmed
+working via a single-request smoke test before re-running the full sweep:
+exact token-count match on `external_prefix_cache_hits_total`, a real
+session in both pods' logs, and the sidecar's own log line
+(`"running P2P source protocol"`).
+
+**Attempt 2 - nonce periodicity collision, mistaken for a real crossover
+shift.** After fixing the fallback, the sweep produced a delta pattern
+that looked plausible (recompute far faster than original, pull only
+slightly better) - but `prompt_tokens_by_source_total{source="local_cache_hit"}`
+read 412,672 tokens, which should be structurally impossible in this
+design (every prefix uses a fresh nonce, never seen before). Cause: the
+prefix generator was `WORDS[(nonce*53+i) % 20]` - a linear formula whose
+cyclic word pattern depends only on `nonce mod 20`. The recompute and
+pull-source nonces for the same rep differed by exactly 500 (a multiple of
+20), so their generated text was near-identical past the first couple of
+tokens - pod B's own local cache from the recompute call was silently
+assisting the very next "pull" measurement for the same rep. Same failure
+mode as [[project_render_bottleneck_5s_plateau]] and Scenario B's own
+`load, no P2P` arm above, in miniature: a plausible-looking number from an
+unverified mechanism. Fixed by generating each prefix from an
+independently-seeded `random.Random(nonce)` stream instead of a linear
+formula - no two nonces can share periodicity. Verified 0 collisions
+across every nonce pair actually used before re-running.
+
+**Also discovered, not a bug but a confound worth naming**: recompute
+numbers differed between the (nonce-fixed) attempt on warm/reused pods and
+the final cold-pod run - both pods had by then processed >1M cumulative
+prompt tokens including tens of GB into the 94GB CPU offload tier. A cold
+`kubectl delete pod` reroll before the authoritative run removes this as a
+variable; the numbers below are cold-pod only.
+
+### The authoritative measurement (cold pods, mechanism verified)
+
+Verification before trusting the numbers: `external_prefix_cache_hits_total`
+grew by 573,184 tokens across the run (expected ~569,855 from the pulled
+lengths x 5 reps - matches); `local_cache_hit` stayed at exactly 0 (no
+contamination); exactly one P2P session established (during warm-mesh
+calibration) and reused for every subsequent pull; 0 restarts on both pods.
+
+| tokens | recompute (now) | recompute (orig, 2026-07-17) | pull (now) | pull (orig) | delta (now) | delta (orig) |
+|---:|---|---|---|---|---|---|
+| 2,048 | 78.9 ms | 70.6 ms | 103.0 ms | 49.0 ms | +31% | -31% |
+| 8,192 | 253.7 ms | 205.4 ms | 322.1 ms | 120.1 ms | +27% | -42% |
+| 16,384 | 504.1 ms | 426.3 ms | 687.8 ms | 196.2 ms | +36% | -54% |
+| 32,768 | 2,102.7 ms | 983.0 ms | 1,223.0 ms | 376.3 ms | -42% | -62% |
+| 49,152 | 2,615.0 ms | 1,695 ms | 1,842.8 ms | 550.5 ms | -30% | -68% |
+
+**Both recompute and pull got slower in absolute terms - the pull got
+slower by more, at every single length.** Recompute is 1.1-2.1x slower
+than the original measurement; the pull is 2.1-3.5x slower, consistently
+worse than recompute's own slowdown at every length. That is the direct
+answer to "did the baseline improve or did P2P get worse": in this
+isolated, mechanism-level test, **neither got faster - the pull
+specifically regressed more than recompute did**, which is why the
+crossover point has moved. The guide's table showed the pull winning at
+every measured length, including the smallest (2,048, chosen as
+`minCachedTokenDelta`); today it *loses* at 2,048-16,384 tokens (+27% to
++36% slower than just recomputing) and only wins at 32,768+ (-30% to
+-42%), a smaller margin than the original's -62% to -68% at those same
+lengths. **The guide's current `minCachedTokenDelta: 2048` is very likely
+miscalibrated for this build - it would fire pulls in a range (2,048-16,384)
+where this measurement shows the pull actively costing latency, not saving
+it.**
+
+**This does not contradict the "baseline improved" pattern seen elsewhere
+this session** (Scenario B's affinity throughput, UC2's no-pull control no
+longer collapsing) - those are concurrent/batched-throughput measurements
+under load (scheduling and batching efficiency across many simultaneous
+requests), a different axis from this single-request, unbatched,
+zero-concurrency test. It is plausible for a build to get better at
+serving many requests at once while an individual request's raw
+compute-or-pull cost - and especially the P2P tier's own per-request
+overhead - has grown, e.g. from the accumulated defect-fix machinery
+layered into the OffloadingConnector/P2P code paths since this table was
+first measured. That is inference, not verified here; nailing down which
+specific change is responsible would need a build bisection, which is
+outside what this re-check was scoped to do.
+
+**Action implied, not taken**: no guide edits made. If this holds up under
+another look, the guide's Step 0 table and `minCachedTokenDelta` both need
+re-deriving on a pinned build before the guide can cite either with
+confidence - and this time, pin the exact image tag/SHA used, so the next
+re-check doesn't inherit the same unknown-provenance problem.
