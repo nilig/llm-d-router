@@ -1,0 +1,5 @@
+# arm=affinity-run2 conversations=192 turns=6 concurrency=128 doc=49152tok
+duration=247.5s ok=1152 fail=0 total=1152/1152
+TTFT p50=4011ms p95=75048ms p99=132579ms
+throughput=4.65 turns/s
+# done

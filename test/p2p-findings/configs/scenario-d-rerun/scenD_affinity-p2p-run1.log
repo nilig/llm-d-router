@@ -1,0 +1,6 @@
+# arm=affinity-p2p-run1 conversations=192 turns=6 concurrency=128 doc=49152tok
+duration=272.1s ok=864 fail=48 total=912/1152
+TTFT p50=3990ms p95=83973ms p99=164488ms
+throughput=3.18 turns/s
+# done
+sample errors: ['timed out', 'timed out', 'timed out', 'timed out', 'timed out']

@@ -1,0 +1,5 @@
+# arm=load-p2p-run2 conversations=192 turns=6 concurrency=128 doc=49152tok
+duration=152.8s ok=1152 fail=0 total=1152/1152
+TTFT p50=3157ms p95=11741ms p99=18154ms
+throughput=7.54 turns/s
+# done

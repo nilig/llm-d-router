@@ -1286,3 +1286,141 @@ churn or pod scale-out (so prefixes must move, which is when the pull is the
 recovery path), or a rate high enough to find the real ceiling. That is a
 design decision, not a re-run, so it is left for review rather than guessed
 at here.
+
+## The TCP crossover, re-measured - the guide's old no-RDMA column was unreliable
+
+The "old, NO RDMA" column in the two-build crossover section above was
+measured on a different engine build from everything beside it, and its
+shape gives it away: +29.0 / +57.6 / +39.3 / +18.2 / -16.5% at
+2K/8K/16K/32K/48K **rises before it falls**. A pull whose cost is nearly
+flat in prefix length, measured against a recompute that is linear in it,
+can only produce a monotonically improving delta. The non-monotonic middle
+was noise, and it was load-bearing: it is what made TCP look like it
+inverted the economics.
+
+Re-measured on one rig, one build (`nightly-1240c74c` +
+`combined-overlay-49877new`), driven from an in-cluster pod, `rdma/ib`
+deliberately absent and `/dev/infiniband` confirmed missing in the
+container. 5-rep medians, unique prefixes per repetition, warm mesh:
+
+| prefix tokens | recompute | pull | delta |
+|---:|---:|---:|---:|
+| 2,048 | 77.1 ms | 97.7 ms | +26.7% |
+| 8,192 | 251.7 ms | 302.5 ms | +20.2% |
+| 16,384 | 513.8 ms | 570.0 ms | +10.9% |
+| 24,576 | 802.9 ms | 856.8 ms | +6.7% |
+| 32,768 | 1,189.7 ms | 1,131.3 ms | **-4.9%** |
+| 36,864 | 1,364.8 ms | 1,283.9 ms | -5.9% |
+| 40,960 | 1,574.8 ms | 1,390.0 ms | -11.7% |
+| 45,056 | 1,772.5 ms | 1,567.6 ms | -11.6% |
+| 49,152 | 1,998.3 ms | 1,692.8 ms | -15.3% |
+
+Monotonic throughout. **The TCP crossover is ~29K tokens**, interpolating
+between 24,576 (+6.7%) and 32,768 (-4.9%) - not "between 32K and 48K".
+
+Where the two ladders agree and disagree is itself the evidence: they match
+at 2K (+26.7 vs +29.0) and at 48K (-15.3 vs -16.5), and diverge only in the
+middle, worst at 8K (+20.2 vs +57.6). Endpoints reproduce; the middle of the
+old run does not.
+
+**Consequence for the guide.** RDMA is not a prerequisite - it is what sets
+`minCachedTokenDelta`. With `rdma/ib` the pull wins from 2K up, so `2048`
+follows. Without it the pull loses below ~29K and wins above, so the same
+deployment needs a threshold an order of magnitude larger and only benefits
+workloads whose reused prefixes are that long. Both guide passages now say
+that, and the earlier "deployment-blocking prerequisite" framing recorded in
+this file is withdrawn.
+
+Configs and raw output: [configs/tcp-crossover](configs/tcp-crossover).
+
+## Scenario D re-run - the guide's headline reproduces, on the arm that matters
+
+Scenario D is the guide's headline and had never been re-measured on the
+fixed stack. Re-run here with `rdma/ib` verified, 16x gpt-oss-120b
+aggregated (`scend-agg`), the current overlay (#48021 merged + #49877 at
+`15b53af1` + #49850), and the guide's own `epp-affinity.yaml` /
+`epp-affinity-p2p.yaml` / `epp-load-p2p.yaml` embedded verbatim. Workload
+per the guide: 192 conversations x 48K-token private document, 6 turns of
+256 tokens, concurrency 128, 1,152 turns per run. Driven from an in-cluster
+pod. Each arm cold-rolls the fleet first, then runs twice.
+
+TTFT p50/p95/p99 (ms) and throughput (turns/s):
+
+| arm | run | ok/fail | p50 | p95 | p99 | turns/s |
+|---|---|---|---|---|---|---|
+| `affinity` | 1 (cold) | 870/47 | 3,243 | 85,772 | 164,872 | 3.23 |
+| `affinity` | 2 (warm) | 1152/0 | 4,011 | 75,048 | 132,579 | 4.65 |
+| `affinity + P2P` | 1 (cold) | 864/48 | 3,990 | 83,973 | 164,488 | 3.18 |
+| `affinity + P2P` | 2 (warm) | 1152/0 | 3,719 | 69,560 | 126,666 | 5.06 |
+| **`load + P2P`** | 1 (cold) | 1152/0 | 3,422 | **12,915** | **20,691** | **6.86** |
+| **`load + P2P`** | 2 (warm) | 1152/0 | 3,157 | **11,741** | **18,154** | **7.54** |
+
+Zero pod restarts across all six runs.
+
+**The guide's `load + P2P` numbers reproduce closely.** Published: 4.5 /
+13.0 / 20.9 s at 7.02 turns/s and 3.9 / 12.5 / 26.7 s at 7.76. Measured
+here: 3.4 / 12.9 / 20.7 s at 6.86 and 3.2 / 11.7 / 18.2 s at 7.54. p95
+within 0.1-0.8 s, p99 within 0.2 s on the first run, throughput within 3%.
+That is the guide's headline arm landing on its published figures on a
+different rig build, months later - and it also validates this harness:
+the driver, rig and method return the guide's own numbers when the arm
+matches, so the other arms' results are not an artifact of a broken setup.
+
+**The scenario's conclusion holds, and harder.** `load + P2P` beats
+`affinity` by +62% throughput (7.54 vs 4.65) and 7.3x on p99 TTFT (18.2 s
+vs 132.6 s) warm, and by +112% / 8.0x cold. The guide's own margin was
+narrower (+1% throughput, 1.4x p99 between the second runs), so nothing
+here weakens its recommendation to reach for `load + P2P` on this workload
+shape.
+
+### Where this run diverges from the guide, and why
+
+The two affinity arms are much worse here than published: p95 75-86 s
+against the guide's 17-41 s. The cause is visible in the fleet, not the
+numbers. Sampling in-flight depth per pod during a cold affinity run:
+
+| sample | in-flight | busy pods | top pod's share |
+|---|---|---|---|
+| t+0s | 122/128 | 10/16 | **78.7%** |
+| t+30s | 126/128 | 15/16 | 66.7% |
+| t+60s | 73/128 | 15/16 | 21.9% |
+
+On a cold fleet every endpoint scores identically - nothing is cached - so
+precise-affinity placement has no signal to separate candidates and the
+pick collapses onto one pod, which builds a ~91-deep queue of 48K prefills
+while nine pods sit idle. It disperses within a minute as the prefix index
+fills, but the tail damage is already done: that is what produces the 165 s
+p99 and the 47-48 client timeouts in each affinity arm's first run.
+`load + P2P` never sees it - load placement spreads by construction,
+independent of cache state, which is why its *cold* run is already clean
+(1152/1152, zero failures).
+
+So the divergence is methodology meeting a real property: this campaign
+cold-rolls the fleet before every arm so arms cannot contaminate each
+other, and that penalises exactly the arms that are fragile to cold caches.
+**Affinity placement is cold-start-fragile; load placement is not.** The
+guide's runs did not start cold, so they never exposed it. Worth stating in
+the guide for anyone who scales out, restarts a fleet, or deploys fresh.
+
+### `affinity + P2P` adds nothing here either - and the reason is the same
+
+Warm, `affinity + P2P` reads +8.8% throughput and -4.5% p99 against
+`affinity`. That is not the pull: the arm established **2 P2P sessions
+across all 16 pods** for the entire run, against **65** in `load + P2P` on
+the identical rig. Fleet prefix hit rate tells the same story - ~27% under
+affinity versus 9.9% under load placement, i.e. affinity keeps the KV local
+so `minCachedTokenDelta` is essentially never met and there is nothing to
+fetch. The 8.8% is run-to-run variance, and the guide's own Scenario D note
+records 10-28% spread on this workload.
+
+This is now the third independent scenario showing it - Scenario C's
+arm1/arm2 (0 sessions), Scenario B's inert affinity arm, and this one - so
+it is a property of the configuration, not of any single workload: **under
+affinity placement the pull is insurance, not a performance feature.** The
+guide credits `affinity + P2P` with better p95/p99 than `affinity` in its
+Scenario D table (27.7-33.6 s vs 41.0-80.5 s); that separation does not
+reproduce here, and the mechanism evidence says it cannot be a pull effect
+when the pull runs twice.
+
+Configs, driver and raw logs:
+[configs/scenario-d-rerun](configs/scenario-d-rerun).

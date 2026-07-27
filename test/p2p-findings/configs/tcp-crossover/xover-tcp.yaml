@@ -1,0 +1,58 @@
+---
+# No-RDMA crossover rig. `rdma/ib` is deliberately ABSENT so NIXL/UCX falls
+# back to TCP: this measures where the pull-versus-recompute crossover sits
+# on the fallback transport, which is what sets `minCachedTokenDelta` for
+# deployments without IB. With RDMA the crossover is ~2K; prior five-point
+# data put the TCP crossover between 32K and 48K, and this rig pins it.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: xtcp, namespace: nilig-p2p, labels: {app: xover, build: tcp}}
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: xover, build: tcp}}
+  template:
+    metadata: {labels: {app: xover, build: tcp}}
+    spec:
+      containers:
+      - name: modelserver
+        image: vllm/vllm-openai:nightly-1240c74c0a47473449cf0c3a9c2d87a1e159f73b
+        command: ["sh","-c","rm -f /dev/shm/vllm_offload_*.mmap 2>/dev/null; exec vllm serve \"$@\"","sh"]
+        args:
+        - openai/gpt-oss-120b
+        - --port=8000
+        - --disable-access-log-for-endpoints=/health,/metrics,/v1/models
+        - --tensor-parallel-size=1
+        - --block-size=64
+        - --max-model-len=65536
+        - --gpu-memory-utilization=0.85
+        - --kv-transfer-config
+        - '{"kv_connector":"OffloadingConnector","kv_role":"kv_both","kv_connector_extra_config":{"spec_name":"TieringOffloadingSpec","cpu_bytes_to_use":68719476736,"offload_prompt_only":false,"secondary_tiers":[{"type":"p2p","host":"$(POD_IP)","port":7777}]}}'
+        env:
+        - {name: HF_TOKEN, valueFrom: {secretKeyRef: {name: llm-d-hf-token, key: HF_TOKEN}}}
+        - {name: POD_IP, valueFrom: {fieldRef: {fieldPath: status.podIP}}}
+        - {name: VLLM_P2P_SIDE_CHANNEL_HOST, valueFrom: {fieldRef: {fieldPath: status.podIP}}}
+        - {name: PYTHONHASHSEED, value: "0"}
+        - {name: HOME, value: /tmp}
+        ports: [{containerPort: 8000}, {containerPort: 7777}]
+        resources:
+          limits: {cpu: "8", memory: 96Gi, nvidia.com/gpu: "1"}
+          requests: {cpu: "8", memory: 96Gi, nvidia.com/gpu: "1"}
+        volumeMounts:
+        - {name: dshm, mountPath: /dev/shm}
+        - {name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/base.py, subPath: base.py}
+        - {name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/manager.py, subPath: manager.py}
+        - {name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/__init__.py, subPath: session___init__.py}
+        - {name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/client.py, subPath: session_client.py}
+        - {name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/protocol.py, subPath: session_protocol.py}
+        - {name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/server.py, subPath: session_server.py}
+        - {name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/session.py, subPath: session_session.py}
+        - {name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/control/zmq.py, subPath: control_zmq.py}
+        - {name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/control/base.py, subPath: control_base.py}
+        - {name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/distributed/kv_transfer/kv_connector/v1/offloading/scheduler.py, subPath: offloading_scheduler.py}
+        - {name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/distributed/kv_transfer/kv_connector/v1/offloading/metrics.py, subPath: offloading_metrics.py}
+        startupProbe: {httpGet: {path: /health, port: 8000}, initialDelaySeconds: 30, periodSeconds: 15, failureThreshold: 80}
+        readinessProbe: {httpGet: {path: /health, port: 8000}, periodSeconds: 5, failureThreshold: 3}
+      volumes:
+      - {name: dshm, emptyDir: {medium: Memory, sizeLimit: 80Gi}}
+      - {name: gp2p, configMap: {name: combined-overlay-49877new}}

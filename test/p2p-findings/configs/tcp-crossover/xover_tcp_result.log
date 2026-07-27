@@ -1,0 +1,9 @@
+# build=tcp-crossover src=http://10.0.9.123:8000 dst=http://10.0.10.92:8000 p2p_remote_host=10.0.9.123 reps=5
+# mesh warm: first pull 391 ms (one-time session cost, discarded)
+  tokens  recompute_ms    pull_ms    delta
+   32768        1189.7     1131.3    -4.9%
+   36864        1364.8     1283.9    -5.9%
+   40960        1574.8     1390.0   -11.7%
+   45056        1772.5     1567.6   -11.6%
+   49152        1998.3     1692.8   -15.3%
+# done
