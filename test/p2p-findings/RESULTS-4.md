@@ -445,12 +445,18 @@ Raw per-stage output for all four ladders:
 
 ---
 
-## Scenario C - P/D prefill placement (partial; 2 of 3 arms)
+## Scenario C - P/D prefill placement (complete; 3 arms)
 
-The guide lists Scenario C as "not yet run". This is a partial run: the rig,
-topology and two arms are measured; **arm 3 (`load + P2P`) was not run**, and
-it is the arm that actually exercises the pull. Treat the arm comparison
-below as inconclusive on the feature.
+The guide lists Scenario C as "not yet run". All three arms are now measured,
+600/600 requests each, zero failures, zero restarts.
+
+**Correction to an earlier revision of this section**: it claimed the P2P pull
+never engaged. That was a query bug, not a finding - `kubectl logs -l <label>`
+returns only a subset of matching pods, so its silence was not evidence of
+absence. Per-pod inspection shows the full INFO-level chain on prefill pods:
+`Created secondary tier #0 (p2p)` -> `_poll_once got 1 new connection(s)` ->
+`accepting incoming connection from <peer>:7777` -> `created connected session
+for <peer>:7777`. **P2P sessions form and the pull engages.**
 
 ### What was built
 
@@ -489,30 +495,36 @@ from 4-24 to 1-4; at 8 req/s the rig sheds requests to the client timeout.
 Each arm: fresh cold prefill pods, warmup over all 128 prefixes under that
 arm's own placement policy, config assertion before load.
 
-| rate | arm1 `affinity` achieved / TTFT p50 | arm2 `affinity + P2P` achieved / TTFT p50 |
-|---:|---|---|
-| 1 | 0.90 / 4.8s | 0.93 / 4.6s |
-| 2 | 1.72 / 7.1s | 1.84 / 4.7s |
-| 3 | 2.11 / 12.6s | 2.21 / 15.3s |
-| 4 | 2.08 / 47.1s | 2.08 / 40.9s |
+achieved req/s / TTFT p50:
 
-600/600 requests per arm, zero failures, zero restarts in both.
+| offered | arm1 `affinity` | arm2 `affinity + P2P` | arm3 `load + P2P` |
+|---:|---|---|---|
+| 1 | 0.90 / 4.8s | 0.93 / 4.6s | 0.89 / 7.1s |
+| 2 | 1.72 / 7.1s | 1.84 / 4.7s | 1.25 / 16.6s |
+| 3 | 2.11 / 12.6s | 2.21 / 15.3s | 1.74 / 36.4s |
+| 4 | 2.08 / 47.1s | 2.08 / 40.9s | 1.73 / 66.6s |
 
-### The arm2 result does not measure the pull
+600/600 per arm, zero failures, zero restarts, zero fingerprint rejects.
 
-**arm2's P2P pull was inert: zero P2P session activity** (`LookupMsg` /
-`FetchMsg` / `TransferDone`) in any prefill pod's logs, despite the EPP being
-verified to have loaded `p2p-source-producer`. With affinity holding an 80.2%
-GPU prefix-cache hit rate, placement almost never diverges from the cache
-holder, so `minCachedTokenDelta` is rarely met and the pull has nothing to
-do. This reproduces the guide's own Scenario A observation that under
-affinity "the pull mostly sits idle here (placement rarely diverges from
-cache)". The arm1/arm2 deltas above are therefore **not** a P2P effect and
-should not be read as one.
+**Load-aware placement plus a working pull loses to affinity on the P/D
+prefill leg**: -17% achieved throughput at the ceiling and 1.4-2.9x the TTFT.
+The mechanism is visible in the cache metrics - scattering drops the GPU
+prefix-cache hit rate from **80.2% (affinity) to 7.8% (load)**, and pulling
+the prefix over the network does not recover what local cache residency gave
+away. Arm3 does far more offload-tier work for it: 32.2% external hit rate
+and 404 GB of offload bytes, against ~10% and 23-27 GB in the affinity arms.
 
-Arm 3 (`load + P2P`), which deliberately scatters placement and is the
-configuration under which the pull actually fires, remains unrun. Until it
-is, Scenario C has no verdict on prefill-placement P2P.
+This confirms, on the P/D prefill leg, the same conclusion the guide already
+draws for the aggregated case in Scenario A: "load + P2P ... degrades sharply
+at the top of the ladder ... affinity + P2P has no such penalty because it
+never scatters a prefix's traffic in the first place."
+
+**arm2 vs arm1 is not a P2P measurement.** Under affinity the scheduled pod
+is nearly always the cache holder, so `minCachedTokenDelta` is rarely met and
+the pull has little to do; arm2's offload-tier figures (9.9% / 26.7 GB) look
+like arm1's (10.4% / 23.3 GB), not arm3's. The arm1/arm2 deltas are within
+noise and should not be read as a pull effect. This reproduces the guide's own
+Scenario A note that under affinity "the pull mostly sits idle here".
 
 ### Metric caveat that also affects UC3/UC4 above
 
@@ -523,11 +535,24 @@ activity, yet reports 23.30 GB of `kv_offload_load_bytes_total`; arm2 reports
 `external_prefix_cache_hits` (arm1: 762,112 hits with no P2P at all) - so
 "external" means "outside GPU cache", i.e. the offload tier, local included.
 
-Consequently the UC3 and UC4 sections above **overstate their mechanism
-evidence**: both cite load/store byte counters as proof of "genuine cross-pod
-pull activity", which those counters cannot establish on their own. Those
-claims should be read as "offload-tier activity occurred; P2P was not
-isolated". The UC2 A/B mechanism gate is unaffected - it was a controlled
-comparison (identical config, arm A at load=0 vs arm B at 2.2 GB on
-non-owner pods, p2p producer the only difference), which is what makes it
-evidence. The reliable single-arm signal is P2P session log activity.
+Consequently the UC3 and UC4 sections above **cite the wrong evidence**: both
+use load/store byte counters as proof of "genuine cross-pod pull activity",
+which those counters cannot establish on their own.
+
+**The evidence is wrong; the conclusion is not.** P2P demonstrably worked in
+that campaign - the saved DEBUG captures from the #49820/#49877 GPU repros
+record `dbg49877` = 12 P2P sessions / 207,345 fetch-lookup traces and
+`dbg49820` = 42 sessions / 265,886. Read UC3/UC4's mechanism claims as
+supported by session-level evidence, not by the byte counters they quote.
+
+The UC2 A/B gate is unaffected either way - it was a controlled comparison
+(identical config, arm A at load=0 vs arm B at 2.2 GB on non-owner pods, the
+p2p producer being the only difference), which is what makes it evidence.
+
+**How to check P2P engagement reliably**: session establishment is logged at
+INFO (`Created secondary tier #0 (p2p)`, `accepting incoming connection
+from`, `created connected session for`), so it is visible without DEBUG. The
+per-request lookup/fetch traces are `logger.debug` and need
+`VLLM_LOGGING_LEVEL=DEBUG`. And query **per pod** - `kubectl logs -l <label>`
+returns only a subset, so its silence proves nothing; that mistake produced a
+false "P2P never engaged" claim in an earlier revision of this section.

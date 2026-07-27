@@ -1,0 +1,7 @@
+# arm=arm3-load-p2p endpoint=http://localhost:18095 groups=128 prefix~48000tok
+# warmup: 128 ok / 0 fail in 108s (128 prefixes populated)
+ rate   sent     ok  fail  wall_s  achieved  ttft_p50  ttft_p95  lat_p50
+    1     60     60     0    67.6      0.89      7076     15185     7343
+    2    120    120     0    96.3      1.25     16629     56154    16916
+    3    180    180     0   103.3      1.74     36444     67503    36734
+    4    240    240     0   138.7      1.73     66625    106525    66931
