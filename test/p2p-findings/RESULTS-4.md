@@ -159,16 +159,44 @@ above already establishes it). Manifests:
    crash-looping every pod. Fixed: shm sized to 80Gi (> `cpu_bytes_to_use`),
    matching the established "shm > cpu_bytes" rule
    ([[project_p2p_well_lit_path_plan]]).
-2. **Prefill pods were missing their own routing-proxy sidecar.** Built
-   prefill as a bare engine on port 8200 (matching the ad-hoc
-   `llama-pd.yaml` reference rig, which is curl-driven with no EPP). But the
-   *decode* sidecar's NIXL P/D handler always dials the prefill peer on port
-   8000, expecting every model-server pod — prefill included — to run its
-   own routing-proxy in front of the engine, uniformly. Without it: `dial
-   tcp <prefill-ip>:8000: connect: connection refused`, every request 502.
-   Fixed by adding the same `routing-proxy` init-container pattern to
-   prefill (port 8000 → engine 8200, no `--enable-p2p-pull` needed there —
-   only the leg that *initiates* a pull needs that flag).
+2. **Prefill's engine was bound to the wrong port.** Built prefill as a bare
+   engine on 8200, mirroring decode's engine port (decode uses 8200 because
+   its sidecar occupies 8000) — leaving nothing on 8000. Every request
+   failed with `dial tcp <prefill-ip>:8000: connect: connection refused`,
+   surfacing as 502.
+
+   Root cause: `InferencePool.spec.targetPorts` is **pool-wide** (chart
+   `router.modelServers.targetPorts` →
+   `config/charts/routerlib/templates/_inferencepool.yaml:10-13`), so EPP
+   addresses every pod matched by the pool selector on the same port, and
+   hands decode's sidecar that `host:port` for the prefill leg
+   (`disagg_headers_handler.go:135` builds it as
+   `net.JoinHostPort(targetPod.Address, targetPod.Port)`; the sidecar just
+   forwards to whatever it is given —
+   `chat_completions.go:86-99` → `connector_nixlv2.go:54`). There is no
+   per-role port override. Prefill must therefore serve the pool port
+   itself.
+
+   The `pd-disaggregation` recipe
+   (`guides/recipes/modelserver/base/single-host/pd`) resolves this exactly:
+   `base/prefill-deployment.yaml` binds prefill's **modelserver container to
+   `containerPort: 8000` directly, with no sidecar**, while
+   `vllm/kustomization.yaml` patches the routing-proxy in against
+   `target: {kind: Deployment, name: decode}` only ("Add routing sidecar to
+   the decode deployment"), and `base/kustomization.yaml` moves decode's own
+   engine to 8200 to free 8000 for that sidecar. So the correct fix is
+   `--port=8000` on the prefill engine.
+
+   **The runs below were executed with a wrong fix**: a routing-proxy
+   sidecar bolted onto prefill (8000 → engine 8200) instead of simply
+   rebinding the engine. That satisfies the port requirement and the
+   measurements are valid for the KV mechanism under test, but it adds a
+   proxy hop on the prefill leg that the guide topology does not have, so
+   the absolute TTFT figures carry a small amount of overhead that is not
+   representative. The manifests committed here have since been corrected
+   to the recipe's layout (bare prefill engine on 8000, sidecar on decode
+   only) and therefore **do not byte-match what produced the numbers below**
+   — rerun against them if exact latency figures matter.
 
 ### Mechanism gate
 
@@ -230,9 +258,13 @@ retokenization chain), the actual generated text carried forward as each
 turn's assistant message (not a filler, unlike UC3's docQA driver — this
 one's whole point depends on it).  Scaled down to **2P+2D** (from Run N's
 4P+4D) and **16 conversations × 6 turns** for time budget. Applied both
-UC3 lessons preemptively (routing-proxy sidecar on both roles; shm sized
-above `cpu_bytes_to_use`) — this rig came up clean on the first deploy,
-no repeat of UC3's two bugs. Manifests:
+UC3 lessons preemptively (something serving the pool port on prefill; shm
+sized above `cpu_bytes_to_use`) — this rig came up clean on the first
+deploy, no repeat of UC3's two bugs. As with UC3, the run used the
+sidecar-on-prefill workaround rather than the recipe's bare-engine-on-8000
+layout (see UC3 bug 2 above); the committed manifest has been corrected to
+the recipe layout and so does not byte-match the run that produced the
+numbers below. Manifests:
 [configs/uc4-llama-pd-resolved](configs/uc4-llama-pd-resolved).
 
 ### Result
