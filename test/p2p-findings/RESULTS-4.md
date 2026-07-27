@@ -875,3 +875,67 @@ the request just recomputes, producing a plausible "pull" number that is a
 second recompute. First probe here read -6.4% that way. Session
 establishment is the tell: zero sessions with the wrong key, three with the
 right one.
+
+---
+
+## PR #49877 at its current head (`15b53af1`) - reworked, and the finish() gap persists
+
+The PR moved substantially after the validation recorded above (which was
+against `c1e15b9`). It is **no longer a draft**.
+
+### What changed
+
+| | `c1e15b9` (validated earlier) | `15b53af1` (current) |
+|---|---|---|
+| files changed | `manager.py`, `client.py`, `server.py` | `client.py`, `protocol.py`, `server.py`, `session.py` (**not** `manager.py`) |
+| client state machine | `ClientPhase` enum | `peer_lookup_open` bool |
+| in-flight loads | single slot `st.load` | **per-round dict `st.loads[round_seq]`** |
+| wire messages | - | `FetchMsg` / `AbortFetchMsg` carry `ROUND_SEQ` |
+| `queued_fetches` | present (9 refs) | removed - subsumed by the per-round dict |
+| regression test | `test_issue_49820_repro.py` | dropped |
+
+The per-round `st.loads` dict is a direct structural fix for the single-slot
+overwrite traced in the #49829 analysis above: a second promotion for the
+same `kv_request_id` can no longer silently displace an earlier one, because
+each round has its own slot and every wire message names its round.
+
+### The finish() gap is still open
+
+`finish()` sends an `AbortFetchMsg` per live load, then `st.loads.clear()` -
+without emitting any `LoadResult`. `on_abort_ack()` then does
+`st.loads.pop(round_seq, None)`, gets `None`, and takes the unknown-request
+branch. There are exactly three `LoadResult` sites in the file
+(`on_transfer_done`, `on_abort_ack`, the abort-ack timeout in
+`collect_results`) and none is reachable for a load cleared by `finish()`.
+
+Reproduced against the real `ClientRole` at this head
+([configs/pr49877-newhead](configs/pr49877-newhead)):
+
+```
+after request_blocks: sent = ['fetch']
+after finish():        sent = ['fetch', 'abort_fetch']
+P2PSession peer:7777: abort_ack for unknown kv_request_id=req-1 round=0
+LoadResults: []
+```
+
+Zero terminal results for an accepted job - the same signature reported on
+the earlier head.
+
+**Coverage narrowed rather than widened.** At `c1e15b9`, `finish()` did emit
+failed `LoadResult`s for `queued_fetches`. At `15b53af1` it emits none at
+all. `queued_fetches` no longer exists as a concept, so this is not a
+behavioural regression in the old sense - but the practical effect is that
+*every* load in flight when a request finishes is now orphaned, where
+previously the queued ones were failed correctly.
+
+Downstream consequence is unchanged: no result reaches
+`TieringOffloadingManager`, so the promotion stays in `_transfer_jobs` and
+its primary-tier write reservation is never resolved - the same
+permanently-`HIT_PENDING` state as #49829, reached through request cleanup
+rather than round overlap. #49850 bounds how long *later* requests wait on
+that reservation but does not clean it.
+
+Overlay rebuilt on this head for future runs:
+`combined-overlay-49877new` (merged #48021 base + the four PR files at
+`15b53af1` + #49850's scheduler/metrics/base additions;
+`manager.py` taken at the PR head since the PR no longer modifies it).
