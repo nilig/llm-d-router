@@ -1,0 +1,123 @@
+---
+# Pull-vs-recompute crossover (guide Step 0) replicated on BOTH engine builds
+# simultaneously, so build is the only variable and both see identical cluster
+# conditions.
+#
+#   xoldA/xoldB : nightly-4080263b + generic-p2p-src-v2 overlay + p2p-fix-or
+#                 == the build the guide's published Step 0 / Scenario A-D
+#                    numbers were measured on (per RESULTS-3)
+#   xnewA/xnewB : nightly-1240c74c + combined-overlay-uc2resume
+#                 == #48021 as merged + #49877 + #49850, the build all of this
+#                    campaign's re-runs used
+#
+# Each build gets a source pod (A) and a consumer pod (B). No sidecar, no EPP:
+# the driver injects kv_transfer_params.p2p by hand, exactly the shape
+# pkg/sidecar/proxy/connector_p2p.go p2pSourceParams builds
+# ({kv_request_id, remote_host, remote_port}), so this measures the engine
+# mechanism with no routing layer in the path.
+#
+# rdma/ib is REQUIRED. Without it NIXL falls back to a slower transport and
+# the pull leg inflates 2-3x while recompute is unaffected - which reads as
+# "the pull lost" when it is really "the rig had no RDMA". Measured without
+# it: pull +18% to +58% vs recompute at every length on BOTH builds.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: xold, namespace: nilig-p2p, labels: {app: xover, build: old}}
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: xover, build: old}}
+  template:
+    metadata: {labels: {app: xover, build: old}}
+    spec:
+      containers:
+      - name: modelserver
+        image: vllm/vllm-openai:nightly-4080263bb2c5d10deac17aaeb88e0823bc35bca9
+        command: ["sh","-c","rm -f /dev/shm/vllm_offload_*.mmap 2>/dev/null; exec vllm serve \"$@\"","sh"]
+        args:
+        - openai/gpt-oss-120b
+        - --port=8000
+        - --disable-access-log-for-endpoints=/health,/metrics,/v1/models
+        - --tensor-parallel-size=1
+        - --block-size=64
+        - --max-model-len=65536
+        - --gpu-memory-utilization=0.85
+        - --kv-transfer-config
+        - '{"kv_connector":"OffloadingConnector","kv_role":"kv_both","kv_connector_extra_config":{"spec_name":"TieringOffloadingSpec","cpu_bytes_to_use":68719476736,"offload_prompt_only":false,"secondary_tiers":[{"type":"p2p","host":"$(POD_IP)","port":7777}]}}'
+        env:
+        - {name: HF_TOKEN, valueFrom: {secretKeyRef: {name: llm-d-hf-token, key: HF_TOKEN}}}
+        - {name: POD_IP, valueFrom: {fieldRef: {fieldPath: status.podIP}}}
+        - {name: VLLM_P2P_SIDE_CHANNEL_HOST, valueFrom: {fieldRef: {fieldPath: status.podIP}}}
+        - {name: PYTHONHASHSEED, value: "0"}
+        - {name: HOME, value: /tmp}
+        ports: [{containerPort: 8000}, {containerPort: 7777}]
+        resources:
+          limits: {cpu: "8", memory: 96Gi, nvidia.com/gpu: "1", rdma/ib: "1"}
+          requests: {cpu: "8", memory: 96Gi, nvidia.com/gpu: "1", rdma/ib: "1"}
+        volumeMounts:
+        - {name: dshm, mountPath: /dev/shm}
+        - {name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/base.py, subPath: base.py}
+        - {name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/manager.py, subPath: manager.py}
+        - {name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/__init__.py, subPath: session___init__.py}
+        - {name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/client.py, subPath: session_client.py}
+        - {name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/protocol.py, subPath: session_protocol.py}
+        - {name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/server.py, subPath: session_server.py}
+        - {name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/session.py, subPath: session_session.py}
+        - {name: p2pfix, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/distributed/kv_transfer/kv_connector/v1/offloading/scheduler.py, subPath: offloading_scheduler.py}
+        startupProbe: {httpGet: {path: /health, port: 8000}, initialDelaySeconds: 30, periodSeconds: 15, failureThreshold: 80}
+        readinessProbe: {httpGet: {path: /health, port: 8000}, periodSeconds: 5, failureThreshold: 3}
+      volumes:
+      - {name: dshm, emptyDir: {medium: Memory, sizeLimit: 80Gi}}
+      - {name: gp2p, configMap: {name: generic-p2p-src-v2}}
+      - {name: p2pfix, configMap: {name: p2p-fix-or}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: xnew, namespace: nilig-p2p, labels: {app: xover, build: new}}
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: xover, build: new}}
+  template:
+    metadata: {labels: {app: xover, build: new}}
+    spec:
+      containers:
+      - name: modelserver
+        image: vllm/vllm-openai:nightly-1240c74c0a47473449cf0c3a9c2d87a1e159f73b
+        command: ["sh","-c","rm -f /dev/shm/vllm_offload_*.mmap 2>/dev/null; exec vllm serve \"$@\"","sh"]
+        args:
+        - openai/gpt-oss-120b
+        - --port=8000
+        - --disable-access-log-for-endpoints=/health,/metrics,/v1/models
+        - --tensor-parallel-size=1
+        - --block-size=64
+        - --max-model-len=65536
+        - --gpu-memory-utilization=0.85
+        - --kv-transfer-config
+        - '{"kv_connector":"OffloadingConnector","kv_role":"kv_both","kv_connector_extra_config":{"spec_name":"TieringOffloadingSpec","cpu_bytes_to_use":68719476736,"offload_prompt_only":false,"secondary_tiers":[{"type":"p2p","host":"$(POD_IP)","port":7777}]}}'
+        env:
+        - {name: HF_TOKEN, valueFrom: {secretKeyRef: {name: llm-d-hf-token, key: HF_TOKEN}}}
+        - {name: POD_IP, valueFrom: {fieldRef: {fieldPath: status.podIP}}}
+        - {name: VLLM_P2P_SIDE_CHANNEL_HOST, valueFrom: {fieldRef: {fieldPath: status.podIP}}}
+        - {name: PYTHONHASHSEED, value: "0"}
+        - {name: HOME, value: /tmp}
+        ports: [{containerPort: 8000}, {containerPort: 7777}]
+        resources:
+          limits: {cpu: "8", memory: 96Gi, nvidia.com/gpu: "1", rdma/ib: "1"}
+          requests: {cpu: "8", memory: 96Gi, nvidia.com/gpu: "1", rdma/ib: "1"}
+        volumeMounts:
+        - {name: dshm, mountPath: /dev/shm}
+        - {name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/base.py, subPath: base.py}
+        - {name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/manager.py, subPath: manager.py}
+        - {name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/__init__.py, subPath: session___init__.py}
+        - {name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/client.py, subPath: session_client.py}
+        - {name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/protocol.py, subPath: session_protocol.py}
+        - {name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/server.py, subPath: session_server.py}
+        - {name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/session.py, subPath: session_session.py}
+        - {name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/control/zmq.py, subPath: control_zmq.py}
+        - {name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/control/base.py, subPath: control_base.py}
+        - {name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/distributed/kv_transfer/kv_connector/v1/offloading/scheduler.py, subPath: offloading_scheduler.py}
+        - {name: gp2p, mountPath: /usr/local/lib/python3.12/dist-packages/vllm/distributed/kv_transfer/kv_connector/v1/offloading/metrics.py, subPath: offloading_metrics.py}
+        startupProbe: {httpGet: {path: /health, port: 8000}, initialDelaySeconds: 30, periodSeconds: 15, failureThreshold: 80}
+        readinessProbe: {httpGet: {path: /health, port: 8000}, periodSeconds: 5, failureThreshold: 3}
+      volumes:
+      - {name: dshm, emptyDir: {medium: Memory, sizeLimit: 80Gi}}
+      - {name: gp2p, configMap: {name: combined-overlay-uc2resume}}

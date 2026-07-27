@@ -799,3 +799,79 @@ another look, the guide's Step 0 table and `minCachedTokenDelta` both need
 re-deriving on a pinned build before the guide can cite either with
 confidence - and this time, pin the exact image tag/SHA used, so the next
 re-check doesn't inherit the same unknown-provenance problem.
+
+---
+
+## Pull vs recompute on both engine builds (gpt-oss-120b) - the build is not the variable, RDMA is
+
+Motivated by the hypothesis that the newer vLLM build explains why the
+guide's published numbers did not reproduce in this campaign. It does not.
+
+### Design
+
+The guide's Step 0 method, replicated on BOTH builds **simultaneously** so
+build is the only difference and both see identical cluster conditions:
+5-rep medians, warm mesh, unique prefix per repetition, lengths
+2K/8K/16K/32K/48K.
+
+| | engine image | P2P code |
+|---|---|---|
+| **old** | `nightly-4080263b` | generic_p2p `145a460c` + crash fix `fa07027d` |
+| **new** | `nightly-1240c74c` | `#48021` as merged + `#49877` + `#49850` |
+
+2 pods per build (source + consumer), no sidecar and no EPP - the driver
+injects the pull parameters directly, so nothing can be silently inert.
+Both builds reported identical tier config (`lru, 29127 blocks`, 1 secondary
+p2p tier). Mechanism gate after the run was symmetric: 50.1% external hit
+rate and 21.26 / 21.27 GB pulled. Configs and raw logs:
+[configs/crossover-two-builds](configs/crossover-two-builds).
+
+### Result
+
+TTFT delta, pull vs recompute (negative = pull wins):
+
+| prefix tokens | guide (published) | **old build** | **new build** | old, NO RDMA |
+|---:|---:|---:|---:|---:|
+| 2,048 | -31% | **-49.3%** | **-55.8%** | +29.0% |
+| 8,192 | -42% | **-75.7%** | **-77.4%** | +57.6% |
+| 16,384 | -54% | **-82.5%** | **-83.2%** | +39.3% |
+| 32,768 | -62% | **-85.7%** | **-85.9%** | +18.2% |
+| 49,152 | -68% | **-87.5%** | **-88.2%** | -16.5% |
+
+**The two builds are indistinguishable.** They agree within ~6% at 2K and
+within 1% from 8K up. Whatever explains the campaign's other discrepancies,
+it is not the engine build - at the mechanism level the newer stack is if
+anything marginally faster.
+
+**The pull wins harder than the guide claims**, not less: -83% vs the
+published -54% at 16K, -88% vs -68% at 48K. The guide's Step 0 direction
+reproduces and its magnitudes are conservative on this rig.
+
+**Why**: pull time is nearly flat in prefix size (38 / 59 / 86 / 165 / 244 ms)
+while recompute is linear (75 / 243 / 490 / 1154 / 1952 ms). Fixed transfer
+overhead dominates, so the advantage widens with prefix length - the same
+shape the guide describes.
+
+### RDMA is the variable that actually matters
+
+The last column is the same code, same everything, with the `rdma/ib`
+resource omitted from the pod spec. NIXL falls back to a slower transport,
+the pull leg inflates 2-3x, recompute is untouched, and **the pull loses at
+four of five lengths**. Same build, opposite conclusion.
+
+This is a deployment-blocking prerequisite that the guide's Step 0 section
+does not state. It appears only as a comment in
+`modelserver/gpu/vllm/kustomization.yaml` ("add to the modelserver
+container: resources rdma/ib"). Anyone reproducing Step 0 without RDMA will
+measure the pull losing and reasonably conclude the feature does not work.
+Recommend stating it as an explicit prerequisite next to the crossover table.
+
+### Method note carried out of this run
+
+The engine reads `kv_transfer_params.remote_kv_source`. The sidecar's Go
+constant is `requestFieldP2PParams = "p2p"`, but that is the *internal*
+field name, not the wire key - injecting under `p2p` is silently ignored and
+the request just recomputes, producing a plausible "pull" number that is a
+second recompute. First probe here read -6.4% that way. Session
+establishment is the tell: zero sessions with the wrong key, three with the
+right one.

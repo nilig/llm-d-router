@@ -1,0 +1,9 @@
+# build=new src=http://10.0.8.140:8000 dst=http://10.0.11.84:8000 p2p_remote_host=10.0.8.140 reps=5
+# mesh warm: first pull 302 ms (one-time session cost, discarded)
+  tokens  recompute_ms    pull_ms    delta
+    2048          78.3       34.6   -55.8%
+    8192         249.9       56.5   -77.4%
+   16384         510.3       85.9   -83.2%
+   32768        1173.2      165.2   -85.9%
+   49152        1987.7      235.0   -88.2%
+# done

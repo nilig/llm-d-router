@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Pod
+metadata: {name: xdrv-old, namespace: nilig-p2p}
+spec:
+  restartPolicy: Never
+  containers:
+  - name: drv
+    image: python:3.11-slim
+    command: ["python","/drv/xover.py","http://10.0.9.63:8000","http://10.0.8.252:8000","10.0.9.63","old","2048,8192,16384,32768,49152","5"]
+    volumeMounts: [{name: drv, mountPath: /drv}]
+    resources: {requests: {cpu: "1", memory: 2Gi}, limits: {memory: 4Gi}}
+  volumes: [{name: drv, configMap: {name: xover-driver}}]
+---
+apiVersion: v1
+kind: Pod
+metadata: {name: xdrv-new, namespace: nilig-p2p}
+spec:
+  restartPolicy: Never
+  containers:
+  - name: drv
+    image: python:3.11-slim
+    command: ["python","/drv/xover.py","http://10.0.9.27:8000","http://10.0.6.175:8000","10.0.9.27","new","2048,8192,16384,32768,49152","5"]
+    volumeMounts: [{name: drv, mountPath: /drv}]
+    resources: {requests: {cpu: "1", memory: 2Gi}, limits: {memory: 4Gi}}
+  volumes: [{name: drv, configMap: {name: xover-driver}}]
