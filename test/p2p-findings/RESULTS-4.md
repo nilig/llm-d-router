@@ -1,4 +1,10 @@
-# P2P benchmarks, series 4: UC2 lookup-hang resolved; UC3/UC4 re-validation
+# P2P benchmarks, series 4: UC2 lookup-hang resolved; UC3/UC4 re-validation; UC2 paired A/B
+
+> **Headline for the A/B section below**: on this rig and stack, `load+P2P`
+> does **not** reproduce the blog's Use Case 2 result. The pull is worth
+> about **+2% achieved throughput** at saturation — smaller than the
+> run-to-run spread — and the control arm (`load`, no pull) **does not
+> collapse**. See [UC2 paired A/B](#uc2-paired-ab-load-vs-loadp2p-4-ladders-counterbalanced).
 
 This series closes the lookup-hang blocker that stalled the blog's UC2/3/4
 re-validation ([[project_p2p_guide_docs_pr]], "BLOG UC2/3/4 RE-VALIDATION
@@ -298,3 +304,141 @@ re-derived tonight: Run N's actual throughput/latency comparison (TTFT
 parity verdict — "a capacity story, not latency, at this model scale") —
 that finding stands from the original investigation; this run only
 confirms the underlying mechanism hasn't regressed.
+
+---
+
+## UC2 paired A/B: `load` vs `load+P2P` (4 ladders, counterbalanced)
+
+The UC2 section above establishes only that the lookup-hang is fixed — it
+was a single-arm run. It does **not** test the blog's Use Case 2 *claim*,
+which is comparative. This section does, with a proper paired design.
+
+### Why this was needed
+
+The single-arm UC2 numbers landed suspiciously close to the `load`-no-pull
+baseline recorded 2026-07-25, which would contradict the blog. That
+comparison was invalid (different harness, different engine build), so it
+could not settle anything either way — but it was close enough to parity to
+require a real A/B before publishing behind the claim.
+
+### Design
+
+- **Arms differ by exactly one plugin.** `uc2-values-load.yaml` (control)
+  vs `uc2-values-load-p2p.yaml` (treatment); identical placement policy
+  (`queue-scorer` + `kv-cache-utilization-scorer` + `weighted-random-picker`),
+  the only delta being `p2p-source-producer`.
+- **Counterbalanced ABBA**: A1, B1, B2, A2 — so any monotonic cluster drift
+  cancels rather than loading onto one arm.
+- **Fresh cold rig per ladder**: all 4 engine pods deleted and recreated
+  before every run, so no arm inherits a warm cache from its predecessor.
+- **Mechanism gate before every ladder**, with a *unique* prefix per gate
+  (see trap 2 below). Treatment gates confirmed the exact pull signature —
+  1 owner pod at `load=0`, 3 non-owner pods each pulling 2.20 GB. Control
+  gates confirmed `load=0` on all 4 pods against a *fresh* prefix, so the
+  zero means "pull disabled", not "nothing left to pull".
+- Workload identical to `uc2_llama_pool.yaml.in`: 64-group shared-prefix
+  pool, 16K-token system prompt, 256 question/output tokens, stages
+  2/4/6/8/12/16/20/24 req/s x 60s. 5,520 requests per ladder, **22,080
+  total, zero failures across all four**.
+- Driver: [configs/uc2-ab-load-vs-loadp2p/uc2_ladder2.py](configs/uc2-ab-load-vs-loadp2p/uc2_ladder2.py),
+  which adds the metric the first pass lacked — **achieved throughput**
+  (completions / stage wall-clock including drain), the quantity the blog's
+  claim actually rests on.
+
+### Result: achieved throughput (req/s), saturation stages
+
+| rate | A1 | A2 | **A mean** | B1 | B2 | **B mean** | delta |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 12 | 8.04 | 8.34 | **8.19** | 8.73 | 7.86 | **8.29** | +1.3% |
+| 16 | 8.30 | 8.25 | **8.28** | 8.09 | 8.41 | **8.25** | −0.3% |
+| 20 | 8.07 | 8.16 | **8.12** | 8.44 | 8.81 | **8.62** | +6.3% |
+| 24 | 8.06 | 8.22 | **8.14** | 8.56 | 7.88 | **8.22** | +1.0% |
+
+Overall saturation mean: **A = 8.18, B = 8.35 → +2.0% for the pull.**
+
+**That +2.0% is not distinguishable from noise.** The between-arm
+difference is 0.168 req/s; the within-arm run-to-run spread is 0.125
+(A) and 0.215 (B) req/s. The effect is smaller than the treatment arm's own
+variance. Individual stages swing both directions across repeats — rate 12
+went +8.6% in run 1 and −2.2% in run 2; rate 24 went +6.2% then −2.2%.
+Reporting any single stage would have produced a headline number that the
+repeat erases.
+
+### Result: latency p50, saturation stages
+
+| rate | A mean | B mean | delta |
+|---:|---:|---:|---:|
+| 12 | 26.0s | 22.6s | −13.2% |
+| 16 | 41.5s | 39.2s | −5.6% |
+| 20 | 51.2s | 50.6s | −1.2% |
+| 24 | 67.0s | 65.6s | −2.1% |
+
+Latency is the better-behaved signal: the pull is ahead at **all four**
+saturation rates. Direction is consistent (4/4), so a real effect is
+plausible, but the magnitude is small outside rate 12 and the design has
+n=2 per arm — enough to reject a large effect, not enough to size a small
+one precisely.
+
+### The premise does not reproduce
+
+The blog's UC2 narrative rests on load-balancing *without* the pull being
+catastrophic once the working set exceeds per-pod cache — the series-1
+observation that the no-pull arm "COLLAPSES", grinding to ~46s p50 at the
+top of the ladder.
+
+**That did not happen here.** The control arm saturated cleanly at ~8.2
+req/s and completed 11,040 requests across two full ladders with **zero
+failures** and zero restarts. It degrades with offered load exactly as a
+saturated system should, and the pull arm saturates at essentially the same
+ceiling. Both arms are prefill-capacity-bound at the same point; the pull
+shifts where time is spent, not how much total work the fleet can do.
+
+The working-set premise itself does hold on this rig (64 x 16K = ~1.02M
+tokens against a 16 GiB per-pod CPU tier, ~131K tokens at Llama-8B's ~128
+KB/token — so the pool genuinely does not fit per-pod). The regime is
+right; the dramatic outcome is not there.
+
+### What this does and does not license
+
+- It does **not** support publishing the blog's UC2 comparison as-is on
+  this stack.
+- It does **not** prove the pull is worthless — latency is consistently
+  better, and this is one workload shape at one scale on a 4-pod rig.
+  Series-1's collapse was observed on a different engine build with a
+  different harness; something real may have changed (the upstream fixes
+  altered exactly this path), or the original may have been measuring a
+  configuration that no longer exists.
+- It **does** mean the UC2 numbers need re-derivation before they back a
+  public claim, and that any re-derivation must be paired, counterbalanced,
+  and report achieved throughput with its run-to-run spread.
+
+### Two methodology traps found while running this
+
+Both are silent — they produce plausible-looking numbers rather than errors —
+and both would corrupt any A/B that hits them.
+
+1. **Switching EPP arms by editing the ConfigMap does not switch the arm.**
+   `helm upgrade` with only a `pluginsCustomConfig` change leaves the
+   Deployment podspec untouched, so no rollout fires, and the EPP reads its
+   plugin config once at startup. The first Arm B attempt ran with Arm A's
+   config still loaded (verified: zero occurrences of `p2p-source-producer`
+   in the running pod's log, pod creation timestamp predating the upgrade).
+   It looked like "the pull mechanism is dead". **An explicit
+   `kubectl rollout restart deploy/llm-d-router-epp` is required after every
+   arm switch**, and the loaded config should be asserted before trusting a
+   gate.
+2. **A gate prefix already cached on every pod cannot demonstrate the pull.**
+   Re-gating with the same prefix warms it everywhere; subsequent requests
+   are local hits, so `load` stays 0 and `store` stops growing. This is
+   indistinguishable from a broken mechanism by metrics alone. Gates must
+   use a **fresh, never-served prefix each time**
+   ([configs/uc2-ab-load-vs-loadp2p/gate_fresh.py](configs/uc2-ab-load-vs-loadp2p/gate_fresh.py)).
+   The tell that distinguishes the two cases: a frozen `store` counter means
+   "everything is already cached", a growing one means "computing locally
+   instead of pulling".
+
+Raw per-stage output for all four ladders:
+[ab_armA_run1.log](configs/uc2-ab-load-vs-loadp2p/ab_armA_run1.log),
+[ab_armB_run1.log](configs/uc2-ab-load-vs-loadp2p/ab_armB_run1.log),
+[ab_armB_run2.log](configs/uc2-ab-load-vs-loadp2p/ab_armB_run2.log),
+[ab_armA_run2.log](configs/uc2-ab-load-vs-loadp2p/ab_armA_run2.log).
