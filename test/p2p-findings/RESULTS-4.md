@@ -1491,3 +1491,97 @@ owner-concentration pathology the section is built around.
 
 Configs, driver and raw logs:
 [configs/scenario-b-rerun](configs/scenario-b-rerun).
+
+## Workload 1: P2P on the optimized-baseline guide's own path
+
+Question: does adding the `p2p-source-producer` to the optimized-baseline
+guide's shipped routing (`prefix-cache-affinity-filter` + `token-load-scorer`
+on the approximate index) add value on that guide's workload shape?
+Pre-registered rule: if fewer than ~5% of high-rate requests pull, the
+result is no-regression evidence, not a value claim.
+
+Setup: 16x gpt-oss-120b aggregated (`scend-agg`, rdma/ib), 150 shared-prefix
+groups x ~6K tokens, 500-token question and output, POISSON arrivals,
+in-cluster driver, cold fleet roll per arm, config gated by file and content.
+`peakPrefillThroughput` calibrated on this rig with the guide's own recipe:
+**36,662 tok/s** (the plugin default, 15,928, is Qwen-32B/H100 - do not
+carry it across models). Arm P adds a second approx producer (CPU-tier
+capacity) feeding `p2p-source-producer` at `minCachedTokenDelta: 2048` (GLM
+armD wiring); placement plugins and weights identical across arms.
+
+### The designed ladder (3->60): exact null, pull rate 0%
+
+Achieved req/s and TTFT p50 identical at every stage (49.7 vs 48.5 at rate
+60, p50 60-89 ms both, zero failures across 22,000+ requests). Byte-level
+equality from the counter sampler: **`external_prefix_cache_hits_total` = 0
+and `kv_offload_load_bytes_total` = 0 in BOTH arms for the entire run** -
+the p2p arm is behaviorally identical to the reference because the pull
+never fires. Per the pre-registered rule: no-regression evidence only.
+
+### Why the pull cannot fire here - two mechanisms, both code-verified
+
+**1. PreRequest hook ordering silently disarms the producer.** Hooks run in
+config declaration order (`AddPlugins` appends in order;
+`runPreRequestPlugins` iterates the slice). The approx producer's PreRequest
+*optimistically records* the scheduled endpoint into its index; the
+p2p-source-producer's PreRequest compares the best peer against the
+computing pod. Declared producer-last (as every documented example does),
+the comparison reads an index already credited with the current request:
+TRACE over 711 requests showed `best == computing` with equal token counts
+on every single one, and zero headers set. Declared producer-FIRST, the
+comparison precedes the recording and real deltas become visible. This
+ordering sensitivity is invisible, undocumented, and worth an upstream
+issue: the producer should either declare a hook-ordering constraint or
+snapshot the pre-scheduling counts it needs.
+
+**2. The affinity filter's load gate is calibrated ~90x too loose for this
+model.** `prefix-cache-affinity-filter` breaks stickiness only when the
+sticky pod's estimated TTFT exceeds the best alternative's by
+`maxTTFTPenaltyMs` - default **18,000 ms**, i.e. tolerate up to 18 s of
+estimated queueing before paying a spill. On gpt-oss/H200 the spill it is
+avoiding costs ~200 ms (full 6.5K-prefix recompute; measured). At the
+calibrated peak, the gate opens only when one pod holds ~660K more in-flight
+tokens (~70 queued requests) than an idle one. Within the guide-shaped
+ladder that never happens, so placement never leaves the credited holders
+and the pull has no work. `maxTTFTPenaltyMs` needs per-model calibration
+exactly as `peakPrefillThroughput` does - it is the price-of-recompute
+bound, and with a pull available it should be the price-of-pull instead.
+
+### Saturation A/B (60,100,100 offered; as-shipped gate): still null
+
+| stage | reference | + p2p (producer-first) |
+|---:|---|---|
+| 60 | 48.5 / 104 ms / p95 4.0 s | 49.5 / 98 ms / p95 3.8 s |
+| 100 | 61.4 / 119 ms / 2.8 s | 59.1 / 107 ms / 2.8 s |
+| 100 | 65.1 / 107 ms / **151 ms** | 65.5 / 103 ms / **168 ms** |
+
+Zero failures, zero sessions in both arms. Even 1.5x past the calibrated
+fleet peak, a properly-spread index keeps every request on a credited holder
+- the reference recovers to a 151 ms p95 on its own by paying cheap
+recomputes as the index redistributes. On a cheap-recompute model the
+as-shipped optimized-baseline routing leaves nothing for the pull to do at
+any load level tested.
+
+### The pull CAN fire - observed once, under index/placement divergence
+
+One probe run created the divergence the ladder never does (EPP restart
+against warm engines: cache-hit warmup requests finish in ~6 ms, no
+in-flight load ever separates score ties, and the deterministic picker sends
+every seed - and its index credit - to ONE pod; measured 222 in-flight
+requests on one pod, 15 idle, the optimized-baseline instance of the
+cold-start herding recorded for Scenario D). When the herd broke under the
+producer-first config, the pull engaged for the first time in the campaign:
+**39 P2P sessions, 146,560 prefix tokens / 6.49 GB pulled across 12 pods**,
+coinciding with the saturated stage going from p95 2,516 ms to 173 ms and
+58 -> 64 req/s achieved. Single-arm and confounded (index rebuild), so
+directional only - but it demonstrates the wiring works end-to-end the
+moment placement and cache genuinely diverge.
+
+### Pending: the gate-calibrated pair
+
+`maxTTFTPenaltyMs: 500` (approximately the pull cost) with and without the
+producer - the principled composition where affinity holds while cheap and
+spills pull instead of recompute. Running as of this writing; results follow.
+
+Configs, driver, runner, sampler and raw logs:
+[configs/workload1-optimized-baseline](configs/workload1-optimized-baseline).

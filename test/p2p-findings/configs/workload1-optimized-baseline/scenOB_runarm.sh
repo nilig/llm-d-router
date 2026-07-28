@@ -1,0 +1,63 @@
+#!/bin/bash
+# One Workload-1 arm: switch EPP config, cold-roll the fleet, gate, sample
+# counters throughout, run the Poisson ladder in-cluster, collect everything.
+# Usage: scenOB_runarm.sh <values-file> <arm-label> <expect-p2p yes|no> <cfgfile>
+set -u
+NS=nilig-p2p
+VALS="$1"; ARM="$2"; EXPECT="$3"; CFGFILE="$4"
+SP="$(cd "$(dirname "$0")" && pwd)"; cd "$SP"
+CHART=/Users/niliguy/github.com/llm-d-router/config/charts/llm-d-router-standalone
+EP=http://llm-d-router-epp:8081
+
+echo "### WORKLOAD1 ARM $ARM ###"
+if ! helm upgrade llm-d-router "$CHART" -n $NS -f "$SP/$VALS" \
+     --server-side=true --force-conflicts > /tmp/_helm_$ARM.log 2>&1; then
+  echo "ABORT: helm upgrade failed"; tail -5 /tmp/_helm_$ARM.log; exit 1
+fi
+grep -E "^REVISION|^STATUS" /tmp/_helm_$ARM.log
+kubectl rollout restart deploy/llm-d-router-epp -n $NS >/dev/null 2>&1
+kubectl delete pod -n $NS -l app=scend-agg --wait=false >/dev/null 2>&1
+sleep 20
+for i in $(seq 1 90); do
+  r=$(kubectl get pods -n $NS -l app=scend-agg --field-selector=status.phase=Running -o json 2>/dev/null \
+    | python3 -c "import json,sys;d=json.load(sys.stdin);print(sum(1 for p in d['items'] if p['status'].get('containerStatuses') and all(c['ready'] for c in p['status']['containerStatuses'])))" 2>/dev/null || echo 0)
+  epp=$(kubectl get deploy llm-d-router-epp -n $NS -o jsonpath='{.status.readyReplicas}' 2>/dev/null)
+  echo "[$i] scend-agg ready=$r/16 epp=${epp:-0}/1"
+  [ "$r" = "16" ] && [ "${epp:-0}" = "1" ] && break
+  sleep 20
+done
+[ "$r" = "16" ] || { echo "ABORT: fleet not ready"; exit 1; }
+bash "$SP/arm_gate.sh" "$EXPECT" "$CFGFILE" || exit 1
+
+code=$(kubectl exec -n $NS scenc-loadgen -- python3 -c "
+import urllib.request,json
+b=json.dumps({'model':'openai/gpt-oss-120b','prompt':'hello','max_tokens':4,'temperature':0}).encode()
+r=urllib.request.Request('$EP/v1/completions',data=b,headers={'Content-Type':'application/json'})
+try: print(urllib.request.urlopen(r,timeout=180).status)
+except Exception as e: print('ERR',type(e).__name__)
+" 2>&1 | tail -1)
+echo "probe: $code"; [ "$code" = "200" ] || { echo "ABORT: probe failed"; exit 1; }
+
+python3 "$SP/scenOB_sampler.py" > "$SP/scenOB_${ARM}_counters.log" 2>&1 &
+SAMPLER=$!
+kubectl exec -n $NS scenc-loadgen -- sh -c \
+  "nohup python3 -u /driver/scenOB_pool.py $EP $ARM 3,6,12,24,36,48,60 > /tmp/ob_${ARM}.log 2>&1 & echo started"
+last=0
+while true; do
+  body=$(kubectl exec -n $NS scenc-loadgen -- cat /tmp/ob_${ARM}.log 2>/dev/null)
+  n=$(printf '%s\n' "$body" | wc -l | tr -d ' ')
+  if [ "$n" -gt "$last" ]; then printf '%s\n' "$body" | tail -n +$((last+1)) | grep -v "^# stage_"; last=$n; fi
+  printf '%s' "$body" | grep -q "^# done" && break
+  alive=$(kubectl exec -n $NS scenc-loadgen -- sh -c 'ls /proc | grep -E "^[0-9]+$" | while read p; do tr "\0" " " < /proc/$p/cmdline 2>/dev/null | grep -q "scenOB_poo[l].py" && echo x; done; true' 2>/dev/null | wc -l | tr -d ' ')
+  [ "${alive:-0}" -gt 0 ] || { echo "LADDER DIED"; break; }
+  sleep 30
+done
+kill $SAMPLER 2>/dev/null
+kubectl exec -n $NS scenc-loadgen -- cat /tmp/ob_${ARM}.log > "$SP/scenOB_${ARM}.log" 2>/dev/null
+echo "=== P2P sessions this arm ==="
+S=0
+for p in $(kubectl get pods -n $NS -l app=scend-agg -o name); do
+  S=$((S + $(kubectl logs -n $NS $p -c modelserver 2>/dev/null | grep -c "created connected session")))
+done
+echo "sessions=$S"
+echo "ARM $ARM COMPLETE"

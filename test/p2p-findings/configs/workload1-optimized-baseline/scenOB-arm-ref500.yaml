@@ -1,0 +1,28 @@
+# Workload 1 arm R: the optimized-baseline guide's routing, exactly as shipped
+# (guides/optimized-baseline/router/optimized-baseline.values.yaml plugin set),
+# with peakPrefillThroughput calibrated for gpt-oss-120b on H200 per the
+# guide's own instruction ("If you deploy a different model or accelerator,
+# measure your own"). Placement: prefix-cache-affinity-filter + token-load-scorer.
+router:
+  epp:
+    image: { tag: main, pullPolicy: Always }
+    pluginsConfigFile: "ob3.yaml"
+    pluginsCustomConfig:
+      ob3.yaml: |
+        apiVersion: llm-d.ai/v1alpha1
+        kind: EndpointPickerConfig
+        plugins:
+        - type: approx-prefix-cache-producer
+        - type: inflight-load-producer
+        - type: prefix-cache-affinity-filter
+          parameters:
+            peakPrefillThroughput: 36662
+            maxTTFTPenaltyMs: 500
+        - type: token-load-scorer
+        schedulingProfiles:
+        - name: default
+          plugins:
+          - pluginRef: prefix-cache-affinity-filter
+          - pluginRef: token-load-scorer
+  modelServers:
+    matchLabels: { llm-d.ai/uc: scend }

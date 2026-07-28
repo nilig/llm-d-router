@@ -1,0 +1,36 @@
+# Workload 1 arm P: arm R + the P2P pull. Identical placement (filter +
+# token-load-scorer, same calibrated peakPrefillThroughput); adds a second
+# approx producer sized for the CPU tier and the p2p-source-producer reading
+# it (GLM armD wiring), minCachedTokenDelta 2048 from the measured crossover.
+router:
+  epp:
+    image: { tag: main, pullPolicy: Always }
+    pluginsConfigFile: "ob2.yaml"
+    pluginsCustomConfig:
+      ob2.yaml: |
+        apiVersion: llm-d.ai/v1alpha1
+        kind: EndpointPickerConfig
+        plugins:
+        - type: p2p-source-producer
+          parameters:
+            prefixMatchInfoProducerName: cpu-prefix-cache-producer
+            prefillProfileName: default
+            minCachedTokenDelta: 2048
+        - type: approx-prefix-cache-producer
+        - type: approx-prefix-cache-producer
+          name: cpu-prefix-cache-producer
+          parameters:
+            autoTune: false
+            lruCapacityPerServer: 200000
+        - type: inflight-load-producer
+        - type: prefix-cache-affinity-filter
+          parameters:
+            peakPrefillThroughput: 36662
+        - type: token-load-scorer
+        schedulingProfiles:
+        - name: default
+          plugins:
+          - pluginRef: prefix-cache-affinity-filter
+          - pluginRef: token-load-scorer
+  modelServers:
+    matchLabels: { llm-d.ai/uc: scend }

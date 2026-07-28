@@ -1,0 +1,13 @@
+# arm=refsat groups=150x6000tok q=500 out=500 poisson stages=[60, 100, 100]
+# warmup: 150/150 prefixes seeded in 4s
+offered   sent     ok  fail  wall_s  achieved  ttft_p50  ttft_p95  lat_p50
+# stage_start rate=60 t=1785262973
+     60   3277   3277     0    67.5     48.53       104      4029    10185
+# stage_end rate=60 t=1785263041
+# stage_start rate=100 t=1785263041
+    100   4301   4301     0    70.0     61.44       119      2847    11232
+# stage_end rate=100 t=1785263111
+# stage_start rate=100 t=1785263111
+    100   4431   4431     0    68.0     65.14       107       151    10798
+# stage_end rate=100 t=1785263179
+# done

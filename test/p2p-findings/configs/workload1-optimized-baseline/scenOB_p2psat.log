@@ -1,0 +1,13 @@
+# arm=p2psat groups=150x6000tok q=500 out=500 poisson stages=[60, 100, 100]
+# warmup: 150/150 prefixes seeded in 4s
+offered   sent     ok  fail  wall_s  achieved  ttft_p50  ttft_p95  lat_p50
+# stage_start rate=60 t=1785263882
+     60   3304   3304     0    66.7     49.51        98      3757     9046
+# stage_end rate=60 t=1785263949
+# stage_start rate=100 t=1785263949
+    100   4405   4405     0    74.5     59.13       107      2772    10144
+# stage_end rate=100 t=1785264023
+# stage_start rate=100 t=1785264023
+    100   4414   4414     0    67.4     65.51       103       168     9877
+# stage_end rate=100 t=1785264091
+# done
