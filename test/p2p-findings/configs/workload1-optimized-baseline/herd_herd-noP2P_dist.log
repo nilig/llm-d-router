@@ -1,0 +1,12 @@
+[22:26:35] inflight=    6/128  busy_pods= 6/16  top_pod=5zlc4 holds   1 (16.7%)  fleet_hit=81.1%
+[22:26:52] inflight= 1204/128  busy_pods=16/16  top_pod=jxql9 holds 104 ( 8.6%)  fleet_hit=84.2%
+[22:27:09] inflight= 2265/128  busy_pods=16/16  top_pod=5wlv4 holds 179 ( 7.9%)  fleet_hit=86.6%
+[22:27:25] inflight=    2/128  busy_pods= 2/16  top_pod=5zlc4 holds   1 (50.0%)  fleet_hit=86.6%
+[22:27:42] inflight=  429/128  busy_pods=14/16  top_pod=5wlv4 holds  57 (13.3%)  fleet_hit=87.5%
+[22:27:59] inflight=  714/128  busy_pods=16/16  top_pod=hwzg8 holds  63 ( 8.8%)  fleet_hit=88.2%
+[22:28:16] inflight=  647/128  busy_pods=16/16  top_pod=hgvmv holds  95 (14.7%)  fleet_hit=88.7%
+[22:28:33] inflight=  627/128  busy_pods=16/16  top_pod=ls4ct holds  55 ( 8.8%)  fleet_hit=89.1%
+[22:28:50] inflight=  488/128  busy_pods=16/16  top_pod=jr2dt holds  49 (10.0%)  fleet_hit=89.4%
+[22:29:07] inflight=  642/128  busy_pods=16/16  top_pod=7s8zj holds  51 ( 7.9%)  fleet_hit=89.6%
+[22:29:23] inflight=  613/128  busy_pods=16/16  top_pod=ls4ct holds  63 (10.3%)  fleet_hit=89.8%
+[22:29:40] inflight=  649/128  busy_pods=16/16  top_pod=h947p holds  64 ( 9.9%)  fleet_hit=90.0%

@@ -1619,3 +1619,88 @@ affinity) and 10K-100K-token agentic sessions (Run O: 4.8x median TTFT).
 
 Configs, driver, runner, sampler and raw logs:
 [configs/workload1-optimized-baseline](configs/workload1-optimized-baseline).
+
+### Recovery A/B at the shipped gate: no herd, no pulls, and a structural
+### reason the approximate index cannot drive recovery
+
+Hypothesis (user's): under the shipped 18 s gate, P2P's win might be the
+recovery path - disruption moments where the router's view and the engines'
+caches diverge massively. Protocol per arm: cold-roll engines, precondition
+at rate 24 (spread, warm caches), restart the EPP against the warm fleet,
+then rate 100 x 3 stages with fleet-distribution sampling.
+
+| stage (rate 100) | without P2P | with P2P (approx feed, producer-first) |
+|---:|---|---|
+| 1 (post-restart) | 53.3 / p50 2,056 ms / p95 4,555 | 58.5 / p50 238 ms / p95 4,172 |
+| 2 | 65.4 / 106 / 1,115 | 62.7 / 105 / 1,964 |
+| 3 | 66.0 / 102 / 147 | 64.4 / 103 / 166 |
+| peak in-flight backlog | 2,265 | 1,437 |
+| P2P sessions | 0 | **0** |
+
+Two honest negatives. First, **the herd trigger is chaotic**: the identical
+EPP-restart-against-warm-engines that produced a 222-requests-on-one-pod
+herd in the earlier probe spread cleanly here in both arms (top pod 8-10%
+throughout, all 16 pods busy from the first loaded sample) - the 150 warmup
+seeds at concurrency 16 built just enough in-flight load to break the score
+ties this time. Single runs of that transient are not comparable: the
+stage-1 difference above (238 vs 2,056 ms p50) tracks the backlog-bubble
+depth (1,437 vs 2,265), not the pull, which never ran in either arm.
+
+Second, and the durable finding: **the approximate index structurally cannot
+drive recovery pulls.** It learns only from its own placements, so after an
+EPP restart every request's index credit is written exactly where the
+request is placed - credit and placement agree from birth, a "peer
+out-caches the computing pod" delta never exists, and the p2p-source-producer
+has nothing to act on no matter how the hooks are ordered. The one time
+pulls fired on the approx feed (39 sessions in the herd probe), it was
+because a herd had concentrated credit on one pod *before* saturation
+overrides scattered placement - an accidental divergence. Engine caches
+survive the restart; the approx index's knowledge of them does not.
+
+The composition that can know better is the precise (KV-events) index: it
+rebuilds from the engines' own cache events, so after a restart it holds the
+true holder map while placement spreads - every spread-placed request on a
+non-holder is a real delta. Measured next.
+
+### The precise feed cannot drive recovery either - KV events are
+### delta-only, and the reason generalizes
+
+Same restart protocol, placement untouched, only the p2p-source-producer's
+feed swapped to `precise-prefix-cache-producer` (KV events, blockSize 64,
+port 5556):
+
+| stage (rate 100) | achieved | TTFT p50 | p95 |
+|---:|---|---|---|
+| 1 (post-restart) | 56.1 | 164 ms | 4,250 ms |
+| 2 | 61.2 | 113 | 173 |
+| 3 | 64.7 | 111 | 153 |
+
+Zero failures - and again **0 sessions, 0 external hits, 0 bytes pulled**.
+
+The mechanism: the KV-events subscriber has no replay or snapshot (verified
+in `pkg/kvevents` - delta-only). A restarted EPP learns only about blocks
+stored *after* it subscribed; the precondition-era cache - exactly the KV a
+recovery pull would fetch - is invisible. Warmup seeds after the restart hit
+the engines' warm caches, so they emit no store events and teach the index
+nothing. By the time stage-1 recomputes repopulate the index, placement and
+credit have converged again.
+
+**The general law this campaign kept rediscovering, one mechanism at a
+time: in a single-router aggregated fleet, any self-consistent affinity
+router converges cache placement with its own credit - the cache exists
+where the router put the request - so a "peer out-caches the computing pod"
+delta never arises, and the pull has nothing to do. This holds for the
+approximate index (learns its own placements), the precise index (learns
+deltas it observes), either hook order, and either gate setting.** P2P fires
+only where KV exists that the placement layer did not create:
+
+- generated KV under P/D disaggregation (decode's history - Run M/N/O, 4.8x)
+- placement that deliberately ignores cache (load-first - Scenario D, 7.3x p99)
+- divergence inherited from outside the loop (the accidental herd - 39
+  sessions; multi-router or scale-out topologies, unmeasured)
+
+Two upstream feature candidates fall out: a KV-events snapshot/replay on
+subscribe (making the precise index restart-proof and enabling recovery
+pulls), and documentation that the p2p-source-producer composes with
+load-first or P/D routing, not with self-consistent affinity routing,
+regardless of index choice.

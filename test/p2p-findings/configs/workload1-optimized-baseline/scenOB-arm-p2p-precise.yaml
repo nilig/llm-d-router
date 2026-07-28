@@ -1,0 +1,57 @@
+# Workload 1, recovery variant: optimized-baseline placement exactly as
+# shipped (prefix-cache-affinity-filter on the approximate index + token-load
+# -scorer, calibrated peakPrefillThroughput, default 18s gate) with the
+# p2p-source-producer fed by the PRECISE (KV-events) index instead of an
+# approx one. The approximate index only knows its own placements, so after
+# an EPP restart credit tracks placement from birth and no pull delta can
+# ever exist; the precise index rebuilds from engine KV events and knows the
+# true cache holders, which is what a recovery pull needs. Producer declared
+# first so its PreRequest comparison precedes the approx producer's
+# optimistic recording.
+router:
+  epp:
+    image: { tag: main, pullPolicy: Always }
+    pluginsConfigFile: "ob5.yaml"
+    pluginsCustomConfig:
+      ob5.yaml: |
+        apiVersion: llm-d.ai/v1alpha1
+        kind: EndpointPickerConfig
+        plugins:
+        - type: p2p-source-producer
+          parameters:
+            prefixMatchInfoProducerName: precise-prefix-cache-producer
+            prefillProfileName: default
+            minCachedTokenDelta: 2048
+        - type: token-producer
+          parameters:
+            modelName: openai/gpt-oss-120b
+            vllm:
+              url: http://gptoss-render:8000
+        - type: endpoint-notification-source
+        - type: precise-prefix-cache-producer
+          parameters:
+            tokenProcessorConfig:
+              blockSize: 64
+            kvEventsConfig:
+              topicFilter: "kv@"
+              discoverPods: true
+              podDiscoveryConfig:
+                socketPort: 5556
+        - type: approx-prefix-cache-producer
+        - type: inflight-load-producer
+        - type: prefix-cache-affinity-filter
+          parameters:
+            peakPrefillThroughput: 36662
+        - type: token-load-scorer
+        dataLayer:
+          sources:
+          - pluginRef: endpoint-notification-source
+            extractors:
+            - pluginRef: precise-prefix-cache-producer
+        schedulingProfiles:
+        - name: default
+          plugins:
+          - pluginRef: prefix-cache-affinity-filter
+          - pluginRef: token-load-scorer
+  modelServers:
+    matchLabels: { llm-d.ai/uc: scend }
