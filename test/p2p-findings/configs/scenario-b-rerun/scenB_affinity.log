@@ -1,0 +1,8 @@
+# arm=affinity hot=8x48000tok out=512
+# warmup: 8 ok / 0 fail in 7s (8 hot prefixes seeded)
+offered   sent     ok  fail  wall_s  achieved  ttft_p50  lat_p50
+     12    720    720     0    60.2     11.96       184      290
+     24   1440   1440     0    62.7     22.96       185      300
+     36   2160   2160     0    65.3     33.06       192      357
+     48   2880   2880     0    65.2     44.15       198      400
+# done

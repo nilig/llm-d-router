@@ -1424,3 +1424,70 @@ when the pull runs twice.
 
 Configs, driver and raw logs:
 [configs/scenario-d-rerun](configs/scenario-d-rerun).
+
+## Scenario B re-run - the hot set is too small to pressure a 16-pod fleet
+
+Re-run with `rdma/ib` verified, 16x gpt-oss-120b aggregated, the current
+overlay, and the guide's `epp-affinity.yaml` / `epp-load.yaml` /
+`epp-load-p2p.yaml` embedded verbatim. Workload per the guide: 8 hot
+prefixes x 48K tokens, 512-token outputs, 12/24/36/48 req/s, 120 s client
+timeout. Driven in-cluster. Each arm cold-rolls the fleet, then one ladder.
+
+**A third arm was added.** The guide's table has only `affinity` and
+`load + P2P`, which changes placement and the pull together. `load` (no
+pull) makes the pair `load` vs `load + P2P` - identical placement, one
+plugin apart - so this scenario isolates the pull for the first time.
+
+achieved req/s / latency p50:
+
+| offered | `affinity` | `load` | `load + P2P` |
+|---:|---|---|---|
+| 12 | 11.96 / 290 ms | 11.69 / 367 ms | 11.76 / 316 ms |
+| 24 | 22.96 / 300 ms | 23.06 / 317 ms | 23.07 / 315 ms |
+| 36 | 33.06 / 357 ms | 34.21 / 358 ms | 35.19 / 366 ms |
+| 48 | 44.15 / 400 ms | 46.81 / 381 ms | 46.04 / 377 ms |
+
+7,200 requests per arm, **zero failures in every arm at every rate**, zero
+restarts.
+
+**The pull makes no difference**: `load` -> `load + P2P` is +0.6 / +0.0 /
++2.9 / -1.6% across the ladder, mean **+0.5%**, swinging both ways. This is
+not the affinity-inertness seen elsewhere - the pull genuinely ran here,
+**119 P2P sessions across 16 pods**. It ran and changed nothing.
+
+**Why: the hot set fits everywhere.** 8 x 48K = 384K tokens against ~1.22M
+tokens of GPU KV per pod, so after warmup every pod caches every hot prefix.
+Measured at the end of the `load` arm: **all 16 pods served traffic, each at
+~96% prefix hit rate**, with queries evenly spread (10.1-10.6M per pod);
+fleet hit rate 95.8-98.1% throughout. The arm the guide calls "the recompute
+floor" never recomputes, so the pull has no misses to cover and cannot help
+whatever the transport does.
+
+### The guide's Scenario B pathology does not reproduce
+
+| offered | guide `affinity` | measured here |
+|---:|---|---|
+| 12 | 9.9 / 11.8 s | 11.96 / 0.29 s |
+| 24 | 14.7 / 27.0 s | 22.96 / 0.30 s |
+| 36 | 15.3 / 53.8 s | 33.06 / 0.36 s |
+| 48 | 13.1 / 75.3 s, **672 failures** | 44.15 / 0.40 s, **0 failures** |
+
+The guide's claim is that the owner pods cap near 15 req/s and shed 672
+requests at offered 48. Here the affinity arm sustains 44 req/s at 400 ms
+with no failures - about 3x the reported cap, and more than the guide's
+*winning* `load + P2P` arm (34.3). Affinity is genuinely concentrating (6 of
+16 pods busy at rate 24, top pod holding 43% of in-flight), so this is not a
+misconfigured arm; the owners simply absorb the decode load. Something bound
+the rig behind the guide's table at ~15 req/s that does not bind this one.
+The render path is the obvious suspect given its documented saturation mode,
+but that is untested here and stated as an open question, not a diagnosis.
+
+**Consequence.** On a 16xH200 gpt-oss fleet Scenario B cannot demonstrate
+P2P value, by construction rather than by measurement noise: a working set
+that fits in every pod leaves nothing to fetch. Making it a P2P scenario
+needs a hot set larger than a single pod's GPU cache (>1.22M tokens, i.e.
+25+ prefixes at 48K rather than 8), which would also restore the
+owner-concentration pathology the section is built around.
+
+Configs, driver and raw logs:
+[configs/scenario-b-rerun](configs/scenario-b-rerun).

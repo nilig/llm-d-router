@@ -1,0 +1,8 @@
+# arm=load hot=8x48000tok out=512
+# warmup: 8 ok / 0 fail in 10s (8 hot prefixes seeded)
+offered   sent     ok  fail  wall_s  achieved  ttft_p50  lat_p50
+     12    720    720     0    61.6     11.69       188      367
+     24   1440   1440     0    62.4     23.06       186      317
+     36   2160   2160     0    63.1     34.21       187      358
+     48   2880   2880     0    61.5     46.81       193      381
+# done
