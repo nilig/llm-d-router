@@ -1520,19 +1520,24 @@ never fires. Per the pre-registered rule: no-regression evidence only.
 
 ### Why the pull cannot fire here - two mechanisms, both code-verified
 
-**1. PreRequest hook ordering silently disarms the producer.** Hooks run in
-config declaration order (`AddPlugins` appends in order;
-`runPreRequestPlugins` iterates the slice). The approx producer's PreRequest
-*optimistically records* the scheduled endpoint into its index; the
-p2p-source-producer's PreRequest compares the best peer against the
-computing pod. Declared producer-last (as every documented example does),
-the comparison reads an index already credited with the current request:
-TRACE over 711 requests showed `best == computing` with equal token counts
-on every single one, and zero headers set. Declared producer-FIRST, the
-comparison precedes the recording and real deltas become visible. This
-ordering sensitivity is invisible, undocumented, and worth an upstream
-issue: the producer should either declare a hook-ordering constraint or
-snapshot the pre-scheduling counts it needs.
+**1. (RETRACTED) A hook-ordering trap was claimed here and does not survive
+verification.** An earlier revision asserted that declaring the
+p2p-source-producer after the approx producer let the approx producer's
+optimistic PreRequest recording mask the comparison. The causal claim is
+wrong: the producer's PreRequest reads the computing pod's cached count from
+the per-request attribute stashed during Produce - before scheduling, before
+any recording (`computingCached := p.cachedTokenCount(endpoint)` on the
+scheduling-cycle endpoint object) - so declaration order cannot affect the
+current request's comparison. Confirmed empirically: Scenario B and D fired
+119 and 65 sessions with the producer declared last, and the one
+producer-first firing (the herd probe) is fully explained by the herd. The
+TRACE's `best == computing` on 711/711 requests needs no masking to explain:
+under the affinity filter the computing pod IS the best holder, because the
+filter routed the request there. Holder-routing plus the load gate is the
+whole explanation. (What remains true and code-verified: hooks run in config
+declaration order, and both approx and precise producers seed speculative
+index credit for the scheduled endpoint in PreRequest - that credit affects
+the NEXT request's view, by design.)
 
 **2. The affinity filter's load gate encodes an SLO tolerance, not a spill
 cost - and at the default the pull can never have work.**
