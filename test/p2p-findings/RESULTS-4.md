@@ -1534,18 +1534,23 @@ ordering sensitivity is invisible, undocumented, and worth an upstream
 issue: the producer should either declare a hook-ordering constraint or
 snapshot the pre-scheduling counts it needs.
 
-**2. The affinity filter's load gate is calibrated ~90x too loose for this
-model.** `prefix-cache-affinity-filter` breaks stickiness only when the
-sticky pod's estimated TTFT exceeds the best alternative's by
-`maxTTFTPenaltyMs` - default **18,000 ms**, i.e. tolerate up to 18 s of
-estimated queueing before paying a spill. On gpt-oss/H200 the spill it is
-avoiding costs ~200 ms (full 6.5K-prefix recompute; measured). At the
-calibrated peak, the gate opens only when one pod holds ~660K more in-flight
-tokens (~70 queued requests) than an idle one. Within the guide-shaped
-ladder that never happens, so placement never leaves the credited holders
-and the pull has no work. `maxTTFTPenaltyMs` needs per-model calibration
-exactly as `peakPrefillThroughput` does - it is the price-of-recompute
-bound, and with a pull available it should be the price-of-pull instead.
+**2. The affinity filter's load gate encodes an SLO tolerance, not a spill
+cost - and at the default the pull can never have work.**
+`prefix-cache-affinity-filter` breaks stickiness only when the sticky pod's
+estimated TTFT exceeds the best alternative's by `maxTTFTPenaltyMs`, default
+**18,000 ms**. That default is not a bug: the calibration recipe carries the
+same 18 s as `T_MAX_SECONDS`, a TTFT SLO tolerance - the shipped philosophy
+is "stay sticky unless the wait would breach an ~18 s SLO", and by that
+criterion nothing in these runs misbehaved. But it means placement leaves a
+credited holder only when one pod carries ~660K more in-flight tokens (~70
+queued requests) than an idle one, which the guide-shaped ladder never
+produces - so no request ever lands where a pull could help. The alternative
+philosophy is a cost bound: spill as soon as the estimated wait exceeds what
+the spill itself costs (~200 ms recompute on this model, ~100 ms pull). The
+guide documents neither the semantics nor when to prefer which; that
+documentation gap, not the default value, is the upstream feedback. With a
+pull available the spill price drops, which is what would justify the tighter
+bound in the P2P composition.
 
 ### Saturation A/B (60,100,100 offered; as-shipped gate): still null
 
