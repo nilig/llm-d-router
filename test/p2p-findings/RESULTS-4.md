@@ -1577,11 +1577,40 @@ coinciding with the saturated stage going from p95 2,516 ms to 173 ms and
 directional only - but it demonstrates the wiring works end-to-end the
 moment placement and cache genuinely diverge.
 
-### Pending: the gate-calibrated pair
+### The gate-calibrated pair completes the matrix
 
-`maxTTFTPenaltyMs: 500` (approximately the pull cost) with and without the
-producer - the principled composition where affinity holds while cheap and
-spills pull instead of recompute. Running as of this writing; results follow.
+`maxTTFTPenaltyMs: 500` (approximately the pull cost), with and without the
+producer, same ladder. The full 2x2 - achieved req/s / TTFT p50 / p95 per
+stage, P2P sessions per arm:
+
+| P2P | gate | 60 | 100 (first) | 100 (second) | sessions |
+|---|---|---|---|---|---|
+| no | 18 s (shipped) | 48.5 / 104 / 4,029 | 61.4 / 119 / 2,847 | 65.1 / 107 / 151 | 0 |
+| yes | 18 s (shipped) | 49.5 / 98 / 3,757 | 59.1 / 107 / 2,772 | 65.5 / 103 / 168 | 0 |
+| no | 0.5 s (calibrated) | 47.3 / 104 / 3,709 | **65.4 / 105 / 164** | 64.6 / 104 / 161 | 0 |
+| yes | 0.5 s (calibrated) | 47.3 / 101 / 4,133 | 64.5 / 105 / 310 | 64.1 / 104 / 154 | **53** |
+
+Zero failures throughout (one timeout in 35,000+ requests).
+
+**The gate calibration is the win, and it does not need P2P.** Fixing
+`maxTTFTPenaltyMs` alone removes the mid-ladder tail transient (p95 2,847 ->
+164 ms at the same offered rate): the router spills early and the ~200 ms
+recompute is cheap. That is an optimized-baseline finding independent of
+this guide.
+
+**The pull fires at the calibrated gate and changes nothing.** 53 sessions,
+206,976 prefix tokens / 7.79 GB pulled - a **0.2% pull rate** against the
+~8,800 rate-100 requests. Throughput and p50 identical to the no-P2P arm;
+the pull's ~100 ms saving over a ~200 ms recompute, on 0.2% of requests
+each lasting ~10 s, is arithmetically invisible. The pre-registered rule
+(<5% pull rate) fires for every cell of the matrix: **on this guide's path
+and workload shape, P2P is no-regression, not value** - the same rule that
+holds everywhere in this campaign: the pull pays in proportion to
+(prefix length) x (recompute cost) x (miss rate), and a 6K-token prefix on
+a 29K-tokens/sec-prefill model prices the pull's edge at ~100 ms per rare
+miss. The paths where those factors are large are where the value is
+measured: 48K-token document Q&A (Scenario D: load+P2P 7.3x p99 over
+affinity) and 10K-100K-token agentic sessions (Run O: 4.8x median TTFT).
 
 Configs, driver, runner, sampler and raw logs:
 [configs/workload1-optimized-baseline](configs/workload1-optimized-baseline).
