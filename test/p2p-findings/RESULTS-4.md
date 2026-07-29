@@ -2076,3 +2076,42 @@ Three observability traps hit in one day, all now procedure: a `--since`
 window that misses the run, a pod replaced after the run (logs die with
 it), and log rotation under TRACE at load. Sample live, to files, during
 the run - never reconstruct afterward.
+
+## CORRECTION: the tail win was variance - the pull is structurally inert
+## under precise affinity with a healthy index, and now we can prove why
+
+The attributed re-run (live 2-minute sampling of emissions and counters,
+immune to log rotation and pod churn) settles the pair above:
+
+- **115 `evaluating KV cache source` lines captured, 0 emissions.** Every
+  evaluation carries `bestCachedTokens - computingCachedTokens = 0`; 52 of
+  115 are literal self-matches. No `minCachedTokenDelta` would fire - not
+  16,384, not 1.
+- The re-run's TTFT p99 is 22.5 s against the pair's 24.6 / 17.7 s. Three
+  behaviorally-identical runs spanning 17.7-24.6 s at p99 means **the
+  -28.3% in the table above is run-to-run variance, not a pull effect.**
+  Its row is retracted; medians (which agree within 1% across all three
+  runs) stand.
+
+This also resolves the July grid paradox. The overlay-era c32 wins
+(-27% p50 / -45% p90, 41-163 GB of verified transfers) were real pulls -
+fired by phantom deltas that the then-broken index manufactured:
+`podCacheSize: 10` evicted (endpoint, tier) entries asymmetrically, so the
+scheduled pod and the best peer read different cached-token counts for the
+same physically-replicated prefix, and the pull repaired the resulting
+placement divergence. Fixing the index removed the divergence and with it
+the trigger. Both eras' measurements are correct; what changed is that a
+consistent index under precise affinity has nothing for the pull to repair
+on these traces.
+
+The P/D opening (prefill pulling decode-generated history) is additionally
+closed on GLM-5.2 specifically: it streams reasoning content that the chat
+template drops on re-render, so decode's stored KV diverges from the next
+turn's rendered prompt - the guide's standing model caveat, now observed
+as exact zero deltas.
+
+Where divergence exists by construction, the pull still has a trigger:
+load-first placement (the gpt-oss pool and hot-set wins), restarts/cold
+replicas, and the approximate index (which only learns its own placements
+and estimates by hash). The approximate pair at 753B is the next
+measurement.
