@@ -1,0 +1,70 @@
+# Run O re-run arm values: original EPP config embedded verbatim.
+router:
+  epp:
+    image: { tag: main, pullPolicy: Always }
+    pluginsConfigFile: "qb.yaml"
+    pluginsCustomConfig:
+      qb.yaml: |
+        apiVersion: llm-d.ai/v1alpha1
+        kind: EndpointPickerConfig
+        # PD ARM B: ARM A + P2P only. Identical deciders, filters, scorers, weights.
+        # Adds the machinery the pull needs: token-producer + precise index (feeds
+        # ONLY the p2p-source-producer; the guide's prefix-cache-scorer keeps its
+        # default approximate feed so placement is identical to arm A) and the
+        # p2p-source-producer targeting the prefill profile.
+        plugins:
+        - type: disagg-headers-handler
+        - type: always-disagg-pd-decider
+        - type: disagg-profile-handler
+          parameters:
+            deciderPluginName: always-disagg-pd-decider
+        - type: prefill-filter
+        - type: decode-filter
+        - type: token-producer
+          parameters:
+            modelName: Qwen/Qwen3-30B-A3B-Thinking-2507
+            vllm:
+              url: http://qwen-chat-render:8000
+        - type: endpoint-notification-source
+        - type: precise-prefix-cache-producer
+          parameters:
+            tokenProcessorConfig:
+              blockSize: 64
+            kvEventsConfig:
+              topicFilter: "kv@"
+              discoverPods: true
+              podDiscoveryConfig:
+                socketPort: 5556
+        - type: p2p-source-producer
+          parameters:
+            prefixMatchInfoProducerName: precise-prefix-cache-producer
+            prefillProfileName: prefill
+            minCachedTokenDelta: 1024
+        - type: prefix-cache-scorer
+        - type: queue-scorer
+        - type: kv-cache-utilization-scorer
+        - type: active-request-scorer
+        dataLayer:
+          sources:
+          - pluginRef: endpoint-notification-source
+            extractors:
+            - pluginRef: precise-prefix-cache-producer
+        schedulingProfiles:
+        - name: prefill
+          plugins:
+          - pluginRef: prefill-filter
+          - pluginRef: prefix-cache-scorer
+            weight: 3
+          - pluginRef: queue-scorer
+            weight: 2
+          - pluginRef: kv-cache-utilization-scorer
+            weight: 2
+        - name: decode
+          plugins:
+          - pluginRef: decode-filter
+          - pluginRef: active-request-scorer
+            weight: 2
+          - pluginRef: prefix-cache-scorer
+            weight: 3
+  modelServers:
+    matchLabels: { llm-d.ai/model: qwen3-30b-a3b }

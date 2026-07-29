@@ -1799,3 +1799,57 @@ original 8-prefix owner-concentration framing does not transfer to this
 size either.
 
 Configs and logs: [configs/scenario-b32](configs/scenario-b32).
+
+## Run O re-run - prefill-pulls-from-decode reproduces on the fixed stack
+
+Run O was the campaign's strongest P2P result and the last one standing
+solely on a pre-fix-stack measurement. Re-run here on
+`nightly-1240c74c` + `combined-overlay-49877new`, sidecar at the current
+wire keys, `rdma/ib` on both roles, 2 prefill + 4 decode TP=1
+(Qwen3-30B-A3B-Thinking), the original agentic profile verbatim (24
+conversations, 10K-100K-token dynamic system prompts, 4-40 turns,
+tool-call gaps that evict session KV between turns), 288 requests at
+concurrency 16, driven through `llmdbenchmark`. Arms differ only in the
+KV stack: A = plain `NixlConnector` P/D, sidecar without `--enable-p2p-pull`,
+EPP without the p2p producer; B = `MultiConnector` (NIXL + Offloading p2p
+tier), pull enabled, `p2p-source-producer` on the precise index
+(`minCachedTokenDelta: 1024`). Each arm ran on a freshly re-rolled fleet.
+
+| metric | arm A (no P2P) | arm B (+P2P) | delta |
+|---|---:|---:|---:|
+| TTFT p50 | 6.83 s | **1.09 s** | **6.3x** |
+| TTFT p95 | 20.90 s | 12.92 s | 1.6x |
+| TTFT p99 | 28.17 s | 34.66 s | 0.8x (worse) |
+| TTFT mean | 8.35 s | 2.80 s | 3.0x |
+| request latency p50 | 14.79 s | 8.57 s | 1.7x |
+| throughput | 0.82 req/s | **1.24 req/s** | **+50%** |
+| output tokens/s | 777 | 1,167 | +50% |
+| run duration | 340 s | 221 s | -35% |
+| completed | 288/288, 0 fail | 288/288, 0 fail | - |
+| mean prompt length | 61,884 tok | 61,883 tok | identical |
+
+Pull evidence: **9 P2P sessions**. The count is small because the topology
+is small (2 prefill x 4 decode = few directed pairs), but each session
+carries a conversation's accumulated history on every turn, which is why
+nine of them move the median by 6x.
+
+**The original result reproduces and is slightly stronger**: published
+4.8x median TTFT and +33% throughput; measured here 6.3x and +50%, with a
+fresh reference sample rather than the single arm-A run the original had.
+The mechanism is the one the guide's P/D bullet describes - decode
+generates the session history, so on each subsequent turn the prefill
+worker faces KV it never computed and no placement decision can make
+local; without the pull it re-prefills the whole accumulated history.
+
+**Caveat, stated as in the original**: p99 TTFT is *worse* with P2P (34.7 s
+vs 28.2 s). Both arms' extreme tail is the cold first prefill of a
+100K-token context, which no pull can shorten, and this workload's output
+length is lognormal with a long tail; the win is median, mean and
+throughput, not the extreme tail. Single run per arm - the 6x median and
++50% throughput are far outside run-to-run spread, the p99 difference is
+not.
+
+This is the strongest same-stack P2P result in the campaign and the one
+regime where the pull cannot be designed away by better placement: the KV
+lives on the other role. Configs, arm scripts and result JSON:
+[configs/run-o-rerun](configs/run-o-rerun).

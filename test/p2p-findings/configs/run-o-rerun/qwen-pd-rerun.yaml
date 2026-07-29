@@ -1,0 +1,136 @@
+# DP-aware sidecar validation rig: 1 prefill (engine only) + 1 decode
+# (sidecar:dp-aware + engine). Llama-8B TP=1, MultiConnector(NIXL +
+# Offloading p2p tier), generic_p2p overlay. No EPP labels - driven by
+# direct curls with x-prefiller-host-port / x-kv-cache-source-host-port.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: qwen-pd-prefill, namespace: nilig-p2p, labels: {app: qwen-pd, role: prefill}}
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: qwen-pd, role: prefill}}
+  template:
+    metadata: {labels: {app: qwen-pd, role: prefill, llm-d.ai/inferenceServing: "true", llm-d.ai/role: prefill, llm-d.ai/engine-type: vllm, llm-d.ai/model: qwen3-30b-a3b}}
+    spec:
+      serviceAccountName: pd-disaggregation-nvidia-gpu-vllm-sa
+      containers:
+        - name: modelserver
+          image: vllm/vllm-openai:nightly-1240c74c0a47473449cf0c3a9c2d87a1e159f73b
+          imagePullPolicy: IfNotPresent
+          command: ["sh","-c","rm -f /dev/shm/vllm_offload_*.mmap 2>/dev/null; exec vllm serve \"$@\"","sh"]
+          args:
+            - Qwen/Qwen3-30B-A3B-Thinking-2507
+            - --port=8000
+            - --tensor-parallel-size=1
+            - --block-size=64
+            - --max-model-len=131072
+            - --gpu-memory-utilization=0.9
+            - --reasoning-parser=qwen3
+            - --enable-auto-tool-choice
+            - --tool-call-parser=qwen3_xml
+            - --kv-events-config
+            - '{"enable_kv_cache_events":true,"publisher":"zmq","endpoint":"tcp://*:5556","topic":"kv@$(POD_IP):8000@Qwen/Qwen3-30B-A3B-Thinking-2507"}'
+            - --kv-transfer-config
+            - '{"kv_connector":"NixlConnector","kv_role":"kv_both"}'
+          env:
+            - {name: HF_TOKEN, valueFrom: {secretKeyRef: {name: llm-d-hf-token, key: HF_TOKEN}}}
+            - {name: POD_IP, valueFrom: {fieldRef: {apiVersion: v1, fieldPath: status.podIP}}}
+            - {name: PYTHONHASHSEED, value: "0"}
+            - {name: VLLM_NIXL_SIDE_CHANNEL_HOST, valueFrom: {fieldRef: {apiVersion: v1, fieldPath: status.podIP}}}
+            - {name: VLLM_NIXL_SIDE_CHANNEL_PORT, value: "5600"}
+          ports: [{containerPort: 8000}, {containerPort: 5600}, {containerPort: 7777}, {containerPort: 5556}]
+          resources: {limits: {cpu: "8", memory: 240Gi, nvidia.com/gpu: "1", rdma/ib: "1"}, requests: {cpu: "8", memory: 240Gi, nvidia.com/gpu: "1", rdma/ib: "1"}}
+          startupProbe: {httpGet: {path: /v1/models, port: 8000}, initialDelaySeconds: 10, periodSeconds: 15, failureThreshold: 60}
+          readinessProbe: {httpGet: {path: /v1/models, port: 8000}, periodSeconds: 5, failureThreshold: 3}
+          volumeMounts:
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/base.py, name: gp2p, subPath: base.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/manager.py, name: gp2p, subPath: manager.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/__init__.py, name: gp2p, subPath: session___init__.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/client.py, name: gp2p, subPath: session_client.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/protocol.py, name: gp2p, subPath: session_protocol.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/server.py, name: gp2p, subPath: session_server.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/session.py, name: gp2p, subPath: session_session.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/control/zmq.py, name: gp2p, subPath: control_zmq.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/control/base.py, name: gp2p, subPath: control_base.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/distributed/kv_transfer/kv_connector/v1/offloading/scheduler.py, name: gp2p, subPath: offloading_scheduler.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/distributed/kv_transfer/kv_connector/v1/offloading/metrics.py, name: gp2p, subPath: offloading_metrics.py}
+            - {mountPath: /dev/shm, name: shm}
+            - {mountPath: /.cache, name: cache}
+            - {mountPath: /.config, name: cfg}
+            - {mountPath: /.triton, name: triton}
+      volumes:
+        - {name: shm, emptyDir: {medium: Memory, sizeLimit: 160Gi}}
+        - {name: gp2p, configMap: {name: combined-overlay-49877new}}
+        - {name: cache, emptyDir: {}}
+        - {name: cfg, emptyDir: {}}
+        - {name: triton, emptyDir: {}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: qwen-pd-decode, namespace: nilig-p2p, labels: {app: qwen-pd, role: decode}}
+spec:
+  replicas: 4
+  selector: {matchLabels: {app: qwen-pd, role: decode}}
+  template:
+    metadata: {labels: {app: qwen-pd, role: decode, llm-d.ai/inferenceServing: "true", llm-d.ai/role: decode, llm-d.ai/engine-type: vllm, llm-d.ai/model: qwen3-30b-a3b}}
+    spec:
+      serviceAccountName: pd-disaggregation-nvidia-gpu-vllm-sa
+      initContainers:
+        - name: routing-proxy
+          image: quay.io/niliguy/llm-d-router-disagg-sidecar:p2p-rename-43aea48e
+          imagePullPolicy: Always
+          restartPolicy: Always
+          args: ["--port=8000","--vllm-port=8200","--kv-connector=nixlv2","--zap-log-level=2","--secure-proxy=false"]
+          env:
+            - {name: POD_IP, valueFrom: {fieldRef: {apiVersion: v1, fieldPath: status.podIP}}}
+          ports: [{containerPort: 8000}]
+      containers:
+        - name: modelserver
+          image: vllm/vllm-openai:nightly-1240c74c0a47473449cf0c3a9c2d87a1e159f73b
+          imagePullPolicy: IfNotPresent
+          command: ["sh","-c","rm -f /dev/shm/vllm_offload_*.mmap 2>/dev/null; exec vllm serve \"$@\"","sh"]
+          args:
+            - Qwen/Qwen3-30B-A3B-Thinking-2507
+            - --port=8200
+            - --tensor-parallel-size=1
+            - --block-size=64
+            - --max-model-len=131072
+            - --gpu-memory-utilization=0.9
+            - --reasoning-parser=qwen3
+            - --enable-auto-tool-choice
+            - --tool-call-parser=qwen3_xml
+            - --kv-events-config
+            - '{"enable_kv_cache_events":true,"publisher":"zmq","endpoint":"tcp://*:5556","topic":"kv@$(POD_IP):8000@Qwen/Qwen3-30B-A3B-Thinking-2507"}'
+            - --kv-transfer-config
+            - '{"kv_connector":"NixlConnector","kv_role":"kv_both"}'
+          env:
+            - {name: HF_TOKEN, valueFrom: {secretKeyRef: {name: llm-d-hf-token, key: HF_TOKEN}}}
+            - {name: POD_IP, valueFrom: {fieldRef: {apiVersion: v1, fieldPath: status.podIP}}}
+            - {name: PYTHONHASHSEED, value: "0"}
+            - {name: VLLM_NIXL_SIDE_CHANNEL_HOST, valueFrom: {fieldRef: {apiVersion: v1, fieldPath: status.podIP}}}
+            - {name: VLLM_NIXL_SIDE_CHANNEL_PORT, value: "5600"}
+          ports: [{containerPort: 8200}, {containerPort: 5600}, {containerPort: 7777}, {containerPort: 5556}]
+          resources: {limits: {cpu: "8", memory: 240Gi, nvidia.com/gpu: "1", rdma/ib: "1"}, requests: {cpu: "8", memory: 240Gi, nvidia.com/gpu: "1", rdma/ib: "1"}}
+          startupProbe: {httpGet: {path: /v1/models, port: 8200}, initialDelaySeconds: 10, periodSeconds: 15, failureThreshold: 60}
+          readinessProbe: {httpGet: {path: /v1/models, port: 8200}, periodSeconds: 5, failureThreshold: 3}
+          volumeMounts:
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/base.py, name: gp2p, subPath: base.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/manager.py, name: gp2p, subPath: manager.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/__init__.py, name: gp2p, subPath: session___init__.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/client.py, name: gp2p, subPath: session_client.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/protocol.py, name: gp2p, subPath: session_protocol.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/server.py, name: gp2p, subPath: session_server.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/session/session.py, name: gp2p, subPath: session_session.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/control/zmq.py, name: gp2p, subPath: control_zmq.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/v1/kv_offload/tiering/p2p/control/base.py, name: gp2p, subPath: control_base.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/distributed/kv_transfer/kv_connector/v1/offloading/scheduler.py, name: gp2p, subPath: offloading_scheduler.py}
+            - {mountPath: /usr/local/lib/python3.12/dist-packages/vllm/distributed/kv_transfer/kv_connector/v1/offloading/metrics.py, name: gp2p, subPath: offloading_metrics.py}
+            - {mountPath: /dev/shm, name: shm}
+            - {mountPath: /.cache, name: cache}
+            - {mountPath: /.config, name: cfg}
+            - {mountPath: /.triton, name: triton}
+      volumes:
+        - {name: shm, emptyDir: {medium: Memory, sizeLimit: 160Gi}}
+        - {name: gp2p, configMap: {name: combined-overlay-49877new}}
+        - {name: cache, emptyDir: {}}
+        - {name: cfg, emptyDir: {}}
+        - {name: triton, emptyDir: {}}

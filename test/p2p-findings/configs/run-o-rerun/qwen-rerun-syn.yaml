@@ -1,0 +1,81 @@
+endpoint:
+  stack_name: qwen-rerun
+  model: Qwen/Qwen3-30B-A3B-Thinking-2507
+  namespace: nilig-p2p
+  base_url: http://llm-d-router-epp.nilig-p2p.svc.cluster.local:8081
+  hf_token_secret: llm-d-hf-token
+control:
+  work_dir: /private/tmp/claude-501/-Users-niliguy-github-com-llm-d-router/a15368a9-23b2-44c8-b692-6e900f79144b/scratchpad/bench-work
+  kubectl: kubectl
+harness:
+  name: inference-perf
+  results_pvc: workload-pvc
+  namespace: nilig-p2p
+  parallelism: 1
+  wait_timeout: 5400
+  image: ghcr.io/llm-d/llm-d-benchmark:v0.7.0
+env:
+- name: RAYON_NUM_THREADS
+  value: '4'
+workload:
+  qwen_agentic_syn:
+    load:
+      type: concurrent
+      num_workers: 8
+      worker_max_concurrency: 1000
+      request_timeout: 300
+      stages:
+      - num_requests: 288
+        concurrency_level: 16
+    api:
+      type: completion
+      streaming: true
+    server:
+      type: vllm
+      model_name: Qwen/Qwen3-30B-A3B-Thinking-2507
+      base_url: http://llm-d-router-epp.nilig-p2p.svc.cluster.local:8081
+    data:
+      type: conversation_replay
+      conversation_replay:
+        seed: 42
+        max_model_len: 131072
+        num_conversations: 24
+        shared_system_prompt_len: 3000
+        dynamic_system_prompt_len:
+          type: lognormal
+          min: 10000
+          max: 100000
+          mean: 50000
+          std_dev: 40000
+        turns_per_conversation:
+          type: lognormal
+          min: 4
+          max: 40
+          mean: 12
+          std_dev: 10
+        input_tokens_per_turn:
+          type: lognormal
+          min: 100
+          max: 10000
+          mean: 1500
+          std_dev: 1200
+        output_tokens_per_turn:
+          type: lognormal
+          min: 50
+          max: 2000
+          mean: 425
+          std_dev: 400
+        tool_call_latency_sec:
+          type: lognormal
+          min: 1
+          max: 20
+          mean: 5
+          std_dev: 5
+    report:
+      request_lifecycle:
+        summary: true
+        per_stage: true
+        per_request: true
+    storage:
+      local_storage:
+        path: /workspace

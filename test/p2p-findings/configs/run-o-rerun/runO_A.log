@@ -1,0 +1,35 @@
+### RUN-O ARM A ###
+REVISION: 51
+clean re-roll...
+[1] prefill=0/2 decode=0/4 epp=0/1
+[2] prefill=0/2 decode=0/4 epp=0/1
+[3] prefill=0/2 decode=0/4 epp=1/1
+[4] prefill=0/2 decode=0/4 epp=1/1
+[5] prefill=0/2 decode=0/4 epp=1/1
+[6] prefill=0/2 decode=0/4 epp=1/1
+[7] prefill=0/2 decode=0/4 epp=1/1
+[8] prefill=0/2 decode=0/4 epp=1/1
+[9] prefill=0/2 decode=0/4 epp=1/1
+[10] prefill=0/2 decode=0/4 epp=1/1
+[11] prefill=0/2 decode=0/4 epp=1/1
+[12] prefill=0/2 decode=0/4 epp=1/1
+[13] prefill=0/2 decode=0/4 epp=1/1
+[14] prefill=0/2 decode=0/4 epp=1/1
+[15] prefill=0/2 decode=0/4 epp=1/1
+[16] prefill=1/2 decode=1/4 epp=1/1
+[17] prefill=1/2 decode=1/4 epp=1/1
+[18] prefill=1/2 decode=2/4 epp=1/1
+[19] prefill=2/2 decode=4/4 epp=1/1
+active config file: qa.yaml
+  bytes=919  p2p-source-producer=0  no-hit-lru-scorer=0  prefix-cache-scorer=3
+GATE OK
+probe: 200
+=== workload arm A (llmdbenchmark harness) ===
+[01;33m------------------------------------------------------------
+[0mtar: Removing leading `/' from member names
+E0729 09:15:28.790826   74580 v2.go:167] "Unhandled Error" err="read message: websocket: close 1006 (abnormal closure): unexpected EOF"
+E0729 09:15:28.790828   74580 v2.go:150] "Unhandled Error" err="read message: websocket: close 1006 (abnormal closure): unexpected EOF"
+error: error reading from error stream: read message: websocket: close 1006 (abnormal closure): unexpected EOF
+armA json SAVED
+sessions=0
+RUN-O ARM A COMPLETE

@@ -1,0 +1,42 @@
+# Run O re-run arm values: original EPP config embedded verbatim.
+router:
+  epp:
+    image: { tag: main, pullPolicy: Always }
+    pluginsConfigFile: "qa.yaml"
+    pluginsCustomConfig:
+      qa.yaml: |
+        apiVersion: llm-d.ai/v1alpha1
+        kind: EndpointPickerConfig
+        # PD ARM A: the pd-disaggregation guide's shipped scheduling config, verbatim.
+        # always-disagg, prefill profile prefix3/queue2/kv2, decode active2/prefix3.
+        plugins:
+        - type: disagg-headers-handler
+        - type: always-disagg-pd-decider
+        - type: disagg-profile-handler
+          parameters:
+            deciderPluginName: always-disagg-pd-decider
+        - type: prefill-filter
+        - type: decode-filter
+        - type: prefix-cache-scorer
+        - type: queue-scorer
+        - type: kv-cache-utilization-scorer
+        - type: active-request-scorer
+        schedulingProfiles:
+        - name: prefill
+          plugins:
+          - pluginRef: prefill-filter
+          - pluginRef: prefix-cache-scorer
+            weight: 3
+          - pluginRef: queue-scorer
+            weight: 2
+          - pluginRef: kv-cache-utilization-scorer
+            weight: 2
+        - name: decode
+          plugins:
+          - pluginRef: decode-filter
+          - pluginRef: active-request-scorer
+            weight: 2
+          - pluginRef: prefix-cache-scorer
+            weight: 3
+  modelServers:
+    matchLabels: { llm-d.ai/model: qwen3-30b-a3b }
