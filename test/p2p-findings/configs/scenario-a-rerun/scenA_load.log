@@ -1,0 +1,8 @@
+# arm=load endpoint=http://llm-d-router-epp:8081 groups=128 prefix~48000tok
+# warmup: 128 ok / 0 fail in 48s (128 prefixes populated)
+ rate   sent     ok  fail  wall_s  achieved  ttft_p50  ttft_p95  lat_p50
+    6    360    360     0    64.4      5.59      2530      5834     5639
+   12    720    720     0    79.8      9.02      8585     17341    26208
+   18   1080   1080     0   125.9      8.58     26013     50530    45687
+   24   1440   1440     0   159.9      9.01     43767     83533    63431
+   30   1800   1800     0   195.4      9.21     61343    117449    81154

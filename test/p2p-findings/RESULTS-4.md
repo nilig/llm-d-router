@@ -1709,3 +1709,57 @@ subscribe (making the precise index restart-proof and enabling recovery
 pulls), and documentation that the p2p-source-producer composes with
 load-first or P/D routing, not with self-consistent affinity routing,
 regardless of index choice.
+
+## Scenario A re-run - the floor and the reference reproduce exactly, and
+## the pull win is larger than published
+
+The guide's uniform-pool table was the last published result with
+unverified provenance (series 1/3, no committed rig manifest). Re-run on
+the verified rig: 16x gpt-oss-120b aggregated, rdma/ib confirmed, current
+overlay, the guide's own `epp-affinity.yaml` / `epp-load.yaml` /
+`epp-load-p2p.yaml` verbatim, 128 shared prefixes x 48K tokens, 256-token
+questions, 64-token outputs, in-cluster driver, cold roll + gate per arm,
+ladder 6/12/18/24/30 req/s.
+
+achieved req/s / TTFT p50 / request latency p50:
+
+| rate | `affinity` | `load` (recompute floor) | `load + P2P` |
+|---:|---|---|---|
+| 6 | 5.97 / 207 ms / 497 ms | 5.59 / 2.5 s / 5.6 s | 5.96 / 342 ms / 639 ms |
+| 12 | 11.92 / 200 / 486 | 9.02 / 8.6 s / 26.2 s | 11.49 / 460 / 981 |
+| 18 | 17.87 / 192 / 481 | 8.58 / 26.0 s / 45.7 s | 17.46 / 341 / 673 |
+| 24 | 23.82 / 191 / 482 | 9.01 / 43.8 s / 63.4 s | 21.93 / 344 / 699 |
+| 30 | 29.76 / 184 / 475 | 9.21 / 61.3 s / 81.2 s | 29.19 / 342 / 726 |
+
+Zero failures in all three arms (16,200 requests). Pull evidence in the
+`load + P2P` arm: **120 P2P sessions**, 210,407,296 external-hit tokens,
+7.8 TB moved through the offload tier, GPU hit rate 17.3% (placement
+scatters; the tier serves what the GPU cache cannot).
+
+Against the published table (top rate 24):
+
+| arm | published | re-measured |
+|---|---|---|
+| `affinity` | 23.7 / 0.8 s | 23.82 / 0.48 s - **reproduces** |
+| `load` | 9.4 / 63.5 s | 9.01 / 63.4 s - **reproduces exactly** |
+| `load + P2P` | 16.7 / 30.0 s | **21.93 / 0.70 s - much better** |
+
+Two conclusions. First, the same-placement pull win - the guide's strongest
+P2P number - **reproduces bigger than published**: at rate 24 the pull
+lifts the recompute floor 9.01 -> 21.93 req/s (**+143%**, published +78%)
+and takes p50 latency from 63.4 s to 0.70 s. At rate 30 `load + P2P`
+sustains 29.19 vs the floor's 9.21 (**+217%**) at 726 ms.
+
+Second, the guide's Scenario A characterization of `load + P2P` -
+"degrades sharply at the top of the ladder (p50 30 s at 24 req/s versus
+0.82 s)" - **does not reproduce**. On this rig `load + P2P` tracks offered
+rate through 30 req/s within 8% of affinity's throughput and under 2x its
+latency (726 vs 475 ms). The published 30-second p50 was measured on the
+pre-fix stack, in the era of the duplicate-fetch grind and without
+verifiable transport; the fixed stack plus verified RDMA removes the
+degradation entirely at these rates. The direction (affinity remains best
+on a uniform pool) survives; the "sharp degradation" clause and its
+magnitude do not, and the guide's When-to-use paragraph should be
+re-anchored to these numbers.
+
+Configs, driver and raw logs: [configs/scenario-a-rerun](configs/scenario-a-rerun).
