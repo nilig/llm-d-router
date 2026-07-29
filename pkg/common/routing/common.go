@@ -24,6 +24,14 @@ const (
 	// instead of recomputing them
 	KVCacheSourceHeader = "x-kv-cache-source-host-port"
 
+	// KVCacheSourceRankHeader carries the global data-parallel rank of the
+	// engine behind KVCacheSourceHeader. vLLM binds the P2P tier listener at
+	// <p2p-connector-port> + global DP rank, and on multi-pod DP groups (e.g.
+	// LWS wide-EP) the global rank is not derivable from the source's
+	// host:port alone, so the EPP supplies it per request. Absent header
+	// means the sidecar falls back to pod-local rank derivation.
+	KVCacheSourceRankHeader = "x-kv-cache-source-rank"
+
 	// InferencePoolAPIGroup is the default InferencePool API group
 	InferencePoolAPIGroup = "inference.networking.k8s.io"
 

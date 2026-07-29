@@ -490,3 +490,102 @@ func TestProduce_NilMetrics_NeutralLoad(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "10.0.0.2:8080", best.hostPort)
 }
+
+// rankedEndpoint builds a candidate with a pod-local rank and an optional LWS
+// worker-index label, mirroring one rank-endpoint of a multi-port pool.
+func rankedEndpoint(p *Producer, name, address string, cachedBlocks, rankIndex int, workerIndex string) scheduling.Endpoint {
+	md := &fwkdl.EndpointMetadata{
+		NamespacedName: k8stypes.NamespacedName{Name: name},
+		Address:        address,
+		Port:           fmt.Sprintf("%d", 8000+rankIndex),
+		RankIndex:      rankIndex,
+	}
+	if workerIndex != "" {
+		md.Labels = map[string]string{lwsWorkerIndexLabel: workerIndex}
+	}
+	e := scheduling.NewEndpoint(md, nil, nil)
+	e.Put(p.prefixMatchDataKey.String(),
+		attrprefix.NewPrefixCacheMatchInfo(cachedBlocks, 4, testBlockSize).WithCachedBlockCount(cachedBlocks))
+	return e
+}
+
+// A pod without the LWS worker-index label is its own DP group: the global
+// rank is the pod-local rank.
+func TestGlobalRank_NoLabel_PodLocal(t *testing.T) {
+	p := New("test", Config{MinCachedTokenDelta: 1})
+	eps := []scheduling.Endpoint{
+		rankedEndpoint(p, "pod-a-r0", "10.0.0.1", 1, 0, ""),
+		rankedEndpoint(p, "pod-a-r3", "10.0.0.1", 1, 3, ""),
+	}
+	assert.Equal(t, 3, globalRank(eps[1].GetMetadata(), eps))
+}
+
+// A worker pod's engines start at workerIndex * ranksPerPod, with ranksPerPod
+// counted from the endpoints sharing the pod's address.
+func TestGlobalRank_WorkerPod_Offset(t *testing.T) {
+	p := New("test", Config{MinCachedTokenDelta: 1})
+	var eps []scheduling.Endpoint
+	for r := 0; r < 8; r++ {
+		eps = append(eps, rankedEndpoint(p, fmt.Sprintf("leader-r%d", r), "10.0.0.1", 1, r, "0"))
+		eps = append(eps, rankedEndpoint(p, fmt.Sprintf("worker-r%d", r), "10.0.0.2", 1, r, "1"))
+	}
+	// leader rank 3 -> global 3; worker rank 3 -> global 8 + 3.
+	assert.Equal(t, 3, globalRank(eps[6].GetMetadata(), eps))
+	assert.Equal(t, 11, globalRank(eps[7].GetMetadata(), eps))
+}
+
+// An unparsable worker-index label degrades to pod-local rank rather than
+// poisoning the offset.
+func TestGlobalRank_BadLabel_PodLocal(t *testing.T) {
+	p := New("test", Config{MinCachedTokenDelta: 1})
+	ep := rankedEndpoint(p, "pod-a-r2", "10.0.0.1", 1, 2, "not-a-number")
+	assert.Equal(t, 2, globalRank(ep.GetMetadata(), []scheduling.Endpoint{ep}))
+}
+
+// Produce stashes the chosen peer's global rank alongside its host:port.
+func TestProduce_StashesGlobalRank(t *testing.T) {
+	ctx := utils.NewTestContext(t)
+	p := New("test", Config{MinCachedTokenDelta: 1})
+
+	req := &scheduling.InferenceRequest{RequestID: "req-rank"}
+	var eps []scheduling.Endpoint
+	for r := 0; r < 4; r++ {
+		eps = append(eps, rankedEndpoint(p, fmt.Sprintf("leader-r%d", r), "10.0.0.1", 0, r, "0"))
+		eps = append(eps, rankedEndpoint(p, fmt.Sprintf("worker-r%d", r), "10.0.0.2", 0, r, "1"))
+	}
+	// The only candidate with cached blocks: worker pod, local rank 2 -> global 6.
+	eps[5] = rankedEndpoint(p, "worker-r2", "10.0.0.2", 3, 2, "1")
+	require.NoError(t, p.Produce(ctx, req, eps))
+
+	best, ok := scheduling.ReadRequestAttribute[*bestMatchPeer](req, p.attrKey())
+	require.True(t, ok)
+	assert.Equal(t, "10.0.0.2:8002", best.hostPort)
+	assert.Equal(t, 6, best.globalRank)
+}
+
+// PreRequest emits the global rank header alongside the source header.
+func TestPreRequest_SetsRankHeader(t *testing.T) {
+	ctx := utils.NewTestContext(t)
+	p := New("test", Config{MinCachedTokenDelta: 1})
+
+	req := &scheduling.InferenceRequest{RequestID: "req-rank-hdr", Headers: map[string]string{}}
+	req.PutAttribute(p.attrKey(), &bestMatchPeer{hostPort: "10.0.0.2:8002", cachedTokens: 48, globalRank: 11})
+
+	p.PreRequest(ctx, req, decodeOnly(endpoint(p, "pod-a", "10.0.0.1", 1)))
+
+	assert.Equal(t, "10.0.0.2:8002", req.Headers[routing.KVCacheSourceHeader])
+	assert.Equal(t, "11", req.Headers[routing.KVCacheSourceRankHeader])
+}
+
+// Inbound rank headers are stripped even when no source is emitted.
+func TestPreRequest_DeletesInboundRankHeader(t *testing.T) {
+	ctx := utils.NewTestContext(t)
+	p := New("test", Config{MinCachedTokenDelta: 1})
+
+	req := &scheduling.InferenceRequest{RequestID: "req-strip-rank",
+		Headers: map[string]string{routing.KVCacheSourceRankHeader: "7"}}
+
+	p.PreRequest(ctx, req, decodeOnly(endpoint(p, "pod-a", "10.0.0.1", 1)))
+
+	assert.NotContains(t, req.Headers, routing.KVCacheSourceRankHeader)
+}

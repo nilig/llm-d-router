@@ -18,8 +18,11 @@ package proxy
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
+
+	"github.com/go-logr/logr"
 
 	. "github.com/onsi/ginkgo/v2" // nolint:revive
 	. "github.com/onsi/gomega"    // nolint:revive
@@ -174,7 +177,7 @@ var _ = Describe("p2pSourceParams", func() {
 			dpBasePort: 8000,
 			config:     Config{P2PConnectorPort: 7777, DataParallelSize: 4},
 		}
-		params := s.p2pSourceParams("10.0.0.9:8002")
+		params := s.p2pSourceParams(context.Background(), "10.0.0.9:8002")
 		Expect(params[requestFieldRemoteHost]).To(Equal("10.0.0.9"))
 		Expect(params[requestFieldRemotePort]).To(Equal(7779))
 		Expect(params[requestFieldKVRequestID]).ToNot(BeEmpty())
@@ -185,7 +188,7 @@ var _ = Describe("p2pSourceParams", func() {
 			dpBasePort: 8000,
 			config:     Config{P2PConnectorPort: 7777, DataParallelSize: 4},
 		}
-		params := s.Clone().p2pSourceParams("10.0.0.9:8002")
+		params := s.Clone().p2pSourceParams(context.Background(), "10.0.0.9:8002")
 		Expect(params[requestFieldRemotePort]).To(Equal(7779))
 	})
 
@@ -194,8 +197,62 @@ var _ = Describe("p2pSourceParams", func() {
 			dpBasePort: 8000,
 			config:     Config{P2PConnectorPort: 7777, DataParallelSize: 4},
 		}
-		params := s.p2pSourceParams("http://10.0.0.9:8002")
+		params := s.p2pSourceParams(context.Background(), "http://10.0.0.9:8002")
 		Expect(params[requestFieldRemoteHost]).To(Equal("10.0.0.9"))
 		Expect(params[requestFieldRemotePort]).To(Equal(7779))
+	})
+})
+
+var _ = DescribeTable("parseKVSourceRank",
+	func(value string, want int) {
+		Expect(parseKVSourceRank(value, logr.Discard())).To(Equal(want))
+	},
+	Entry("empty is absent", "", -1),
+	Entry("valid rank parses", "11", 11),
+	Entry("zero is a valid rank", "0", 0),
+	Entry("whitespace is trimmed", " 3 ", 3),
+	Entry("negative is rejected", "-1", -1),
+	Entry("non-numeric is rejected", "abc", -1),
+	Entry("out-of-bound is rejected", "4096", -1),
+)
+
+var _ = Describe("p2pSourcePort", func() {
+	newServer := func() *Server {
+		return &Server{
+			dpBasePort: 8000,
+			config:     Config{P2PConnectorPort: 7777, DataParallelSize: 4},
+		}
+	}
+
+	It("prefers the per-request global rank over pod-local derivation", func() {
+		// The target port says local rank 2, but the carried global rank is
+		// 11 (a worker pod's engine): the global rank must win.
+		ctx := withKVSourceRank(context.Background(), 11)
+		Expect(newServer().p2pSourcePort(ctx, "10.0.0.9:8002")).To(Equal(7788))
+	})
+
+	It("falls back to pod-local derivation without a carried rank", func() {
+		Expect(newServer().p2pSourcePort(context.Background(), "10.0.0.9:8002")).To(Equal(7779))
+	})
+
+	It("addresses ranks beyond the pod-local DP size", func() {
+		// Pod-local derivation caps at DataParallelSize; the carried global
+		// rank is not bounded by it.
+		ctx := withKVSourceRank(context.Background(), 6)
+		Expect(newServer().p2pSourcePort(ctx, "10.0.0.9:8002")).To(Equal(7783))
+	})
+
+	It("falls back when the rank would leave the port range", func() {
+		s := newServer()
+		s.config.P2PConnectorPort = 65000
+		ctx := withKVSourceRank(context.Background(), 4000)
+		Expect(s.p2pSourcePort(ctx, "10.0.0.9:8002")).To(Equal(65002))
+	})
+
+	It("threads the carried rank into p2pSourceParams", func() {
+		ctx := withKVSourceRank(context.Background(), 11)
+		params := newServer().p2pSourceParams(ctx, "10.0.0.9:8002")
+		Expect(params[requestFieldRemoteHost]).To(Equal("10.0.0.9"))
+		Expect(params[requestFieldRemotePort]).To(Equal(7788))
 	})
 })

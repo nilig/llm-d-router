@@ -134,6 +134,11 @@ func (s *Server) disaggregatedPrefillHandler(apiType APIType) http.HandlerFunc {
 
 		kvCacheSource := strings.TrimSpace(r.Header.Get(routing.KVCacheSourceHeader))
 		r.Header.Del(routing.KVCacheSourceHeader)
+		kvCacheSourceRank := parseKVSourceRank(r.Header.Get(routing.KVCacheSourceRankHeader), s.logger)
+		r.Header.Del(routing.KVCacheSourceRankHeader)
+		if kvCacheSourceRank >= 0 {
+			r = r.WithContext(withKVSourceRank(r.Context(), kvCacheSourceRank))
+		}
 		if kvCacheSource != "" {
 			switch {
 			case !s.p2pPullAvailable():

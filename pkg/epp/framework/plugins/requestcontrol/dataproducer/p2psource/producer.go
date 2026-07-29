@@ -26,11 +26,13 @@ import (
 	"fmt"
 	"hash/fnv"
 	"net"
+	"strconv"
 
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/llm-d/llm-d-router/pkg/common/observability/logging"
 	"github.com/llm-d/llm-d-router/pkg/common/routing"
+	fwkdl "github.com/llm-d/llm-d-router/pkg/epp/framework/interface/datalayer"
 	"github.com/llm-d/llm-d-router/pkg/epp/framework/interface/plugin"
 	"github.com/llm-d/llm-d-router/pkg/epp/framework/interface/requestcontrol"
 	"github.com/llm-d/llm-d-router/pkg/epp/framework/interface/scheduling"
@@ -133,10 +135,45 @@ func (p *Producer) Consumes() plugin.DataDependencies {
 // bestMatchPeer is the pull-source candidate chosen during Produce, stashed
 // as a request attribute so PreRequest can compare it against the scheduled
 // endpoint. cachedTokens is the chosen peer's own count, which may be one
-// block below the pool maximum.
+// block below the pool maximum. globalRank is the peer engine's global
+// data-parallel rank, which addresses its P2P tier listener.
 type bestMatchPeer struct {
 	hostPort     string
 	cachedTokens int
+	globalRank   int
+}
+
+// lwsWorkerIndexLabel is the LeaderWorkerSet label giving a pod's index
+// within its group. Multi-pod DP groups start each pod's engine ranks at
+// workerIndex * ranksPerPod; pods without the label form their own group and
+// start at 0.
+const lwsWorkerIndexLabel = "leaderworkerset.sigs.k8s.io/worker-index"
+
+// globalRank resolves md's engine global data-parallel rank: the endpoint's
+// pod-local rank (its position in the pool's target ports) offset by the
+// pod's base rank within its DP group. ranksPerPod is counted from the
+// endpoints sharing md's address rather than configured, so the value tracks
+// the deployed pool shape.
+func globalRank(md *fwkdl.EndpointMetadata, endpoints []scheduling.Endpoint) int {
+	workerIndex := 0
+	if v, ok := md.Labels[lwsWorkerIndexLabel]; ok {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			workerIndex = n
+		}
+	}
+	if workerIndex == 0 {
+		return md.GetRankIndex()
+	}
+	ranksPerPod := 0
+	for _, ep := range endpoints {
+		if em := ep.GetMetadata(); em != nil && em.Address == md.Address {
+			ranksPerPod++
+		}
+	}
+	if ranksPerPod == 0 {
+		ranksPerPod = 1
+	}
+	return workerIndex*ranksPerPod + md.GetRankIndex()
 }
 
 // attrKey returns the request-attribute key carrying the best-match peer,
@@ -215,6 +252,7 @@ func (p *Producer) Produce(ctx context.Context, request *scheduling.InferenceReq
 			best = bestMatchPeer{
 				hostPort:     net.JoinHostPort(md.Address, md.Port),
 				cachedTokens: cachedCounts[chosen],
+				globalRank:   globalRank(md, endpoints),
 			}
 		}
 	}
@@ -256,6 +294,7 @@ func requestSpreadFraction(requestID string) float64 {
 func (p *Producer) PreRequest(ctx context.Context, request *scheduling.InferenceRequest, schedulingResult *scheduling.SchedulingResult) {
 	logger := log.FromContext(ctx).WithName(p.typedName.String()).V(logging.TRACE)
 	delete(request.Headers, routing.KVCacheSourceHeader)
+	delete(request.Headers, routing.KVCacheSourceRankHeader)
 
 	best, ok := scheduling.ReadRequestAttribute[*bestMatchPeer](request, p.attrKey())
 	if !ok {
@@ -294,7 +333,9 @@ func (p *Producer) PreRequest(ctx context.Context, request *scheduling.Inference
 		request.Headers = map[string]string{}
 	}
 	request.Headers[routing.KVCacheSourceHeader] = best.hostPort
-	logger.Info("set KV cache source header", "requestID", request.RequestID, "value", best.hostPort)
+	request.Headers[routing.KVCacheSourceRankHeader] = strconv.Itoa(best.globalRank)
+	logger.Info("set KV cache source header", "requestID", request.RequestID,
+		"value", best.hostPort, "globalRank", best.globalRank)
 }
 
 // cachedTokens returns the endpoint's cached prompt tokens (unweighted

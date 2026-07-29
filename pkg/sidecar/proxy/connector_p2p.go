@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"os"
@@ -28,6 +29,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-logr/logr"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -77,7 +79,7 @@ func (s *Server) handleP2P(w http.ResponseWriter, r *http.Request, prefillPodHos
 			requestFieldKVRequestID: kvRequestID,
 		},
 	}
-	s.addP2PPullToPrefill(prefillKVParams, kvCacheSource, prefillPodHostPort)
+	s.addP2PPullToPrefill(r.Context(), prefillKVParams, kvCacheSource, prefillPodHostPort)
 	prefillData[requestFieldKVTransferParams] = prefillKVParams
 	reqcommon.PrimeSingleTokenRequest(prefillData, requestData)
 
@@ -231,21 +233,78 @@ func (s *Server) p2pPullAvailable() bool {
 // remote_kv_source key composes with NIXL params: vLLM's MultiConnector
 // routes it to the OffloadingConnector and the NIXL fields to the
 // NixlConnector.
-func (s *Server) addP2PPullToPrefill(prefillKVParams map[string]any, kvCacheSource, prefillPodHostPort string) {
+func (s *Server) addP2PPullToPrefill(ctx context.Context, prefillKVParams map[string]any, kvCacheSource, prefillPodHostPort string) {
 	if kvCacheSource != "" && extractHost(kvCacheSource) != extractHost(prefillPodHostPort) {
-		prefillKVParams[requestFieldRemoteKVSource] = s.p2pSourceParams(kvCacheSource)
+		prefillKVParams[requestFieldRemoteKVSource] = s.p2pSourceParams(ctx, kvCacheSource)
 	}
 }
 
 // p2pSourceParams builds the kv_transfer_params.remote_kv_source block for a
 // pull from sourceHostPort's OffloadingConnector P2P tier. The kv_request_id is its
-// own fresh UUID: in P2P mode it is consumer-side only.
-func (s *Server) p2pSourceParams(sourceHostPort string) map[string]any {
+// own fresh UUID: in P2P mode it is consumer-side only. ctx may carry the
+// source's global DP rank (see withKVSourceRank), which addresses the tier
+// listener exactly; without it the port falls back to pod-local derivation.
+func (s *Server) p2pSourceParams(ctx context.Context, sourceHostPort string) map[string]any {
 	return map[string]any{
 		requestFieldKVRequestID: newUUID(),
 		requestFieldRemoteHost:  extractHost(sourceHostPort),
-		requestFieldRemotePort:  s.p2pPortFor(sourceHostPort),
+		requestFieldRemotePort:  s.p2pSourcePort(ctx, sourceHostPort),
 	}
+}
+
+// kvSourceRankKey is the context key carrying the validated
+// KVCacheSourceRankHeader value from header parsing to param assembly.
+type kvSourceRankKey struct{}
+
+// withKVSourceRank returns ctx annotated with the source's global DP rank.
+func withKVSourceRank(ctx context.Context, rank int) context.Context {
+	return context.WithValue(ctx, kvSourceRankKey{}, rank)
+}
+
+// kvSourceRankFrom returns the source's global DP rank from ctx, or -1 when
+// none was supplied.
+func kvSourceRankFrom(ctx context.Context) int {
+	if v, ok := ctx.Value(kvSourceRankKey{}).(int); ok {
+		return v
+	}
+	return -1
+}
+
+// maxKVSourceRank bounds the accepted per-request rank; vLLM's port offsetting
+// makes base+rank a listening port, so the bound only rejects nonsense values
+// that would address arbitrary ports.
+const maxKVSourceRank = 4096
+
+// parseKVSourceRank validates a KVCacheSourceRankHeader value: a base-10
+// integer in [0, maxKVSourceRank). Empty returns -1 silently; anything else
+// invalid logs and returns -1, degrading to pod-local port derivation.
+func parseKVSourceRank(value string, logger logr.Logger) int {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return -1
+	}
+	rank, err := strconv.Atoi(value)
+	if err != nil || rank < 0 || rank >= maxKVSourceRank {
+		logger.Info("ignoring invalid KV cache source rank header", "value", value)
+		return -1
+	}
+	return rank
+}
+
+// p2pSourcePort resolves the source's P2P tier listener port. vLLM binds the
+// tier at <p2p-connector-port> + the engine's global DP rank; a per-request
+// rank from ctx addresses it exactly and is required for multi-pod DP groups
+// (e.g. LWS wide-EP), where the global rank is not derivable from the
+// source's host:port. Without one, p2pPortFor's pod-local derivation applies.
+func (s *Server) p2pSourcePort(ctx context.Context, sourceHostPort string) int {
+	if rank := kvSourceRankFrom(ctx); rank >= 0 {
+		if port := s.config.P2PConnectorPort + rank; port <= math.MaxUint16 {
+			return port
+		}
+		s.logger.Info("KV cache source rank exceeds the port range, using pod-local derivation",
+			"rank", kvSourceRankFrom(ctx), "basePort", s.config.P2PConnectorPort)
+	}
+	return s.p2pPortFor(sourceHostPort)
 }
 
 // p2pPortFor resolves the P2P tier control port on the target endpoint. The
@@ -306,7 +365,7 @@ func (s *Server) decodeWithP2PSource(w http.ResponseWriter, r *http.Request, sou
 		return
 	}
 
-	p2pParams := s.p2pSourceParams(sourceHostPort)
+	p2pParams := s.p2pSourceParams(r.Context(), sourceHostPort)
 	// Rebuild kv_transfer_params from scratch: the sidecar owns this field, so
 	// client-supplied keys are dropped rather than forwarded to vLLM.
 	requestData[requestFieldKVTransferParams] = map[string]any{requestFieldRemoteKVSource: p2pParams}
