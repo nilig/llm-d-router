@@ -1,0 +1,8 @@
+# arm=affinity hot=64x48000tok out=512
+# warmup: 64 ok / 0 fail in 13s (64 hot prefixes seeded)
+offered   sent     ok  fail  wall_s  achieved  ttft_p50  lat_p50
+     12    720    720     0    60.3     11.94       188      300
+     24   1440   1440     0    62.5     23.04       183      312
+     36   2160   2160     0    63.5     34.03       190      360
+     48   2880   2880     0    62.6     46.03       196      378
+# done

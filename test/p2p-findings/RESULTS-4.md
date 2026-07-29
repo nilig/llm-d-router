@@ -1853,3 +1853,56 @@ This is the strongest same-stack P2P result in the campaign and the one
 regime where the pull cannot be designed away by better placement: the KV
 lives on the other role. Configs, arm scripts and result JSON:
 [configs/run-o-rerun](configs/run-o-rerun).
+
+## Scenario B at 64 prefixes: the payoff case, finally reproduced
+
+The guide's Scenario B claims a hot set that overwhelms its cache owners
+and a pull that rescues it. At the published 8 x 48K it could not: the set
+fits in every pod (0.31x one pod's GPU cache), so nothing was ever
+recomputed. Resizing walked the working-set ratio until the pathology
+appeared. Same rig, arms, ladder and protocol throughout; only `NUM_HOT`
+changed.
+
+| hot set | vs one pod's GPU cache | outcome |
+|---|---|---|
+| 8 x 48K (published) | 0.31x | fits everywhere - no pathology, pull idle |
+| 32 x 48K | 1.26x | churn transient only (13.6x during redistribution, then absorbed by replication) |
+| **64 x 48K** | **2.5x** | **sustained collapse; the pull prevents it entirely** |
+
+### 64 x 48K (3.07M tokens): achieved req/s / TTFT p50 / latency p50
+
+| offered | `affinity` | `load` - no P2P | `load + P2P` |
+|---:|---|---|---|
+| 12 | 11.94 / 188 ms / 300 ms | 9.31 / 7,925 ms / 16.6 s | 11.84 / 310 ms / 423 ms |
+| 24 | 23.04 / 183 / 312 | 11.47 / 24,345 / 34.5 s | 22.83 / 271 / 419 |
+| 36 | 34.03 / 190 / 360 | 11.77 / 47,033 / 61.6 s | 34.34 / 249 / 445 |
+| 48 | 46.03 / 196 / 378 | 13.85 / 58,187 / 72.5 s, **274 failures** | 44.93 / 254 / 477, **0 failures** |
+
+Pull evidence in `load + P2P`: **120 P2P sessions**, 204M external-hit
+tokens, **7.54 TB** through the offload tier, GPU hit rate 43.2% (the set
+genuinely does not fit - contrast the 8-prefix run's 95.8%).
+
+**Same placement, the pull the only difference, at offered 48:**
+throughput **13.85 -> 44.93 req/s (+224%)**, TTFT p50 **58.2 s -> 254 ms
+(229x)**, and **274 client-timeout failures -> zero**. The recompute floor
+caps near 12-14 req/s at every offered rate above 24; the pull arm tracks
+offered rate to 48 within 2% of affinity's own throughput.
+
+These are the first failures recorded anywhere in this campaign, and they
+are the guide's own pathology: a fleet shedding a quarter of its requests
+because every displaced request re-prefills 48K tokens. The published
+Scenario B attributed that collapse to *affinity* concentrating on owners;
+measured here, at a set size where the pathology exists at all, it is the
+**recompute floor** that sheds while affinity is fine (46.03 req/s at 196
+ms - with 64 prefixes over 16 pods, ownership spreads ~4 per pod and no
+owner is overloaded).
+
+**The parameter that decides this scenario is the working-set-to-pod-cache
+ratio, and the guide never states it.** Below 1x there is nothing to
+measure; near 1x replication absorbs the miss stream after one stage of
+churn; above ~2x the misses are permanent and the pull is the difference
+between a serving fleet and a shedding one. Any deployment reading
+Scenario B should size its own hot set against
+`GPU KV per pod` before expecting either result.
+
+Configs and logs: [configs/scenario-b64](configs/scenario-b64).
