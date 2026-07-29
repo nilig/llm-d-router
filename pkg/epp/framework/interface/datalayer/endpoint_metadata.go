@@ -37,6 +37,11 @@ type EndpointMetadata struct {
 	// RankIndex is this endpoint's position in the pool's TargetPorts,
 	// identifying the pod-local rank in multi-port deployments.
 	RankIndex int
+	// RanksPerPod is the pool's configured TargetPorts count: the rank stride
+	// between consecutive pods of a multi-pod DP group. Unlike a count of
+	// active endpoints, it stays stable when a subset of ports is inactive.
+	// Zero for discovery sources that do not know the pool shape.
+	RanksPerPod int
 }
 
 // String returns a string representation of the endpoint.
@@ -67,6 +72,7 @@ func (epm *EndpointMetadata) Clone() *EndpointMetadata {
 		MetricsHost: epm.MetricsHost,
 		Labels:      clonedLabels,
 		RankIndex:   epm.RankIndex,
+		RanksPerPod: epm.RanksPerPod,
 	}
 }
 
@@ -83,6 +89,7 @@ func (epm *EndpointMetadata) Equal(other *EndpointMetadata) bool {
 		epm.Port == other.Port &&
 		epm.MetricsHost == other.MetricsHost &&
 		epm.RankIndex == other.RankIndex &&
+		epm.RanksPerPod == other.RanksPerPod &&
 		maps.Equal(epm.Labels, other.Labels)
 }
 
@@ -93,6 +100,15 @@ func (epm *EndpointMetadata) GetRankIndex() int {
 		return 0
 	}
 	return epm.RankIndex
+}
+
+// GetRanksPerPod returns the pool's configured per-pod rank count, or 0 when
+// the discovery source does not know the pool shape.
+func (epm *EndpointMetadata) GetRanksPerPod() int {
+	if epm == nil {
+		return 0
+	}
+	return epm.RanksPerPod
 }
 
 // GetNamespacedName gets the namespace name of the Endpoint.

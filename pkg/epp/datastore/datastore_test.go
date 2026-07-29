@@ -665,6 +665,7 @@ func TestEndpointMetadata(t *testing.T) {
 					Port:        inferencePoolTargetPort,
 					MetricsHost: net.JoinHostPort(pod1.Status.PodIP, inferencePoolTargetPort),
 					Labels:      map[string]string{},
+					RanksPerPod: 1,
 				},
 			},
 			op: func(ctx context.Context, ds Datastore) {
@@ -688,6 +689,7 @@ func TestEndpointMetadata(t *testing.T) {
 					Port:        inferencePoolMultiTargetPort0,
 					MetricsHost: net.JoinHostPort(pod1.Status.PodIP, inferencePoolMultiTargetPort0),
 					Labels:      map[string]string{},
+					RanksPerPod: 2,
 				},
 				{
 					NamespacedName: types.NamespacedName{
@@ -702,6 +704,7 @@ func TestEndpointMetadata(t *testing.T) {
 					MetricsHost: net.JoinHostPort(pod1.Status.PodIP, inferencePoolMultiTargetPort1),
 					Labels:      map[string]string{},
 					RankIndex:   1,
+					RanksPerPod: 2,
 				},
 			},
 			op: func(ctx context.Context, ds Datastore) {
@@ -725,6 +728,7 @@ func TestEndpointMetadata(t *testing.T) {
 					Port:        inferencePoolMultiTargetPort0,
 					MetricsHost: net.JoinHostPort(pod1.Status.PodIP, inferencePoolMultiTargetPort0),
 					Labels:      map[string]string{},
+					RanksPerPod: 2,
 				},
 				{
 					NamespacedName: types.NamespacedName{
@@ -739,6 +743,7 @@ func TestEndpointMetadata(t *testing.T) {
 					MetricsHost: net.JoinHostPort(pod1.Status.PodIP, inferencePoolMultiTargetPort1),
 					Labels:      map[string]string{},
 					RankIndex:   1,
+					RanksPerPod: 2,
 				},
 				{
 					NamespacedName: types.NamespacedName{
@@ -752,6 +757,7 @@ func TestEndpointMetadata(t *testing.T) {
 					Port:        inferencePoolMultiTargetPort0,
 					MetricsHost: net.JoinHostPort(pod2.Status.PodIP, inferencePoolMultiTargetPort0),
 					Labels:      map[string]string{},
+					RanksPerPod: 2,
 				},
 				{
 					NamespacedName: types.NamespacedName{
@@ -766,6 +772,7 @@ func TestEndpointMetadata(t *testing.T) {
 					MetricsHost: net.JoinHostPort(pod2.Status.PodIP, inferencePoolMultiTargetPort1),
 					Labels:      map[string]string{},
 					RankIndex:   1,
+					RanksPerPod: 2,
 				},
 			},
 			op: func(ctx context.Context, ds Datastore) {
@@ -789,6 +796,7 @@ func TestEndpointMetadata(t *testing.T) {
 					Port:        inferencePoolMultiTargetPort0,
 					MetricsHost: net.JoinHostPort(pod1.Status.PodIP, inferencePoolMultiTargetPort0),
 					Labels:      map[string]string{},
+					RanksPerPod: 2,
 				},
 				{
 					NamespacedName: types.NamespacedName{
@@ -803,6 +811,7 @@ func TestEndpointMetadata(t *testing.T) {
 					MetricsHost: net.JoinHostPort(pod1.Status.PodIP, inferencePoolMultiTargetPort1),
 					Labels:      map[string]string{},
 					RankIndex:   1,
+					RanksPerPod: 2,
 				},
 			},
 			op: func(ctx context.Context, ds Datastore) {

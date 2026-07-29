@@ -491,14 +491,20 @@ func TestProduce_NilMetrics_NeutralLoad(t *testing.T) {
 	assert.Equal(t, "10.0.0.2:8080", best.hostPort)
 }
 
-// rankedEndpoint builds a candidate with a pod-local rank and an optional LWS
-// worker-index label, mirroring one rank-endpoint of a multi-port pool.
+// rankedEndpoint builds a candidate with a pod-local rank, the pool's
+// configured stride, and an optional LWS worker-index label, mirroring one
+// rank-endpoint of a multi-port pool.
 func rankedEndpoint(p *Producer, name, address string, cachedBlocks, rankIndex int, workerIndex string) scheduling.Endpoint {
+	return stridedEndpoint(p, name, address, cachedBlocks, rankIndex, 8, workerIndex)
+}
+
+func stridedEndpoint(p *Producer, name, address string, cachedBlocks, rankIndex, ranksPerPod int, workerIndex string) scheduling.Endpoint {
 	md := &fwkdl.EndpointMetadata{
 		NamespacedName: k8stypes.NamespacedName{Name: name},
 		Address:        address,
 		Port:           fmt.Sprintf("%d", 8000+rankIndex),
 		RankIndex:      rankIndex,
+		RanksPerPod:    ranksPerPod,
 	}
 	if workerIndex != "" {
 		md.Labels = map[string]string{lwsWorkerIndexLabel: workerIndex}
@@ -550,17 +556,53 @@ func TestProduce_StashesGlobalRank(t *testing.T) {
 	req := &scheduling.InferenceRequest{RequestID: "req-rank"}
 	var eps []scheduling.Endpoint
 	for r := 0; r < 4; r++ {
-		eps = append(eps, rankedEndpoint(p, fmt.Sprintf("leader-r%d", r), "10.0.0.1", 0, r, "0"))
-		eps = append(eps, rankedEndpoint(p, fmt.Sprintf("worker-r%d", r), "10.0.0.2", 0, r, "1"))
+		eps = append(eps, stridedEndpoint(p, fmt.Sprintf("leader-r%d", r), "10.0.0.1", 0, r, 4, "0"))
+		eps = append(eps, stridedEndpoint(p, fmt.Sprintf("worker-r%d", r), "10.0.0.2", 0, r, 4, "1"))
 	}
 	// The only candidate with cached blocks: worker pod, local rank 2 -> global 6.
-	eps[5] = rankedEndpoint(p, "worker-r2", "10.0.0.2", 3, 2, "1")
+	eps[5] = stridedEndpoint(p, "worker-r2", "10.0.0.2", 3, 2, 4, "1")
 	require.NoError(t, p.Produce(ctx, req, eps))
 
 	best, ok := scheduling.ReadRequestAttribute[*bestMatchPeer](req, p.attrKey())
 	require.True(t, ok)
 	assert.Equal(t, "10.0.0.2:8002", best.hostPort)
 	assert.Equal(t, 6, best.globalRank)
+}
+
+// A missing rank endpoint must not shift the stride: the configured
+// TargetPorts count decides the worker offset, not the active-endpoint count.
+// The absent endpoint is on the SOURCE pod itself - an address-mate count
+// would see 7 ranks and compute 1*7+3 = 10 instead of the configured
+// 1*8+3 = 11.
+func TestGlobalRank_MissingEndpoint_StrideStable(t *testing.T) {
+	p := New("test", Config{MinCachedTokenDelta: 1})
+	var eps []scheduling.Endpoint
+	for r := 0; r < 8; r++ {
+		eps = append(eps, rankedEndpoint(p, fmt.Sprintf("leader-r%d", r), "10.0.0.1", 1, r, "0"))
+		if r != 5 {
+			// worker rank 5's endpoint is absent (inactive port)
+			eps = append(eps, rankedEndpoint(p, fmt.Sprintf("worker-r%d", r), "10.0.0.2", 1, r, "1"))
+		}
+	}
+	var worker3 scheduling.Endpoint
+	for _, ep := range eps {
+		if ep.GetMetadata().NamespacedName.Name == "worker-r3" {
+			worker3 = ep
+		}
+	}
+	require.NotNil(t, worker3)
+	assert.Equal(t, 11, globalRank(worker3.GetMetadata(), eps))
+}
+
+// Metadata without the pool shape falls back to counting the pod's visible
+// endpoints.
+func TestGlobalRank_NoStride_CountsEndpoints(t *testing.T) {
+	p := New("test", Config{MinCachedTokenDelta: 1})
+	var eps []scheduling.Endpoint
+	for r := 0; r < 4; r++ {
+		eps = append(eps, stridedEndpoint(p, fmt.Sprintf("worker-r%d", r), "10.0.0.2", 1, r, 0, "1"))
+	}
+	assert.Equal(t, 4+3, globalRank(eps[3].GetMetadata(), eps))
 }
 
 // PreRequest emits the global rank header alongside the source header.

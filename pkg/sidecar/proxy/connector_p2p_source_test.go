@@ -163,6 +163,71 @@ var _ = Describe("P2P KV cache source header", func() {
 		<-testInfo.stoppedCh
 	})
 
+	It("should resolve the P2P port from the rank header end to end", func() {
+		proxyBaseAddr := testInfo.startProxy()
+
+		sendRequest(proxyBaseAddr, map[string]string{
+			routing.KVCacheSourceHeader:     kvCacheSource,
+			routing.KVCacheSourceRankHeader: "11",
+		})
+
+		decodeReqs := testInfo.decodeHandler.GetCompletionRequests()
+		Expect(decodeReqs).To(HaveLen(1))
+		kvParams, ok := decodeReqs[0][requestFieldKVTransferParams].(map[string]any)
+		Expect(ok).To(BeTrue())
+		p2p, ok := kvParams[requestFieldRemoteKVSource].(map[string]any)
+		Expect(ok).To(BeTrue())
+		Expect(p2p[requestFieldRemotePort]).To(BeNumerically("==", p2pConnectorPort+11))
+
+		testInfo.cancelFn()
+		<-testInfo.stoppedCh
+	})
+
+	It("should resolve the rank header on the prefill leg under disaggregation", func() {
+		proxyBaseAddr := testInfo.startProxy()
+
+		prefillHostPort := testInfo.prefillBackend.URL[len("http://"):]
+		sendRequest(proxyBaseAddr, map[string]string{
+			routing.PrefillEndpointHeader:   prefillHostPort,
+			routing.KVCacheSourceHeader:     kvCacheSource,
+			routing.KVCacheSourceRankHeader: "11",
+		})
+
+		Eventually(func() int {
+			return len(testInfo.prefillHandler.GetCompletionRequests())
+		}).Should(Equal(1))
+
+		preq := testInfo.prefillHandler.GetCompletionRequests()[0]
+		prefillKVParams, ok := preq[requestFieldKVTransferParams].(map[string]any)
+		Expect(ok).To(BeTrue())
+		p2p, ok := prefillKVParams[requestFieldRemoteKVSource].(map[string]any)
+		Expect(ok).To(BeTrue())
+		Expect(p2p[requestFieldRemotePort]).To(BeNumerically("==", p2pConnectorPort+11))
+
+		testInfo.cancelFn()
+		<-testInfo.stoppedCh
+	})
+
+	It("should ignore an invalid rank header and keep the base port", func() {
+		proxyBaseAddr := testInfo.startProxy()
+
+		sendRequest(proxyBaseAddr, map[string]string{
+			routing.KVCacheSourceHeader:     kvCacheSource,
+			routing.KVCacheSourceRankHeader: "not-a-rank",
+		})
+
+		decodeReqs := testInfo.decodeHandler.GetCompletionRequests()
+		Expect(decodeReqs).To(HaveLen(1))
+		kvParams, ok := decodeReqs[0][requestFieldKVTransferParams].(map[string]any)
+		Expect(ok).To(BeTrue())
+		p2p, ok := kvParams[requestFieldRemoteKVSource].(map[string]any)
+		Expect(ok).To(BeTrue())
+		Expect(p2p[requestFieldRemotePort]).To(BeNumerically("==", p2pConnectorPort))
+
+		testInfo.cancelFn()
+		<-testInfo.stoppedCh
+	})
+
 	It("should not inject remote_kv_source params without the header", func() {
 		proxyBaseAddr := testInfo.startProxy()
 

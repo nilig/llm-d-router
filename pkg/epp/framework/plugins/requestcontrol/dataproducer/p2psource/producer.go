@@ -151,9 +151,11 @@ const lwsWorkerIndexLabel = "leaderworkerset.sigs.k8s.io/worker-index"
 
 // globalRank resolves md's engine global data-parallel rank: the endpoint's
 // pod-local rank (its position in the pool's target ports) offset by the
-// pod's base rank within its DP group. ranksPerPod is counted from the
-// endpoints sharing md's address rather than configured, so the value tracks
-// the deployed pool shape.
+// pod's base rank within its DP group. The stride is the pool's configured
+// TargetPorts count carried on the metadata - a count of active endpoints
+// would shrink when a rank's endpoint is missing and shift every later
+// worker pod's offset. Counting endpoints sharing md's address is the
+// fallback for discovery sources that do not carry the pool shape.
 func globalRank(md *fwkdl.EndpointMetadata, endpoints []scheduling.Endpoint) int {
 	workerIndex := 0
 	if v, ok := md.Labels[lwsWorkerIndexLabel]; ok {
@@ -164,10 +166,12 @@ func globalRank(md *fwkdl.EndpointMetadata, endpoints []scheduling.Endpoint) int
 	if workerIndex == 0 {
 		return md.GetRankIndex()
 	}
-	ranksPerPod := 0
-	for _, ep := range endpoints {
-		if em := ep.GetMetadata(); em != nil && em.Address == md.Address {
-			ranksPerPod++
+	ranksPerPod := md.GetRanksPerPod()
+	if ranksPerPod == 0 {
+		for _, ep := range endpoints {
+			if em := ep.GetMetadata(); em != nil && em.Address == md.Address {
+				ranksPerPod++
+			}
 		}
 	}
 	if ranksPerPod == 0 {

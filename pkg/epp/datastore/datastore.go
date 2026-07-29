@@ -343,6 +343,7 @@ func (ds *datastore) podUpdateOrAddIfNotExist(ctx context.Context, pod *corev1.P
 				MetricsHost:    net.JoinHostPort(pod.Status.PodIP, strconv.Itoa(port)),
 				Labels:         labels,
 				RankIndex:      idx,
+				RanksPerPod:    len(pool.TargetPorts),
 			})
 	}
 
