@@ -1906,3 +1906,58 @@ Scenario B should size its own hot set against
 `GPU KV per pod` before expecting either result.
 
 Configs and logs: [configs/scenario-b64](configs/scenario-b64).
+
+## GLM-5.2 wide-EP on the merged upstream tier - the overlay era is over
+
+The wide-EP testbed's published numbers were measured on
+`nightly-6a9f24aa` plus the `generic-p2p-src` source overlay (10 files
+mounted over the installed package), because the P2P tier was not upstream
+yet. Redeployed here on `nightly-6f91edf9` - the first nightly carrying the
+tier (vllm#48021) together with all three robustness fixes (vllm#49671,
+vllm#49823, vllm#49877) - with **every overlay mount and the ConfigMap
+volume removed**.
+
+Result: `zai-org/GLM-5.2-FP8` (753B MoE) came up and served, 32x H200,
+1 prefill + 1 decode instance at 16-way data/expert parallel each across 2
+pods, P/D disaggregated, `MultiConnector` (NIXL + Offloading with the p2p
+secondary tier):
+
+- **32/32 ranks created the P2P tier** (`Created secondary tier #0 (p2p)`,
+  each binding its own ZMQ ROUTER on the rank-offset port).
+- Both former hotfixes report their targets already fixed upstream
+  (`mla_attention.py already patched`; the offloading `set_` overflow
+  pattern no longer present), so the deployment needs no patching at all.
+- End-to-end completion through the EPP returned HTTP 200 with coherent
+  output.
+- No `ImportError`/`AttributeError` anywhere - the engine runs entirely on
+  installed code.
+
+**This validates the guide's current deployment instructions at the largest
+scale in the campaign**: pin the nightly, skip the overlay. Every earlier
+wide-EP result required the patched-source workaround; this one does not.
+
+### Operational finding: a single rank's UCX stall blocks the whole group
+
+Hit twice during this deploy, on different roles and nodes. A rank logs
+`NixlTransport ... backends=[UCX]` and then nothing - no `Backend UCX was
+instantiated`, no ROUTER bind, no tier - silently, with no error, no
+restart and near-zero CPU. Because the DP Coordinator waits for all ranks,
+every healthy rank sits in `Waiting for READY message from DP
+Coordinator...` indefinitely (500+ polling lines observed) and the fleet
+never reports ready inside its 45-minute startup budget.
+
+Diagnose by counting per pod - these should equal the local rank count:
+
+```
+kubectl logs <pod> -c vllm | grep -c "Backend UCX was instantiated"
+kubectl logs <pod> -c vllm | grep -c "Created secondary tier"
+```
+
+A pod at 7/8 names its own culprit by diffing the ranks that logged a tier
+against the ranks present in the log (DP14 in the case here). The remedy is
+to delete any pod of the affected LWS group; the group restarts together
+and the stall does not reproduce - it is transient, not a bad node (the
+replacement landed on the same node via leafgroup podAffinity and came up
+clean). Two misreadings to avoid: the `/dev/infiniband` list skipping index
+5 is normal on this cluster (all pods show `uverbs0-4,6-8`), and
+`/dev/shm` reaching ~800 GB means the CPU tiers allocated fine.
