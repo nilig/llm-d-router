@@ -1763,3 +1763,39 @@ magnitude do not, and the guide's When-to-use paragraph should be
 re-anchored to these numbers.
 
 Configs, driver and raw logs: [configs/scenario-a-rerun](configs/scenario-a-rerun).
+
+## Scenario B resized (32 x 48K): the pathology is a churn transient, and
+## the pull erases it
+
+Per review, the hot set was resized from 8 to 32 prefixes (1.54M tokens,
+1.26x one pod's GPU cache) so no single pod can hold the whole set. Same
+rig, arms and ladder as the Scenario B re-run; cold roll + gate per arm.
+
+achieved req/s / TTFT p50 / latency p50:
+
+| rate | `affinity` | `load` - no P2P | `load + P2P` |
+|---:|---|---|---|
+| 12 | 11.72 / 182 ms / 292 ms | 11.08 / **4,121 ms** / 11.1 s | 11.94 / **304 ms** / 421 ms |
+| 24 | 23.00 / 190 / 319 | 22.98 / 224 / 456 | 23.15 / 202 / 353 |
+| 36 | 33.17 / 184 / 355 | 34.91 / 191 / 372 | 34.35 / 195 / 373 |
+| 48 | 43.39 / 193 / 375 | 45.48 / 200 / 399 | 45.90 / 202 / 402 |
+
+Zero failures in all arms (23,040 requests). Pull evidence in `load + P2P`:
+**120 P2P sessions**, 51.4M external-hit tokens, 1.9 TB through the tier.
+
+Two results. First, the same-placement pull win is real but confined to the
+**redistribution window**: in stage 1, while scattered placement churns the
+caches, the pull holds TTFT at 304 ms where recompute pays 4,121 ms
+(13.6x). Second, at this size the window closes: a pod fits ~25 of the 32
+prefixes, so after one stage of churn every pod holds most of the set and
+all three arms converge at ~200 ms - steady state is again a null.
+
+1.26x a pod's cache is therefore still too small for a *sustained*
+separation: replication across 16 pods absorbs it. The variant that cannot
+be absorbed - 64 prefixes, 3.07M tokens, 2.5x a pod's cache - is staged
+next. Affinity note: with 32 prefixes over 16 pods ownership spreads (~2
+per pod) and affinity carries 48 req/s at 193 ms without strain, so the
+original 8-prefix owner-concentration framing does not transfer to this
+size either.
+
+Configs and logs: [configs/scenario-b32](configs/scenario-b32).
