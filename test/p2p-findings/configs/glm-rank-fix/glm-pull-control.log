@@ -1,0 +1,11 @@
+src=http://10.0.15.33:8200 (p2p 10.0.15.33:7777, 16 ranks seeded) dst=http://10.0.10.167:8000 model=zai-org/GLM-5.2-FP8 lengths=[12288] reps=3
+mesh warm: first pull 1161 ms (one-time session cost, discarded)
+  tokens  recompute_ms    pull_ms    delta  pull_MB_in
+   control(no pull):   1594.5 ms        0.0 MB
+   pull           :   1187.6 ms     1138.2 MB
+   control(no pull):   1596.8 ms        0.0 MB
+   pull           :   1227.7 ms     1138.2 MB
+   control(no pull):   1602.3 ms        0.0 MB
+   pull           :   1201.6 ms     1138.2 MB
+   12288        1596.8     1201.6   -24.7%      1138.2
+MIN_CACHED_TOKEN_DELTA=12288

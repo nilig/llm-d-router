@@ -1961,3 +1961,118 @@ replacement landed on the same node via leafgroup podAffinity and came up
 clean). Two misreadings to avoid: the `/dev/infiniband` list skipping index
 5 is normal on this cluster (all pods show `uverbs0-4,6-8`), and
 `/dev/shm` reaching ~800 GB means the CPU tiers allocated fine.
+
+## GLM crossover re-measured on the upstream tier, with a control that
+## proves the pull
+
+2026-07-29. Consumer = prefill leader (the P/D-relevant direction), source =
+decode leader, direct `kv_transfer_params` injection (no EPP, no sidecar),
+fresh random token IDs per probe, medians of 3, warm mesh, first pull
+discarded. Configs and raw logs: [configs/glm-rank-fix](configs/glm-rank-fix).
+
+Coarse (4K-24K) and fine (8K-12K) sweeps agree: recompute is linear at
+130.2 / 146.6 us/token, the pull is FLAT at ~1,251 / ~1,214 ms, fitted tie
+points 8,713 and 8,604 tokens - **crossover ~8,650**, down from the
+overlay-era 13,648 because the pull floor fell from ~1.7-2.3 s to ~1.25 s.
+Recommended `minCachedTokenDelta: 12288`: 8,192 is a dead tie whose sign
+flips between runs (+9.6% / -1.0%); 12,288 is the lowest length both sweeps
+call decisively (-27.4% / -27.8%).
+
+| tokens | recompute | pull | delta | pulled in |
+|---:|---:|---:|---:|---:|
+| 4,096 | 672.2 ms | 1,262.2 ms | +87.8% | 379.4 MB |
+| 8,192 | 1,067.8 ms | 1,170.6 ms | +9.6% | 758.8 MB |
+| 12,288 | 1,708.5 ms | 1,241.0 ms | -27.4% | 1,138.2 MB |
+| 16,384 | 2,148.3 ms | 1,268.9 ms | -40.9% | 1,517.6 MB |
+| 24,576 | 3,338.0 ms | 1,315.3 ms | -60.6% | 2,276.4 MB |
+
+The paired control at 12,288 - same seeded fresh prefix, pull parameter the
+only difference - reads **0.0 MB without the parameter and 1,138.2 MB with
+it**, three reps, byte-identical. `CPU_to_GPU` is ambiguous in general (it
+counts local restores) but is peer-attributable when the consumer has never
+seen the token IDs; this control is what makes the byte column trustworthy
+and is now built into the calibration recipe.
+
+Transfer rate is constant at **92.6 KB/token** across every length.
+
+## The rank-addressing bug: why wide-EP pulls only ever worked from leader
+## pods, and why fixing the index alone made things worse
+
+vLLM binds the OffloadingConnector P2P tier at `p2p-connector-port +
+GLOBAL DP rank` (measured live: decode leader 7777-7784, worker 7785-7792).
+The EPP `p2p-source-producer` emits only the source's serving `host:port`,
+and the sidecar's `p2pPortFor` derives the POD-LOCAL rank from the serving
+port. Leaders are correct (local == global); worker-pod sources dial below
+their listener range. On this 2-pod x DP8 cell, at most **8/16 rank sources
+were ever pullable**.
+
+Severity: a mis-addressed pull does not degrade to recompute - **the
+request hangs until the client gives up**. Live discriminator on the fixed
+sidecar, source = decode worker local rank 3 (global 11), seeded
+deterministically via its per-rank API port `:8003`, 24,576 tokens:
+
+| | dials | outcome | bytes into consumer |
+|---|---|---|---:|
+| no rank header (shipped) | :7780 (not listening) | 600 s client timeout | 0.0 MB |
+| `x-kv-cache-source-rank: 11` (fix) | :7788 | 25.6 s | **2,276.4 MB** |
+
+2,276.4 MB is byte-identical to the calibration's 24K value - the sidecar
+path now moves exactly what direct injection moves.
+
+This closes the campaign's three-era GLM causal chain:
+
+1. `podCacheSize: 10` (default): the per-key LRU holds 10 (endpoint, tier)
+   entries against 64 contenders, real holders evict, the producer never
+   finds a peer - **pull inert, clean null A/B**.
+2. `podCacheSize: 64`, shipped sidecar: sources emitted for the first time,
+   worker-pod sources hang requests - **warmup collapse** ("prefill
+   returned 502" / "context canceled" burst).
+3. `podCacheSize: 64` + rank fix: the valid configuration.
+
+Fixing the index WITHOUT the rank fix is worse than fixing neither.
+
+The fix (EPP emits the global rank in a companion `x-kv-cache-source-rank`
+header - worker-index label x configured `len(pool.TargetPorts)` stride +
+pod-local rank; sidecar prefers it over port derivation) is on
+`fix/p2p-source-global-rank` (nilig fork, `1f0892ca` + `67db2b8f`), unit-
+and request-level tested, live-validated above. Precedent: MoRIIO's
+per-request `remote_dp_rank` pinning; plain NIXL is immune because the
+prefill engine self-reports its address in the response handshake, and the
+P2P tier has no handshake.
+
+Also queued upstream: the hang itself - a tier fetch to a non-listening
+port should fail fast and fall back to recompute.
+
+## GLM A/B on the fully-fixed stack: the pull wins the tail
+
+Same fleet for both arms (rolled fresh-paired before arm 1), rank-fix
+sidecar on decode, `podCacheSize: 64` in BOTH arm configs, EPP `--v=5`,
+zero 502s and zero hangs in either arm, aiperf agentic profile c128, 900 s.
+Exact deployed arm configs: [configs/glm-rank-fix](configs/glm-rank-fix).
+
+| metric | precise, no pull | precise + pull (16K delta) | delta |
+|---|---:|---:|---:|
+| TTFT p50 | 3,132 ms | 3,107 ms | -0.8% |
+| TTFT p90 | 9,600 ms | 8,716 ms | **-9.2%** |
+| TTFT p95 | 14,127 ms | 12,158 ms | **-13.9%** |
+| TTFT p99 | 24,638 ms | 17,668 ms | **-28.3%** |
+| Request latency p50 | 20,048 ms | 20,046 ms | 0.0% |
+| Throughput | 3.7 req/s | 3.7 req/s | - |
+| Requests | 3,477 | 3,444 | both complete |
+
+The shape is the placement law's signature: medians equal (affinity already
+puts the request where the KV is), tails compressed (the pull rescues the
+displaced and queued cases). Direction matches the original published pair
+(-16% p50 / -15% p90 on the overlay stack) in tail-heavy form.
+
+Attribution caveat: the run-window EPP log rotated away (TRACE at c128
+exceeds kubelet rotation) and the fleet was reclaimed before per-arm byte
+deltas were read, so emissions/bytes for this pair are not recorded. A
+repeat of the pull arm with live mid-run sampling (2-minute emission and
+counter polls to local files) is running as of this entry; its numbers
+supersede this caveat when recorded.
+
+Three observability traps hit in one day, all now procedure: a `--since`
+window that misses the run, a pod replaced after the run (logs die with
+it), and log rotation under TRACE at load. Sample live, to files, during
+the run - never reconstruct afterward.

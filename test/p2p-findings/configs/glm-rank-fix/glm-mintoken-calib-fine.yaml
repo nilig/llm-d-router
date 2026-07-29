@@ -1,0 +1,150 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: glm-mintoken-calib-fine
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 7200
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: calibrate
+        image: python:3.11-slim
+        env:
+        - name: SRC_URL
+          value: "http://10.0.15.33:8200"
+        - name: DST_URL
+          value: "http://10.0.10.167:8000"
+        - name: DST_METRICS
+          value: "http://10.0.10.167:8000/metrics"
+        - name: SRC_IP
+          value: "10.0.15.33"
+        - name: P2P_PORT
+          value: "7777"
+        - name: DP_RANKS
+          value: "16"
+        - name: MODEL_NAME
+          value: "zai-org/GLM-5.2-FP8"
+        - name: LENGTHS
+          value: "8192,9216,10240,11264,12288"
+        - name: REPS
+          value: "3"
+        command: ["python3", "-u", "-c"]
+        args:
+        - |
+          # minCachedTokenDelta calibration, wide-EP variant.
+          #
+          # Same method as the guide recipe (fresh random token IDs per
+          # measurement, medians over REPS, crossover = smallest length where
+          # the pull beats recompute) with one addition required by data
+          # parallelism: vLLM offsets the P2P listener port by GLOBAL DP rank,
+          # so a prefix seeded by a single request lives on exactly one rank's
+          # listener and a pull aimed at the base port usually finds nothing.
+          # The seed is therefore issued as DP_RANKS concurrent identical
+          # requests, which forces the balancer to spread the prefix across
+          # every rank and makes the base port a reliable source.
+          #
+          # Direction is the production one for P/D: consumer = prefill
+          # (it faces history it never computed), source = decode.
+          import concurrent.futures as cf
+          import json, os, random, statistics, time, urllib.request, uuid
+
+          SRC_URL = os.environ["SRC_URL"]
+          DST_URL = os.environ["DST_URL"]
+          DST_METRICS = os.environ["DST_METRICS"]
+          SRC_IP = os.environ["SRC_IP"]
+          P2P_PORT = int(os.environ["P2P_PORT"])
+          DP_RANKS = int(os.environ["DP_RANKS"])
+          MODEL = os.environ["MODEL_NAME"]
+          LENGTHS = [int(x) for x in os.environ["LENGTHS"].split(",")]
+          REPS = int(os.environ["REPS"])
+          rng = random.SystemRandom()
+
+          def fresh_ids(n):
+              return [rng.randint(1000, 30000) for _ in range(n)]
+
+          def post(url, ids, pull=False, timeout=600):
+              body = {"model": MODEL, "prompt": ids, "max_tokens": 1, "temperature": 0}
+              if pull:
+                  body["kv_transfer_params"] = {"remote_kv_source": {
+                      "kv_request_id": str(uuid.uuid4()),
+                      "remote_host": SRC_IP,
+                      "remote_port": P2P_PORT,
+                  }}
+              req = urllib.request.Request(url + "/v1/completions",
+                                           data=json.dumps(body).encode(),
+                                           headers={"Content-Type": "application/json"})
+              t0 = time.monotonic()
+              urllib.request.urlopen(req, timeout=timeout).read()
+              return (time.monotonic() - t0) * 1000.0
+
+          def seed_all_ranks(ids):
+              # Concurrency is what spreads the prefix; sequential seeds on an
+              # idle engine all land on the least-loaded rank, i.e. one rank.
+              with cf.ThreadPoolExecutor(max_workers=DP_RANKS) as ex:
+                  futs = [ex.submit(post, SRC_URL, ids) for _ in range(DP_RANKS)]
+                  return max(f.result() for f in futs)
+
+          def metrics():
+              try:
+                  txt = urllib.request.urlopen(DST_METRICS, timeout=30).read().decode()
+              except Exception:
+                  return {}
+              out = {}
+              for line in txt.splitlines():
+                  if line.startswith("#") or " " not in line:
+                      continue
+                  k, _, v = line.rpartition(" ")
+                  try:
+                      out[k] = float(v)
+                  except ValueError:
+                      pass
+              return out
+
+          def offload_in(m):
+              return sum(v for k, v in m.items()
+                         if "kv_offload_total_bytes_total" in k and "CPU_to_GPU" in k)
+
+          print(f"src={SRC_URL} (p2p {SRC_IP}:{P2P_PORT}, {DP_RANKS} ranks seeded) "
+                f"dst={DST_URL} model={MODEL} lengths={LENGTHS} reps={REPS}", flush=True)
+
+          warm = fresh_ids(4096)
+          seed_all_ranks(warm)
+          time.sleep(3)
+          print(f"mesh warm: first pull {post(DST_URL, warm, pull=True):.0f} ms "
+                f"(one-time session cost, discarded)", flush=True)
+
+          before_names = set(metrics())
+          crossover = None
+          print(f"{'tokens':>8} {'recompute_ms':>13} {'pull_ms':>10} {'delta':>8} {'pull_MB_in':>11}", flush=True)
+          for n in LENGTHS:
+              rec, pul, mb = [], [], []
+              for _ in range(REPS):
+                  a = fresh_ids(n)
+                  rec.append(post(DST_URL, a))
+                  time.sleep(2)
+
+                  b = fresh_ids(n)
+                  seed_all_ranks(b)
+                  time.sleep(3)
+                  m0 = offload_in(metrics())
+                  pul.append(post(DST_URL, b, pull=True))
+                  time.sleep(2)
+                  mb.append((offload_in(metrics()) - m0) / 1e6)
+              mr, mp = statistics.median(rec), statistics.median(pul)
+              d = 100.0 * (mp - mr) / mr
+              print(f"{n:>8} {mr:>13.1f} {mp:>10.1f} {d:>+7.1f}% {statistics.median(mb):>11.1f}", flush=True)
+              if crossover is None and mp < mr:
+                  crossover = n
+
+          new = sorted(set(metrics()) - before_names)
+          if new:
+              print("metric series that appeared during the run:", flush=True)
+              for k in new[:20]:
+                  print("   ", k, flush=True)
+
+          if crossover is None:
+              print("NO CROSSOVER in the tested range.", flush=True)
+              raise SystemExit(1)
+          print(f"MIN_CACHED_TOKEN_DELTA={crossover}", flush=True)
