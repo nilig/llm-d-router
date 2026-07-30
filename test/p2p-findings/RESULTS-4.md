@@ -2115,3 +2115,87 @@ load-first placement (the gpt-oss pool and hot-set wins), restarts/cold
 replicas, and the approximate index (which only learns its own placements
 and estimates by hash). The approximate pair at 753B is the next
 measurement.
+
+## Matched c32 precise vs precise+P2P: -67% mean TTFT, 2.7x throughput,
+## independently reproduced on the PR images (2026-07-30)
+
+The load-spill payoff benchmark, designed and first run by Maroon on the
+kv-source-endpoint fix stack, reproduced end to end on independently
+built images of the llm-d-router PR code (#2233 kvevents rank-endpoint
+attribution + #2234 sidecar full-endpoint guard), a freshly booted fleet,
+and fresh prompt salts. This is the entry designated for the guide's
+benchmark section and the blog.
+
+Setup: GLM-5.2-FP8 wide-EP (prefill 2 pods x DP8 + decode 2 pods x DP8,
+32 H200), vLLM `nightly-6f91edf9`, per-pod port-base compensation
+(`7777 - START_RANK`, `5557 - START_RANK`). Prefill routing policy:
+`precise-prefix-cache-scorer` w1 + `queue-scorer` w3 +
+`active-request-scorer` w1 - deliberately load-first so placement spills
+off the cache holder; the p2p mode adds only `p2p-source-producer`
+(`minCachedTokenDelta: 16384`). Per repetition: fresh ~70K-token salted
+prefix, 3 warmups, 96 measured requests at concurrency 32, 8 output
+tokens. Counterbalanced order (precise r1, p2p r1, p2p r2, precise r2,
+precise r3, p2p r3), EPP restarted and probed on every profile swap.
+Configs, client, runner, one job spec, and all six rep logs:
+`configs/glm-c32-matched/`.
+
+| mode | rep | TTFT mean (s) | p50 | p90 | req/s | wall (s) |
+|---|---:|---:|---:|---:|---:|---:|
+| precise | 1 | 8.436 | 3.798 | 22.133 | 3.484 | 27.6 |
+| precise | 2 | 7.598 | 3.827 | 21.061 | 3.955 | 24.3 |
+| precise | 3 | 7.532 | 4.215 | 20.767 | 3.964 | 24.2 |
+| p2p | 1 | 2.641 | 2.348 | 5.203 | 9.955 | 9.6 |
+| p2p | 2 | 2.454 | 1.790 | 4.839 | 10.509 | 9.1 |
+| p2p | 3 | 2.575 | 1.911 | 4.958 | 9.821 | 9.8 |
+
+All 576 requests returned 200. Aggregate (avg of rep means): precise
+7.855 s / 3.80 req/s vs p2p 2.557 s / 10.10 req/s = **-67.4% mean TTFT,
+-76.5% p90, 2.66x throughput**. Maroon's original on the same fleet
+shape: 7.649 -> 2.310 s (-69.8%), 3.90 -> 10.90 req/s (2.80x); every
+repetition of ours lands in or adjacent to his per-rep bands.
+
+Mechanism: the precise mode's ~21 s p90 is the spill tail - queue-first
+placement sends ~70K-token prompts to non-holders, which recompute. The
+pull replaces that recompute with a flat-cost transfer, collapsing p90 to
+~5 s. Pull-path liveness on this exact build was proven the same morning
+by the correlated pull proof (per-rank attribution 45/45 block keys,
+header, source accept on the rank-offset port, consumer load =
+tokens x 92.6 KB/token, 3/3 runs); per-rep engine load counters were not
+snapshotted in this run (fleet scaled down at completion) - the
+per-request times in the p2p mode are unreachable by 70K-token recompute.
+
+Framing rule for guide/blog: **P2P converts load-spill recompute into a
+flat-cost pull; where routing trades affinity for load balance, it
+recovers the cache reuse that placement gives up.** It is NOT a general
+GLM speedup - under holder-affinity policies (w5) the pull correctly
+idles and arms tie (see the weka section below).
+
+## Weka agentic 4-arm campaign on the fixed stack: codex-corrected record
+## (2026-07-30)
+
+Four arms (precise / precise+P2P / approx / approx+P2P) on aiperf
+`inferencex-agentx-mvp`, dataset `semianalysis_cc_traces_weka_with_subagents`,
+c128, 900 s per arm, same fleet, EPP config the only per-arm variable.
+Configs, runners, aiperf logs, and counter snapshots:
+`configs/glm-weka-4arm/`.
+
+Adversarial review (codex) voided most first-pass conclusions. Surviving
+claims: (1) **approx+P2P went from engine-crashing on the pre-fix stack
+(07-29) to running clean on the fixed stack** - 3,385 requests, 0
+failures; (2) the approx pair shows **no regression** from adding P2P.
+Voided and why: the precise no-pull arm carried 8,571 hidden request
+errors (concurrent-operator EPP disruption mid-run; the Job still
+completed rc=0), so the precise pair is not comparable; P2P
+`accepting incoming connection` counts SESSION establishment, not pulls
+(sessions persist across arms); role-summed connector counters are
+invalid (decode P/D reports ~100% external hits by design; prefill-side
+external hit was ~26% where the sum said 87%); the approx profile
+declares but does not schedule `queue-scorer`.
+
+Warm-arm numbers for the record (not a validated A/B): precise+P2P
+3.56 req/s / TTFT p50 3,287 ms; approx 3.53 / 3,012; approx+P2P 3.60 /
+3,062. Consistent with the placement-creates-the-cache law: under
+holder-affinity routing on recurring-prefix traffic the pull rarely
+fires (~0.8% of requests precise, none observed approx) and cannot
+differentiate arms. The valid payoff measurement for this model is the
+matched c32 section above.
