@@ -1,0 +1,5 @@
+# arm=affinity-p2p-run2 conversations=192 turns=6 concurrency=128 doc=49152tok
+duration=96.8s ok=1152 fail=0 total=1152/1152
+TTFT p50=292ms p95=10066ms p99=18613ms
+throughput=11.90 turns/s
+# done

@@ -1335,6 +1335,11 @@ Configs and raw output: [configs/tcp-crossover](configs/tcp-crossover).
 
 ## Scenario D re-run - the guide's headline reproduces, on the arm that matters
 
+*This campaign ran the precise index at the default `podCacheSize` of 10,
+which undersizes a 16-pod fleet; the corrected record is the podCacheSize
+32 section below. The arm ordering and the cold-start finding hold; the
+magnitudes do not.*
+
 Scenario D is the guide's headline and had never been re-measured on the
 fixed stack. Re-run here with `rdma/ib` verified, 16x gpt-oss-120b
 aggregated (`scend-agg`), the current overlay (#48021 merged + #49877 at
@@ -2259,3 +2264,69 @@ Configs, runner, bench logs, and the distilled per-rep mechanism
 evidence: `configs/glm-c32-fair-approx/` (the raw streamed EPP logs are
 128-145 MB per rep and are summarized in `mech-summary.txt` instead of
 committed).
+
+## Scenario D at podCacheSize 32: the index-sizing bias quantified, and the
+## corrected doc-QA record (2026-07-30)
+
+The Scenario D re-run above ran the EPP's precise index at the default
+`podCacheSize` of 10 per-key holder slots. On a 16-pod fleet that evicts
+real holders (size must be >= endpoints x tiers; see the GLM
+`podCacheSize` finding), so every arm that consults the index - affinity
+placement, and P2P source selection in both P2P arms - ran degraded.
+Re-measured here with the single variable changed: same rig
+(`scend-agg`, 16x gpt-oss-120b single-GPU aggregated), same build
+(`nightly-1240c74c` + sidecar `p2p-rename-43aea48e`), same guide EPP
+configs plus `podCacheSize: 32`, same driver and workload (192
+conversations x 48K-token document, 6 turns x 256 tokens, concurrency
+128, 1,152 turns/run), in-cluster driver, cold roll per arm then two
+runs.
+
+TTFT (ms) and throughput (turns/s):
+
+| arm | run | ok/fail | p50 | p95 | p99 | turns/s |
+|---|---|---|---:|---:|---:|---:|
+| `affinity` | 1 (cold) | 864/48 | 205 | 83,296 | 162,811 | 3.93 |
+| `affinity` | 2 (warm) | 1152/0 | 341 | 14,025 | 25,200 | 10.15 |
+| `affinity + P2P` | 1 (cold) | 870/47 | 200 | 85,739 | 165,359 | 3.90 |
+| `affinity + P2P` | 2 (warm) | 1152/0 | 292 | 10,066 | 18,613 | 11.90 |
+| `load + P2P` | 1 (cold) | 1152/0 | 1,691 | 11,417 | 20,713 | 11.34 |
+| **`load + P2P`** | 2 (warm) | 1152/0 | 564 | **8,970** | **16,643** | **13.66** |
+
+**Correct index sizing is the largest single effect ever measured in this
+scenario.** Versus the podCacheSize-10 run on the identical rig: warm
+`affinity` went 4.65 -> 10.15 turns/s (+118%) with p99 132.6 s -> 25.2 s
+(5.3x); warm `affinity + P2P` 5.06 -> 11.90; warm `load + P2P` 7.54 ->
+13.66 (+81%) with p99 18.2 s -> 16.6 s. Affinity arms improve because
+placement stops evicting the holders it routes on; `load + P2P` improves
+because P2P source selection runs on the same index. The prior campaign's
+7.3x p99 / +62% throughput separation between `load + P2P` and `affinity`
+was therefore mostly an index-undersizing artifact: with the index sized
+correctly the warm gap is **+35% throughput (13.66 vs 10.15) and 1.5x p99
+(25.2 s vs 16.6 s)** - still a clear win, at honest magnitude.
+
+**The cold-start result survives untouched and is now the scenario's
+sharpest separation.** Both affinity arms still collapse onto one pod on
+a cold fleet (no cache signal to separate candidates) and eat 47-48
+client timeouts with p99 ~163-165 s; `load + P2P` cold is clean
+(1152/1152, zero failures) at 2.9x their throughput and 7.9x better p99.
+Correct index sizing does not help a cold index - there is nothing in it
+yet - so this is a placement property, not a tuning artifact.
+
+**`affinity + P2P` versus `affinity` warm reads +17% throughput and -26%
+p99 - suggestive, not established.** One warm run per arm, the
+throughput delta sits inside the 10-28% run-to-run spread previously
+recorded on this workload, and no per-arm session counters survive the
+per-arm cold roll (the fleet's pods are replaced between arms). 120 P2P
+sessions were observed on the fleet during the `load + P2P` arm's
+window, so the pull demonstrably engages under load placement on this
+rig; whether it now also contributes under affinity placement needs a
+repeated pair with per-arm mechanism counters before the insurance-only
+framing is revised.
+
+One `load + P2P` boot hit the UCX-init hang (one pod of 16 log-silent at
+NIXL backend creation for 8+ minutes; deleted, replacement booted in
+seconds) - third occurrence of that failure mode in one day, second
+deployment shape.
+
+Configs, driver, runner, and all six run logs:
+[configs/scenario-d-pcs32](configs/scenario-d-pcs32).

@@ -1,0 +1,6 @@
+# arm=affinity-run1 conversations=192 turns=6 concurrency=128 doc=49152tok
+duration=220.1s ok=864 fail=48 total=912/1152
+TTFT p50=205ms p95=83296ms p99=162811ms
+throughput=3.93 turns/s
+# done
+sample errors: ['timed out', 'timed out', 'timed out', 'timed out', 'timed out']
