@@ -1624,8 +1624,10 @@ holds everywhere in this campaign: the pull pays in proportion to
 (prefix length) x (recompute cost) x (miss rate), and a 6K-token prefix on
 a 29K-tokens/sec-prefill model prices the pull's edge at ~100 ms per rare
 miss. The paths where those factors are large are where the value is
-measured: 48K-token document Q&A (Scenario D: load+P2P 7.3x p99 over
-affinity) and 10K-100K-token agentic sessions (Run O: 4.8x median TTFT).
+measured: 48K-token document Q&A (Scenario D: load+P2P 1.5x p99 warm /
+7.9x cold over affinity at podCacheSize 32; the 7.3x figure was the
+undersized-index measurement) and 10K-100K-token agentic sessions (Run O:
+4.8x median TTFT).
 
 Configs, driver, runner, sampler and raw logs:
 [configs/workload1-optimized-baseline](configs/workload1-optimized-baseline).
@@ -1705,7 +1707,9 @@ deltas it observes), either hook order, and either gate setting.** P2P fires
 only where KV exists that the placement layer did not create:
 
 - generated KV under P/D disaggregation (decode's history - Run M/N/O, 4.8x)
-- placement that deliberately ignores cache (load-first - Scenario D, 7.3x p99)
+- placement that deliberately ignores cache (load-first - Scenario D,
+  1.5x p99 warm / 7.9x cold at podCacheSize 32; 7.3x was the
+  undersized-index figure)
 - divergence inherited from outside the loop (the accidental herd - 39
   sessions; multi-router or scale-out topologies, unmeasured)
 
@@ -2327,6 +2331,11 @@ One `load + P2P` boot hit the UCX-init hang (one pod of 16 log-silent at
 NIXL backend creation for 8+ minutes; deleted, replacement booted in
 seconds) - third occurrence of that failure mode in one day, second
 deployment shape.
+
+Archive note: the 120-session count (a live `kubectl logs | grep -c`
+sweep after the final arm) and the cold-placement in-flight sample quoted
+from the default-size campaign were read live and are not archived; the
+six run logs are the archived record of this campaign.
 
 Configs, driver, runner, and all six run logs:
 [configs/scenario-d-pcs32](configs/scenario-d-pcs32).
