@@ -1,0 +1,12 @@
+Per-rep mechanism evidence distilled from the streamed serving-EPP logs
+(streams are 128-145 MB each and are not committed; distillation code
+in the runner + this file's generator).
+
+p2pbench-fair3-fair-approx-p2p-r1: distinct_request_ids=100 headers_set=15 produce_positive=98 produce_zero=2 bestCachedTokens_max=70016
+p2pbench-fair3-fair-approx-p2p-r2: distinct_request_ids=99 headers_set=15 produce_positive=98 produce_zero=1 bestCachedTokens_max=70016
+p2pbench-fair3-fair-approx-p2p-r3: distinct_request_ids=100 headers_set=16 produce_positive=98 produce_zero=2 bestCachedTokens_max=70016
+p2pbench-fair3-fair-approx-r1: distinct_request_ids=100 headers_set=0 produce_positive=0 produce_zero=0 bestCachedTokens_max=0
+p2pbench-fair3-fair-approx-r2: distinct_request_ids=100 headers_set=0 produce_positive=0 produce_zero=0 bestCachedTokens_max=0
+p2pbench-fair3-fair-approx-r3: distinct_request_ids=99 headers_set=0 produce_positive=0 produce_zero=0 bestCachedTokens_max=0
+
+mechanism-probe (seed 70K -> repeat on fair-approx-p2p): produce_positive=1 produce_zero=2 bestCachedTokens_max=131072

@@ -2199,3 +2199,63 @@ holder-affinity routing on recurring-prefix traffic the pull rarely
 fires (~0.8% of requests precise, none observed approx) and cannot
 differentiate arms. The valid payoff measurement for this model is the
 matched c32 section above.
+
+## Fair four-way closes: the index is the lever - precise turns the pull
+## into -67%, approx into ~-11% (2026-07-30)
+
+The approx side of the matched c32 benchmark, run with the same scorers
+and weights as the precise pair (`controlled-prefix-cache-scorer` w1 +
+`queue-scorer` w3 + `active-request-scorer` w1, `minCachedTokenDelta:
+16384`); the only difference between index modes is the producer
+(`approx-prefix-cache-producer`, blockSizeTokens 64,
+maxPrefixTokensToMatch 131072, lruCapacityPerServer 200000, vs the
+KV-event-fed precise producer). Single-deployment harness with per-rep
+traffic validation: every rep's streamed serving-EPP log carries the
+benchmark's own 99-100 distinct request IDs (a first-run version of this
+experiment was VOID for exactly that reason - the cloned jobs' `--url`
+pointed at a different EPP deployment than the one being swapped and
+observed; harness rule recorded in the runner).
+
+A mechanism probe gated the campaign: seed one ~131K-token prompt through
+the EPP on `fair-approx-p2p`, send it again, require
+`bestCachedTokens > 0` on the repeat. It credited the full
+`maxPrefixTokensToMatch` (131,072) - the approx index works; the prior
+"approx credits nothing" observation was the void run's readiness probe.
+
+| rep | TTFT mean (s) | p50 | p90 | req/s | headers fired |
+|---|---:|---:|---:|---:|---:|
+| approx r1 | 9.33 | 4.32 | 22.9 | 3.13 | 0 |
+| approx r2 | 7.84 | 1.88 | 21.3 | 3.76 | 0 |
+| approx r3 | 8.32 | 3.76 | 19.1 | 2.87 | 0 |
+| approx+P2P r1 | 7.55 | 2.45 | 20.5 | 3.93 | 15 |
+| approx+P2P r2 | 7.24 | 3.11 | 19.7 | 4.06 | 15 |
+| approx+P2P r3 | 7.86 | 4.08 | 19.3 | 2.95 | 16 |
+
+Four-way, identical policy (precise rows are the same-day matched pair):
+
+| mode | TTFT mean | TTFT p90 | req/s |
+|---|---:|---:|---:|
+| approx, no pull | 8.50 s | 21.1 s | 3.25 |
+| approx + P2P | 7.55 s | 19.8 s | 3.65 |
+| precise, no pull | 7.86 s | 21.3 s | 3.80 |
+| precise + P2P | **2.56 s** | **5.0 s** | **10.10** |
+
+Mechanism: inside the benchmark 98/100 source evaluations saw positive
+`bestCachedTokens`, but the header fired on only ~16% of requests
+(15/15/16 per rep - strikingly stable). The best-vs-computing delta
+rarely clears 16,384 because the approx index credits every rank a
+spilled request LANDS on: placement-recorded credit accrues to the spill
+targets themselves, eroding the asymmetry the source decision needs.
+Precise credits only ranks that actually hold KV, so the delta persists
+and the pull rescues the whole spill tail. Net at the rep level the
+approx pull's -11% mean / +12% req/s overlaps the control's own spread
+(approx+P2P r3 7.86 vs approx r2 7.84) - a weak positive trend, not a
+headline.
+
+Deployment guidance this measures: the load-spill payoff requires the
+precise (KV-events) index; the approximate index composes safely with
+the pull and fires occasionally, but recovers little of the spill cost.
+Configs, runner, bench logs, and the distilled per-rep mechanism
+evidence: `configs/glm-c32-fair-approx/` (the raw streamed EPP logs are
+128-145 MB per rep and are summarized in `mech-summary.txt` instead of
+committed).
