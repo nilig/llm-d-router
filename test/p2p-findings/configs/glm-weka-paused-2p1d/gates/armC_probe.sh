@@ -25,7 +25,7 @@ NS="$NS" "$SP/activate_arm.sh" armC
 
 sessions() {
   local n=0 c
-  for p in $(kubectl -n "$NS" get pods -l 'llm-d.ai/model' -o name); do
+  for p in $(kubectl -n "$NS" get pods -l 'llm-d.ai/inference-serving=true' -o name); do
     c=$(kubectl -n "$NS" logs "${p#pod/}" -c vllm --tail=200000 2>/dev/null \
         | grep -c "accepting incoming connection" || true)
     n=$((n+c))

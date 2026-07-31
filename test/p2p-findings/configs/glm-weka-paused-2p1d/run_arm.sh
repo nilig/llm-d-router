@@ -21,7 +21,7 @@ esac
 echo "### ARM $ARM c$CONC (tag $TAG) ns=$NS ###"
 NS="$NS" ./activate_arm.sh "$ARM"
 
-READY=$(kubectl -n "$NS" get pods -l 'llm-d.ai/model' --no-headers \
+READY=$(kubectl -n "$NS" get pods -l 'llm-d.ai/inference-serving=true' --no-headers \
   | awk '{split($2,a,"/"); if (a[1]==a[2] && $3=="Running") n++} END {print n+0}')
 echo "fleet ready pods: $READY (want $FLEET_EXPECT)"
 [ "$READY" -eq "$FLEET_EXPECT" ] || { echo "ABORT: fleet not fully ready"; exit 1; }

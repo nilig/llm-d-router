@@ -19,12 +19,12 @@ kubectl -n "$NS" get pods -o wide > "$OUT/pods.txt"
 kubectl -n "$NS" get lws -o yaml > "$OUT/lws.yaml"
 kubectl -n "$NS" get deploy p2p-pd-epp -o yaml > "$OUT/epp-deploy.yaml"
 
-READY=$(kubectl -n "$NS" get pods -l 'llm-d.ai/model' --no-headers \
+READY=$(kubectl -n "$NS" get pods -l 'llm-d.ai/inference-serving=true' --no-headers \
   | awk '{split($2,a,"/"); if (a[1]==a[2] && $3=="Running") n++} END {print n+0}')
 echo "ready model pods: $READY (want $FLEET_EXPECT)" | tee "$OUT/summary.txt"
 [ "$READY" -eq "$FLEET_EXPECT" ] || { echo "FAIL: fleet not fully ready" | tee -a "$OUT/summary.txt"; fail=1; }
 
-for p in $(kubectl -n "$NS" get pods -l 'llm-d.ai/model' -o name); do
+for p in $(kubectl -n "$NS" get pods -l 'llm-d.ai/inference-serving=true' -o name); do
   pod=${p#pod/}
   kubectl -n "$NS" get "$p" -o json > "$OUT/pod-$pod.json"
 
