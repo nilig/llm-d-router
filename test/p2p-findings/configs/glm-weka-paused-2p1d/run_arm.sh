@@ -22,11 +22,14 @@ READY=$(kubectl -n "$NS" get pods -l 'llm-d.ai/model' --no-headers \
 echo "fleet ready pods: $READY (want $FLEET_EXPECT)"
 [ "$READY" -eq "$FLEET_EXPECT" ] || { echo "ABORT: fleet not fully ready"; exit 1; }
 
-FOREIGN=$(kubectl -n "$NS" get jobs --no-headers 2>/dev/null \
-  | awk -v t="weka-$TAG" '$1 != t {n++} END {print n+0}')
+FOREIGN=$(kubectl -n "$NS" get jobs -o json 2>/dev/null | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+act=[j['metadata']['name'] for j in d['items']
+     if j['metadata']['name'] != 'weka-$TAG' and (j.get('status',{}).get('active') or 0) > 0]
+print(len(act)); [print('  active-foreign:', n, file=sys.stderr) for n in act]")
 if [ "$FOREIGN" -gt 0 ] && [ "$ALLOW_FOREIGN" != "1" ]; then
-  kubectl -n "$NS" get jobs --no-headers | awk -v t="weka-$TAG" '$1 != t'
-  echo "ABORT: $FOREIGN foreign job(s) present (delete them or set ALLOW_FOREIGN=1 with justification)"
+  echo "ABORT: $FOREIGN foreign ACTIVE job(s) present (wait for them or set ALLOW_FOREIGN=1 with justification)"
   exit 1
 fi
 

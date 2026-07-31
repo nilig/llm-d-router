@@ -12,6 +12,27 @@ declare -A CFG=( [armA]=armA-blog-plugins.yaml [armB]=armB-loadfirst.yaml [armC]
 declare -A WANT_P2P=( [armA]=0 [armB]=0 [armC]=1 )
 [ -n "${CFG[$ARM]:-}" ] || { echo "ABORT: unknown arm $ARM"; exit 1; }
 
+# the campaign ConfigMap and the arm's key must exist before any
+# --config-file change, or the rollout ships an EPP that cannot start
+KEY_OK=$(kubectl -n "$NS" get cm p2p-weka-epp-plugins -o json 2>/dev/null | python3 -c "
+import json,sys
+try: d=json.load(sys.stdin)['data']
+except Exception: print('NO_CM'); raise SystemExit
+print('OK' if '${CFG[$ARM]}' in d else 'NO_KEY')" || echo NO_CM)
+[ "$KEY_OK" = "OK" ] || { echo "ABORT: p2p-weka-epp-plugins/$ARM key check: $KEY_OK (run install_epp_configmap.sh first)"; exit 1; }
+MOUNTED=$(kubectl -n "$NS" get deploy p2p-pd-epp -o json | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+spec=d['spec']['template']['spec']
+mn=None
+for c in spec['containers']:
+    if c['name']=='epp':
+        for m in c.get('volumeMounts',[]):
+            if m['mountPath']=='/config': mn=m['name']
+for v in spec.get('volumes',[]):
+    if v['name']==mn: print(v.get('configMap',{}).get('name',''))")
+[ "$MOUNTED" = "p2p-weka-epp-plugins" ] || { echo "ABORT: EPP /config volume backed by '$MOUNTED' (run install_epp_configmap.sh first)"; exit 1; }
+
 IDX=$(kubectl -n "$NS" get deploy p2p-pd-epp -o json | python3 -c "
 import json,sys
 d=json.load(sys.stdin)

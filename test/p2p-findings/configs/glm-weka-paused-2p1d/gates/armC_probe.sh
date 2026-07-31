@@ -42,12 +42,17 @@ prefill_load_bytes() {
       'for r in 0 1 2 3 4 5 6 7; do curl -s --max-time 5 localhost:$((8000+r))/metrics; done' 2>/dev/null | \
       python3 -c "
 import sys
-t=0.0
-for ln in sys.stdin:
-    if ln.startswith('#'): continue
-    if 'kv_offload_load_bytes_total' in ln or ('kv_offload_total_bytes_total' in ln and 'CPU_to_GPU' in ln):
-        try: t+=float(ln.rsplit(' ',1)[1])
+txt=sys.stdin.read().splitlines()
+def fam(match):
+    t,seen=0.0,False
+    for ln in txt:
+        if ln.startswith('#') or not match(ln): continue
+        try: t+=float(ln.rsplit(' ',1)[1]); seen=True
         except Exception: pass
+    return t,seen
+t,seen=fam(lambda ln:'kv_offload_load_bytes_total' in ln)
+if not seen:
+    t,seen=fam(lambda ln:'kv_offload_total_bytes_total' in ln and 'CPU_to_GPU' in ln)
 print(int(t))")
     total=$((total + ${b:-0}))
   done

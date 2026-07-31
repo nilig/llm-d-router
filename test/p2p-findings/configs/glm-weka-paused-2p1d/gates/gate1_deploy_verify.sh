@@ -9,6 +9,7 @@
 #   - EPP: nonzero KV-event activity and subscription evidence
 set -euo pipefail
 NS=${NS:-nilig-p2p}
+LOADGEN=${LOADGEN:-scenc-loadgen}
 FLEET_EXPECT=${FLEET_EXPECT:-4}
 OUT=${OUT:-gate1-$(date +%Y%m%d%H%M%S)}
 mkdir -p "$OUT"
@@ -71,6 +72,13 @@ for ln in open(sys.argv[1], errors="ignore"):
 print(len(eps))
 PY
 )
+  # No live subscribers gauge exists on this EPP build (verified against
+  # the codebase and the live /metrics endpoint), and the container is
+  # distroless (no exec-based connection inspection). The log-derived
+  # distinct-endpoint count is the strongest available evidence and is
+  # instance-bounded, not historical: kubectl logs returns only the
+  # current container instance, and arm activation always restarts the
+  # EPP before this gate runs.
   echo "epp kv-event lines=$EVENTS distinct rank subscribers=$RANK_SUBS (want $((FLEET_EXPECT*8)))" | tee -a "$OUT/summary.txt"
   [ "$EVENTS" -gt 0 ] || { echo "FAIL: EPP shows zero KV-event activity" | tee -a "$OUT/summary.txt"; fail=1; }
   [ "$RANK_SUBS" -ge $((FLEET_EXPECT*8)) ] \
