@@ -60,10 +60,21 @@ EPP=$(kubectl -n "$NS" get pods -l app=p2p-pd-epp -o name | head -1)
 if [ -n "$EPP" ]; then
   kubectl -n "$NS" logs "${EPP#pod/}" -c epp --tail=200000 > "$OUT/epp-log-tail.txt" 2>/dev/null || true
   EVENTS=$(grep -icE "kv.?event" "$OUT/epp-log-tail.txt" || true)
-  SUBS=$(grep -icE "subscrib|zmq.*connect|socket.*555" "$OUT/epp-log-tail.txt" || true)
-  echo "epp kv-event lines=$EVENTS subscription lines=$SUBS" | tee -a "$OUT/summary.txt"
+  # distinct per-rank subscriber endpoints: 4 pods x 8 ranks on 5557-5564
+  RANK_SUBS=$(python3 - "$OUT/epp-log-tail.txt" << 'PY'
+import sys, re
+eps = set()
+for ln in open(sys.argv[1], errors="ignore"):
+    for m in re.finditer(r"tcp://(\d+\.\d+\.\d+\.\d+):(55[5-6][0-9])", ln):
+        if 5557 <= int(m.group(2)) <= 5564:
+            eps.add((m.group(1), m.group(2)))
+print(len(eps))
+PY
+)
+  echo "epp kv-event lines=$EVENTS distinct rank subscribers=$RANK_SUBS (want $((FLEET_EXPECT*8)))" | tee -a "$OUT/summary.txt"
   [ "$EVENTS" -gt 0 ] || { echo "FAIL: EPP shows zero KV-event activity" | tee -a "$OUT/summary.txt"; fail=1; }
-  [ "$SUBS" -gt 0 ] || { echo "FAIL: EPP shows zero subscription evidence" | tee -a "$OUT/summary.txt"; fail=1; }
+  [ "$RANK_SUBS" -ge $((FLEET_EXPECT*8)) ] \
+    || { echo "FAIL: EPP subscribes to $RANK_SUBS/$((FLEET_EXPECT*8)) rank endpoints" | tee -a "$OUT/summary.txt"; fail=1; }
 fi
 
 if [ "$fail" -ne 0 ]; then

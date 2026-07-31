@@ -1,29 +1,39 @@
 #!/bin/bash
 # Gate 2: one-shot P2P proof. Fails closed.
 #
+# Port semantics on this deployment: prefill engines serve rank r
+# directly at 8000+r (metrics on the same port); decode engines serve at
+# 8200+r behind the sidecar at 8000+r. The serving endpoint used for
+# rank addressing is IP:8000+r on both roles.
+#
 # Three legs, each with its OWN fresh prefix so no leg can convert a
-# later leg's pull into a local restore (order-independent):
-#   control leg: prefix X seeded on the source only, sent to the consumer
-#     WITHOUT pull params  -> loaded bytes must be < CONTROL_MAX_MB
-#   engine leg: prefix Y seeded on the source only, sent to the consumer
-#     WITH direct kv_transfer_params injection -> loaded bytes within
-#     [PULL_MIN_MB, PULL_MAX_MB] (24,576 tokens x 92.6 KB/token ~ 2,276 MB)
-#   sidecar leg: prefix Z seeded on the source only, sent to the CONSUMER
-#     POD'S SIDECAR with the x-kv-cache-source-host-port header -> same
-#     byte window, plus the sidecar's "running P2P source protocol" log
-#     line (stock injection path; EPP-organic engagement is validated by
-#     the arm C short-probe stop rule, not this gate)
-# All legs require HTTP 200 and, for pull legs, new source-side session
-# acceptance between the before/after log marks.
+# later leg's pull into a local restore (order-independent). Source and
+# destination are PREFILL ranks on different pods (the P/D-relevant
+# direction):
+#   control leg: prefix X seeded on the source prefill only, sent
+#     engine-direct to the destination prefill WITHOUT pull params
+#     -> destination loaded bytes must be < CONTROL_MAX_MB
+#   engine leg: prefix Y seeded on the source prefill, sent
+#     engine-direct to the destination prefill WITH kv_transfer_params
+#     injection -> loaded bytes within [PULL_MIN_MB, PULL_MAX_MB]
+#     (24,576 tokens x 92.6 KB/token ~ 2,276 MB)
+#   pd leg (stock path): prefix Z seeded on the source prefill, sent to
+#     a DECODE SIDECAR with x-prefiller-host-port = destination prefill
+#     serving endpoint and x-kv-cache-source-host-port = source prefill
+#     serving endpoint -> the sidecar's prefill-leg injection must move
+#     the same byte window INTO the destination prefill engine
+# All legs require HTTP 200; the pull legs together require >= 1 new
+# source-side session. EPP-organic engagement is validated by
+# gates/armC_probe.sh, not this gate.
 set -euo pipefail
 NS=${NS:-nilig-p2p}
 LOADGEN=${LOADGEN:-scenc-loadgen}
-SRC_POD=${SRC_POD:?decode pod holding the seeds}
-SRC_IP=${SRC_IP:?source pod ip}
-SRC_RANK=${SRC_RANK:-0}
-SRC_URL=${SRC_URL:?source rank serving url (port 8200+rank)}
-DST_URL=${DST_URL:?consumer engine url (prefill leader, port 8200+rank)}
-DST_SIDECAR_URL=${DST_SIDECAR_URL:?consumer sidecar url (port 8000+rank)}
+SRC_POD=${SRC_POD:?source PREFILL pod name (for session-accept evidence)}
+SRC_PF_URL=${SRC_PF_URL:?source prefill engine url http://ip:(8000+r)}
+SRC_PF_SERVING=${SRC_PF_SERVING:?source prefill serving endpoint ip:(8000+r)}
+DST_PF_URL=${DST_PF_URL:?destination prefill engine url http://ip:(8000+r), different pod}
+DST_PF_SERVING=${DST_PF_SERVING:?destination prefill serving endpoint ip:(8000+r)}
+DECODE_SIDECAR_URL=${DECODE_SIDECAR_URL:?decode sidecar url http://ip:(8000+rank)}
 TOKENS=${TOKENS:-24576}
 CONTROL_MAX_MB=${CONTROL_MAX_MB:-50}
 PULL_MIN_MB=${PULL_MIN_MB:-1900}
@@ -31,8 +41,8 @@ PULL_MAX_MB=${PULL_MAX_MB:-2650}
 OUT=${OUT:-gate2-$(date +%Y%m%d%H%M%S)}
 mkdir -p "$OUT"
 fail=0
-P2P_PORT=$((7777 + SRC_RANK))
-SRC_SERVING="${SRC_IP}:$((8000 + SRC_RANK))"
+SRC_RANK_PORT=${SRC_PF_SERVING##*:}
+P2P_PORT=$((7777 + SRC_RANK_PORT - 8000))
 
 lg() { echo "$*" | tee -a "$OUT/log"; }
 
@@ -59,16 +69,17 @@ session_count() {
     grep -c "accepting incoming connection" || true
 }
 
-seed_and_send() {
-  # $1=leg name  $2=mode: none|inject|header
+run_leg() {
+  # $1=leg name  $2=mode: none|inject|pd
   local LEG="$1" MODE="$2"
-  local M0 M1 S0 S1 DELTA STATUS
-  S0=$(session_count)
-  M0=$(metrics_bytes "$DST_URL/metrics")
-  STATUS=$(kubectl -n "$NS" exec "$LOADGEN" -- python3 - "$SRC_URL" "$DST_URL" "$DST_SIDECAR_URL" "$MODE" "$SRC_IP" "$P2P_PORT" "$SRC_SERVING" "$TOKENS" << 'PY'
+  local M0 M1 DELTA STATUS
+  M0=$(metrics_bytes "$DST_PF_URL/metrics")
+  STATUS=$(kubectl -n "$NS" exec "$LOADGEN" -- python3 - \
+    "$SRC_PF_URL" "$DST_PF_URL" "$DECODE_SIDECAR_URL" "$MODE" \
+    "$SRC_PF_SERVING" "$DST_PF_SERVING" "$P2P_PORT" "$TOKENS" << 'PY'
 import sys, json, random, urllib.request, time, uuid
-src, dst, dst_sc, mode, ip, port, serving, n = sys.argv[1:9]
-n = int(n); port = int(port)
+src, dst, sidecar, mode, src_sv, dst_sv, p2p_port, n = sys.argv[1:9]
+n = int(n); p2p_port = int(p2p_port)
 ids = [random.randint(600, 140000) for _ in range(n)]
 def post(url, body, headers=None):
     h = {'Content-Type': 'application/json'}
@@ -76,25 +87,28 @@ def post(url, body, headers=None):
     r = urllib.request.urlopen(urllib.request.Request(url + '/v1/completions',
         data=json.dumps(body).encode(), headers=h), timeout=900)
     return r.status
-# seed on source only
 s = post(src, {'model':'zai-org/GLM-5.2-FP8','prompt':ids,'max_tokens':2,'temperature':0})
 if s != 200: print('SEED_FAIL', s); sys.exit(0)
 time.sleep(2)
 body = {'model':'zai-org/GLM-5.2-FP8','prompt':ids,'max_tokens':2,'temperature':0}
 if mode == 'inject':
     body['kv_transfer_params'] = {'remote_kv_source': {
-        'kv_request_id': str(uuid.uuid4()), 'remote_host': ip, 'remote_port': port}}
+        'kv_request_id': str(uuid.uuid4()), 'remote_host': src_sv.rsplit(':',1)[0],
+        'remote_port': p2p_port}}
     print(post(dst, body))
-elif mode == 'header':
-    print(post(dst_sc, body, {'x-kv-cache-source-host-port': serving}))
+elif mode == 'pd':
+    print(post(sidecar, body, {
+        'x-prefiller-host-port': dst_sv,
+        'x-kv-cache-source-host-port': src_sv}))
 else:
     print(post(dst, body))
 PY
 )
-  M1=$(metrics_bytes "$DST_URL/metrics")
-  S1=$(session_count)
+  # the P/D prefill leg is async on the sidecar; give the transfer a moment
+  [ "$MODE" = "pd" ] && sleep 10
+  M1=$(metrics_bytes "$DST_PF_URL/metrics")
   DELTA=$(python3 -c "print(round((${M1}-${M0})/1e6,1))")
-  lg "$LEG: http=$STATUS loaded_MB=$DELTA source_sessions_delta=$((S1-S0))"
+  lg "$LEG: http=$STATUS dst_prefill_loaded_MB=$DELTA"
   [ "$STATUS" = "200" ] || { lg "FAIL: $LEG HTTP $STATUS"; fail=1; }
   case "$MODE" in
     none)
@@ -102,35 +116,20 @@ PY
         || { lg "FAIL: control moved ${DELTA} MB (max $CONTROL_MAX_MB)"; fail=1; } ;;
     *)
       python3 -c "exit(0 if $PULL_MIN_MB <= $DELTA <= $PULL_MAX_MB else 1)" \
-        || { lg "FAIL: $LEG moved ${DELTA} MB (want $PULL_MIN_MB-$PULL_MAX_MB)"; fail=1; }
-      [ "$((S1-S0))" -ge 0 ] || true
-      ;;
+        || { lg "FAIL: $LEG moved ${DELTA} MB into the destination prefill (want $PULL_MIN_MB-$PULL_MAX_MB)"; fail=1; } ;;
   esac
 }
 
-# Port semantics on this deployment: prefill engines serve rank r directly
-# at 8000+r; decode engines serve at 8200+r behind the sidecar at 8000+r.
-# The serving endpoint used for rank addressing is IP:8000+r on BOTH roles;
-# SRC_URL (seeding) is the engine port (decode source: 8200+r).
-
 lg "== Gate 2: fresh-prefix P2P proof (independent prefixes per leg) =="
+lg "source=$SRC_PF_SERVING (p2p port $P2P_PORT) destination=$DST_PF_SERVING"
 S_PULL_START=$(session_count)
-seed_and_send control none
-seed_and_send engine-inject inject
-seed_and_send sidecar-header header
+run_leg control none
+run_leg engine-inject inject
+run_leg pd-stock pd
 S_PULL_END=$(session_count)
 lg "source sessions across pull legs: $((S_PULL_END-S_PULL_START))"
 [ "$((S_PULL_END-S_PULL_START))" -ge 1 ] \
   || { lg "FAIL: no new source-side session across the pull legs - transfers were not peer transfers"; fail=1; }
-
-# sidecar evidence for the header leg
-SIDE_POD=${SIDE_POD:-}
-if [ -n "$SIDE_POD" ]; then
-  kubectl -n "$NS" logs "$SIDE_POD" -c routing-proxy --tail=2000 2>/dev/null | \
-    grep -i "running P2P source protocol" | tail -3 > "$OUT/sidecar-evidence.txt" || true
-  [ -s "$OUT/sidecar-evidence.txt" ] \
-    || { lg "FAIL: sidecar never logged the source protocol"; fail=1; }
-fi
 
 if [ "$fail" -ne 0 ]; then lg "GATE 2: FAIL"; exit 1; fi
 lg "GATE 2: PASS"

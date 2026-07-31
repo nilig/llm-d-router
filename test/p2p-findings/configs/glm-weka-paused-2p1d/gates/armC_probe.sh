@@ -20,15 +20,8 @@ SP="$(cd "$(dirname "$0")/.." && pwd)"
 OUT=${OUT:-$SP/gates/probe-c${CONC}-$(date +%Y%m%d%H%M%S)}
 mkdir -p "$OUT"
 
-# arm C must already be active (run_arm.sh swaps it); assert, don't swap
-ACTIVE=$(kubectl -n "$NS" get deploy p2p-pd-epp -o json | python3 -c "
-import json,sys
-d=json.load(sys.stdin)
-for c in d['spec']['template']['spec']['containers']:
-    if c['name']=='epp':
-        print(c['args'][c['args'].index('--config-file')+1])")
-[ "$ACTIVE" = "/config/armC-loadfirst-p2p.yaml" ] \
-  || { echo "ABORT: arm C not active (active=$ACTIVE); run run_arm.sh swap first"; exit 1; }
+# activate arm C (swap + verify, no workload)
+NS="$NS" "$SP/activate_arm.sh" armC
 
 sessions() {
   local n=0 c
@@ -42,10 +35,33 @@ sessions() {
 
 EPP_POD=$(kubectl -n "$NS" get pods -l app=p2p-pd-epp -o name | head -1)
 EPP_POD=${EPP_POD#pod/}
+prefill_load_bytes() {
+  local total=0 b
+  for p in $(kubectl -n "$NS" get pods -l 'llm-d.ai/role=prefill' -o name 2>/dev/null); do
+    b=$(kubectl -n "$NS" exec "${p#pod/}" -c vllm -- sh -c \
+      'for r in 0 1 2 3 4 5 6 7; do curl -s --max-time 5 localhost:$((8000+r))/metrics; done' 2>/dev/null | \
+      python3 -c "
+import sys
+t=0.0
+for ln in sys.stdin:
+    if ln.startswith('#'): continue
+    if 'kv_offload_load_bytes_total' in ln or ('kv_offload_total_bytes_total' in ln and 'CPU_to_GPU' in ln):
+        try: t+=float(ln.rsplit(' ',1)[1])
+        except Exception: pass
+print(int(t))")
+    total=$((total + ${b:-0}))
+  done
+  echo "$total"
+}
+
 S0=$(sessions)
-kubectl -n "$NS" logs -f "$EPP_POD" -c epp > "$OUT/epp-stream.jsonl" 2>/dev/null &
+B0=$(prefill_load_bytes)
+kubectl -n "$NS" logs --tail=0 -f "$EPP_POD" -c epp > "$OUT/epp-stream.jsonl" 2>/dev/null &
 STREAM_PID=$!
 trap 'kill $STREAM_PID 2>/dev/null || true' EXIT
+# ensure the stream is attached before any directive can be emitted
+sleep 5
+kill -0 $STREAM_PID 2>/dev/null || { echo "ABORT: EPP log stream failed to attach"; exit 1; }
 
 # short burst: the recovered runner at this cell, duration-limited
 cd "$SP"
@@ -87,6 +103,7 @@ kubectl -n "$NS" logs "$JP" > "$OUT/probe-client.log" 2>/dev/null
 sleep 3
 kill $STREAM_PID 2>/dev/null || true
 S1=$(sessions)
+B1=$(prefill_load_bytes)
 
 EMITS=$(grep -c 'set KV cache source header' "$OUT/epp-stream.jsonl" || true)
 REQS=$(python3 - "$OUT/epp-stream.jsonl" << 'PY'
@@ -98,7 +115,8 @@ for ln in open(sys.argv[1], errors='ignore'):
 print(len(ids))
 PY
 )
-echo "probe c$CONC: requests_seen=$REQS source_directives=$EMITS sessions_delta=$((S1-S0))" | tee "$OUT/summary.txt"
+BMB=$(python3 -c "print(round(($B1-$B0)/1e6,1))")
+echo "probe c$CONC: requests_seen=$REQS source_directives=$EMITS sessions_delta=$((S1-S0)) prefill_loaded_MB=$BMB" | tee "$OUT/summary.txt"
 if [ "$REQS" -gt 0 ]; then
   RATE=$(python3 -c "print(round(100.0*$EMITS/$REQS,1))")
 else
@@ -109,4 +127,10 @@ if [ "$EMITS" -eq 0 ]; then
   echo "PROBE: FAIL - zero source directives; P2P is inert at c$CONC, do not run the A/B here" | tee -a "$OUT/summary.txt"
   exit 1
 fi
+# bytes corroborate that organic pulls succeeded (necessary, not
+# attributable on their own: the counter includes local CPU restores)
+python3 -c "exit(0 if $BMB > 0 else 1)" || {
+  echo "PROBE: FAIL - directives were emitted but destination prefill engines moved zero bytes" | tee -a "$OUT/summary.txt"
+  exit 1
+}
 echo "PROBE: PASS (archive in $OUT)" | tee -a "$OUT/summary.txt"

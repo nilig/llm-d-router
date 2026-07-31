@@ -1,0 +1,41 @@
+#!/bin/bash
+# Activate one arm: swap the EPP --config-file (the arg change forces the
+# restart a ConfigMap-only edit silently skips), then verify the active
+# config and the producer declaration count. No workload is started.
+# Shared by run_arm.sh and gates/armC_probe.sh.
+# Usage: activate_arm.sh <armA|armB|armC>
+set -euo pipefail
+NS=${NS:-nilig-p2p}
+ARM="$1"
+
+declare -A CFG=( [armA]=armA-blog-plugins.yaml [armB]=armB-loadfirst.yaml [armC]=armC-loadfirst-p2p.yaml )
+declare -A WANT_P2P=( [armA]=0 [armB]=0 [armC]=1 )
+[ -n "${CFG[$ARM]:-}" ] || { echo "ABORT: unknown arm $ARM"; exit 1; }
+
+IDX=$(kubectl -n "$NS" get deploy p2p-pd-epp -o json | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+for i,c in enumerate(d['spec']['template']['spec']['containers']):
+    if c['name']=='epp': print(i)")
+POS=$(kubectl -n "$NS" get deploy p2p-pd-epp -o json | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+c=d['spec']['template']['spec']['containers'][$IDX]
+print(c['args'].index('--config-file')+1)")
+kubectl -n "$NS" patch deploy p2p-pd-epp --type=json \
+  -p "[{\"op\":\"replace\",\"path\":\"/spec/template/spec/containers/$IDX/args/$POS\",\"value\":\"/config/${CFG[$ARM]}\"}]" >/dev/null
+kubectl -n "$NS" rollout status deploy/p2p-pd-epp --timeout=300s | tail -1
+
+ACTIVE=$(kubectl -n "$NS" get deploy p2p-pd-epp -o json | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+c=d['spec']['template']['spec']['containers'][$IDX]
+print(c['args'][c['args'].index('--config-file')+1])")
+[ "$ACTIVE" = "/config/${CFG[$ARM]}" ] || { echo "ABORT: config swap failed (active=$ACTIVE)"; exit 1; }
+
+P2P=$(kubectl -n "$NS" get cm p2p-weka-epp-plugins -o json | python3 -c "
+import json,sys
+body=json.load(sys.stdin)['data']['${CFG[$ARM]}']
+print(sum(1 for l in body.splitlines() if l.strip().startswith('- type: p2p-source-producer')))")
+echo "arm $ARM active; p2p-source-producer declared: $P2P (want ${WANT_P2P[$ARM]})"
+[ "$P2P" = "${WANT_P2P[$ARM]}" ] || { echo "ABORT: producer declaration mismatch"; exit 1; }
