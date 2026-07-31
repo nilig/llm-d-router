@@ -11,8 +11,12 @@ SEED=${SEED:-42}
 ARM="$1"; CONC="$2"; TAG="$3"
 SP="$(cd "$(dirname "$0")" && pwd)"; cd "$SP"
 
-declare -A CFG=( [armA]=armA-blog-plugins.yaml [armB]=armB-loadfirst.yaml [armC]=armC-loadfirst-p2p.yaml )
-declare -A WANT_P2P=( [armA]=0 [armB]=0 [armC]=1 )
+case "$ARM" in
+  armA) CFGF=armA-blog-plugins.yaml; WANT=0 ;;
+  armB) CFGF=armB-loadfirst.yaml;    WANT=0 ;;
+  armC) CFGF=armC-loadfirst-p2p.yaml; WANT=1 ;;
+  *) echo "ABORT: unknown arm $ARM"; exit 1 ;;
+esac
 
 echo "### ARM $ARM c$CONC (tag $TAG) ns=$NS ###"
 NS="$NS" ./activate_arm.sh "$ARM"

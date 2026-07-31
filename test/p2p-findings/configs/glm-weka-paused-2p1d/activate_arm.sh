@@ -8,9 +8,12 @@ set -euo pipefail
 NS=${NS:-nilig-p2p}
 ARM="$1"
 
-declare -A CFG=( [armA]=armA-blog-plugins.yaml [armB]=armB-loadfirst.yaml [armC]=armC-loadfirst-p2p.yaml )
-declare -A WANT_P2P=( [armA]=0 [armB]=0 [armC]=1 )
-[ -n "${CFG[$ARM]:-}" ] || { echo "ABORT: unknown arm $ARM"; exit 1; }
+case "$ARM" in
+  armA) CFGF=armA-blog-plugins.yaml; WANT=0 ;;
+  armB) CFGF=armB-loadfirst.yaml;    WANT=0 ;;
+  armC) CFGF=armC-loadfirst-p2p.yaml; WANT=1 ;;
+  *) echo "ABORT: unknown arm $ARM"; exit 1 ;;
+esac
 
 # the campaign ConfigMap and the arm's key must exist before any
 # --config-file change, or the rollout ships an EPP that cannot start
@@ -18,7 +21,7 @@ KEY_OK=$(kubectl -n "$NS" get cm p2p-weka-epp-plugins -o json 2>/dev/null | pyth
 import json,sys
 try: d=json.load(sys.stdin)['data']
 except Exception: print('NO_CM'); raise SystemExit
-print('OK' if '${CFG[$ARM]}' in d else 'NO_KEY')" || echo NO_CM)
+print('OK' if '$CFGF' in d else 'NO_KEY')" || echo NO_CM)
 [ "$KEY_OK" = "OK" ] || { echo "ABORT: p2p-weka-epp-plugins/$ARM key check: $KEY_OK (run install_epp_configmap.sh first)"; exit 1; }
 MOUNTED=$(kubectl -n "$NS" get deploy p2p-pd-epp -o json | python3 -c "
 import json,sys
@@ -44,7 +47,7 @@ d=json.load(sys.stdin)
 c=d['spec']['template']['spec']['containers'][$IDX]
 print(c['args'].index('--config-file')+1)")
 kubectl -n "$NS" patch deploy p2p-pd-epp --type=json \
-  -p "[{\"op\":\"replace\",\"path\":\"/spec/template/spec/containers/$IDX/args/$POS\",\"value\":\"/config/${CFG[$ARM]}\"}]" >/dev/null
+  -p "[{\"op\":\"replace\",\"path\":\"/spec/template/spec/containers/$IDX/args/$POS\",\"value\":\"/config/$CFGF\"}]" >/dev/null
 kubectl -n "$NS" rollout status deploy/p2p-pd-epp --timeout=300s | tail -1
 
 ACTIVE=$(kubectl -n "$NS" get deploy p2p-pd-epp -o json | python3 -c "
@@ -52,11 +55,11 @@ import json,sys
 d=json.load(sys.stdin)
 c=d['spec']['template']['spec']['containers'][$IDX]
 print(c['args'][c['args'].index('--config-file')+1])")
-[ "$ACTIVE" = "/config/${CFG[$ARM]}" ] || { echo "ABORT: config swap failed (active=$ACTIVE)"; exit 1; }
+[ "$ACTIVE" = "/config/$CFGF" ] || { echo "ABORT: config swap failed (active=$ACTIVE)"; exit 1; }
 
 P2P=$(kubectl -n "$NS" get cm p2p-weka-epp-plugins -o json | python3 -c "
 import json,sys
-body=json.load(sys.stdin)['data']['${CFG[$ARM]}']
+body=json.load(sys.stdin)['data']['$CFGF']
 print(sum(1 for l in body.splitlines() if l.strip().startswith('- type: p2p-source-producer')))")
-echo "arm $ARM active; p2p-source-producer declared: $P2P (want ${WANT_P2P[$ARM]})"
-[ "$P2P" = "${WANT_P2P[$ARM]}" ] || { echo "ABORT: producer declaration mismatch"; exit 1; }
+echo "arm $ARM active; p2p-source-producer declared: $P2P (want $WANT)"
+[ "$P2P" = "$WANT" ] || { echo "ABORT: producer declaration mismatch"; exit 1; }
