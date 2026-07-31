@@ -1,0 +1,199 @@
+diff --git a/vllm/v1/attention/backend.py b/vllm/v1/attention/backend.py
+index b5d8962fd403..c284c84c7040 100644
+--- a/vllm/v1/attention/backend.py
++++ b/vllm/v1/attention/backend.py
+@@ -631,6 +631,8 @@ class AttentionMetadataBuilder(ABC, Generic[M]):
+     # Does this backend/builder support updating the block table in existing
+     # metadata
+     supports_update_block_table: bool = False
++    # Whether the builder constructor requires the block-table width.
++    requires_block_table_width: ClassVar[bool] = False
+ 
+     @abstractmethod
+     def __init__(
+diff --git a/vllm/v1/attention/backends/mla/indexer.py b/vllm/v1/attention/backends/mla/indexer.py
+index 24ab48ddd052..143ce2b92a71 100644
+--- a/vllm/v1/attention/backends/mla/indexer.py
++++ b/vllm/v1/attention/backends/mla/indexer.py
+@@ -22,7 +22,6 @@
+     get_paged_mqa_logits_metadata,
+     has_deep_gemm,
+ )
+-from vllm.utils.math_utils import cdiv
+ from vllm.utils.platform_utils import num_compute_units
+ from vllm.v1.attention.backend import (
+     AttentionBackend,
+@@ -37,7 +36,6 @@
+     split_decodes_and_prefills,
+ )
+ from vllm.v1.kv_cache_interface import AttentionSpec, MLAAttentionSpec
+-from vllm.v1.worker.cp_utils import get_kv_cache_shard_count
+ 
+ logger = init_logger(__name__)
+ 
+@@ -458,6 +456,7 @@ class DeepseekV32IndexerMetadataBuilder(AttentionMetadataBuilder):
+     # The indexer opts out of the shared reorder-threshold vote (see __init__),
+     # so this is None; its own split uses self.decode_threshold.
+     reorder_batch_threshold: int | None = None
++    requires_block_table_width = True
+ 
+     @classmethod
+     def get_cudagraph_support(
+@@ -467,7 +466,7 @@ def get_cudagraph_support(
+     ) -> AttentionCGSupport:
+         return AttentionCGSupport.UNIFORM_BATCH
+ 
+-    def __init__(self, *args, **kwargs):
++    def __init__(self, *args, block_table_width: int, **kwargs) -> None:
+         super().__init__(*args, **kwargs)
+         scheduler_config = self.vllm_config.scheduler_config
+         parallel_config = self.vllm_config.parallel_config
+@@ -556,15 +555,8 @@ def __init__(self, *args, **kwargs):
+             dtype=torch.int32,
+             device=self.device,
+         )
+-        max_num_blocks_per_req = cdiv(
+-            self.vllm_config.model_config.max_model_len,
+-            self.kv_cache_spec.block_size * get_kv_cache_shard_count(),
+-        )
+         self.expanded_block_table_buffer = torch.zeros(
+-            (
+-                scheduler_config.max_num_batched_tokens,
+-                max_num_blocks_per_req,
+-            ),
++            (scheduler_config.max_num_batched_tokens, block_table_width),
+             dtype=torch.int32,
+             device=self.device,
+         )
+diff --git a/vllm/v1/worker/block_table.py b/vllm/v1/worker/block_table.py
+index 4d9f256ee002..85228364afcf 100644
+--- a/vllm/v1/worker/block_table.py
++++ b/vllm/v1/worker/block_table.py
+@@ -1,6 +1,7 @@
+ # SPDX-License-Identifier: Apache-2.0
+ # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
+ 
++import math
+ from enum import Enum
+ 
+ import numpy as np
+@@ -16,6 +17,29 @@
+ logger = init_logger(__name__)
+ 
+ 
++def get_block_table_width(
++    max_num_blocks: int,
++    block_size: int,
++    kernel_block_size: int | None = None,
++    *,
++    token_alignment: int | None = 128,
++) -> int:
++    """Return the width after optional alignment and virtual block splitting."""
++    if kernel_block_size is None:
++        kernel_block_size = block_size
++    if block_size % kernel_block_size != 0:
++        raise ValueError(
++            f"kernel_block_size {kernel_block_size} must divide "
++            f"block_size {block_size} evenly"
++        )
++    if token_alignment is not None:
++        if token_alignment <= 0:
++            raise ValueError("token_alignment must be positive")
++        block_alignment = token_alignment // math.gcd(token_alignment, block_size)
++        max_num_blocks = cdiv(max_num_blocks, block_alignment) * block_alignment
++    return max_num_blocks * block_size // kernel_block_size
++
++
+ class SlotMappingMode(Enum):
+     TOKEN_TO_KV_SLOT = "token_to_kv_slot"
+     NONE = "none"
+@@ -277,11 +301,15 @@ def __init__(
+                 f"must match block_sizes length ({len(block_sizes)})"
+             )
+ 
+-        # Align to a multiple of (128 / block_size) as required
+-        # by some attention backends such as TRTLLM (#39324)
+         max_num_blocks = [
+-            cdiv(n, 128 // bs) * (128 // bs) if bs <= 128 else n
+-            for n, bs in zip(max_num_blocks, block_sizes)
++            (
++                get_block_table_width(n, block_size, token_alignment=None)
++                if slot_mapping_mode == SlotMappingMode.NONE
++                else get_block_table_width(n, block_size)
++            )
++            for n, block_size, slot_mapping_mode in zip(
++                max_num_blocks, block_sizes, slot_mapping_modes
++            )
+         ]
+ 
+         self.block_tables = [
+diff --git a/vllm/v1/worker/gpu_model_runner.py b/vllm/v1/worker/gpu_model_runner.py
+index 12db52961af2..e09199d307b0 100644
+--- a/vllm/v1/worker/gpu_model_runner.py
++++ b/vllm/v1/worker/gpu_model_runner.py
+@@ -56,6 +56,7 @@
+ from vllm.v1.core.sched.output import GrammarOutput, SchedulerOutput
+ from vllm.v1.kv_cache_interface import KVCacheConfig, MambaSpec
+ from vllm.v1.outputs import DraftTokenIds, ModelRunnerOutput
++from vllm.v1.worker.block_table import get_block_table_width
+ from vllm.v1.worker.cp_utils import check_attention_cp_compatibility
+ from vllm.v1.worker.gpu import pcp_manager as pcp
+ from vllm.v1.worker.gpu.async_utils import AsyncOutput, AsyncPoolingOutput
+@@ -444,16 +445,16 @@ def initialize_kv_cache(self, kv_cache_config: KVCacheConfig) -> None:
+             max_num_blocks = cdiv(
+                 block_table_max_model_len, spec.block_size * self.dcp_size
+             )
+-            # Align to a multiple of (128 / block_size) as required by some attention
+-            # backends such as TRTLLM (#39324)
+-            if spec.block_size <= 128:
+-                alignment = 128 // spec.block_size
+-                max_num_blocks = cdiv(max_num_blocks, alignment) * alignment
+             # For Mamba/Hybrid Model, KVCaches need extra blocks for speculative tokens
+             if isinstance(spec, MambaSpec):
+                 max_num_blocks = (
+                     max_num_blocks if self.cache_config.enable_prefix_caching else 1
+                 ) + spec.num_speculative_blocks
++                max_num_blocks = get_block_table_width(
++                    max_num_blocks, spec.block_size, token_alignment=None
++                )
++            else:
++                max_num_blocks = get_block_table_width(max_num_blocks, spec.block_size)
+             max_num_blocks_per_group.append(max_num_blocks)
+ 
+         self.attn_groups, attn_cg_support, self.kernel_block_sizes = init_attn_backend(
+diff --git a/vllm/v1/worker/utils.py b/vllm/v1/worker/utils.py
+index 4afb941c12a3..a8118ef9fa64 100644
+--- a/vllm/v1/worker/utils.py
++++ b/vllm/v1/worker/utils.py
+@@ -36,6 +36,7 @@
+     MambaSpec,
+     UniformTypeKVCacheSpecs,
+ )
++from vllm.v1.worker.block_table import get_block_table_width
+ 
+ logger = init_logger(__name__)
+ 
+@@ -237,12 +238,22 @@ def create_metadata_builders(
+             if kernel_block_size is not None
+             else self.kv_cache_spec
+         )
++        builder_cls = self.backend.get_builder_cls()
++        builder_kwargs = {}
++        if builder_cls.requires_block_table_width:
++            max_num_blocks = self.kv_cache_spec.max_num_blocks_per_req(
++                vllm_config, vllm_config.model_config.max_model_len
++            )
++            builder_kwargs["block_table_width"] = get_block_table_width(
++                max_num_blocks, self.kv_cache_spec.block_size, kernel_block_size
++            )
+         self.metadata_builders = [
+-            self.backend.get_builder_cls()(
++            builder_cls(
+                 kv_cache_spec_builder,
+                 self.layer_names,
+                 vllm_config,
+                 device,
++                **builder_kwargs,
+             )
+             for _ in range(num_metadata_builders)
+         ]

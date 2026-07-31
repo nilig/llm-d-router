@@ -299,7 +299,7 @@ spec:
             value: ibp
           - name: NVSHMEM_HCA_PREFIX
             value: ibp
-          image: vllm/vllm-openai:nightly-6f91edf96d3f3272945809c04702380053bff4de
+          image: quay.io/niliguy/vllm-openai:nightly-6f91edf9-pr50302
           imagePullPolicy: Always
           livenessProbe:
             failureThreshold: 3
@@ -692,7 +692,7 @@ spec:
             value: ibp
           - name: NVSHMEM_HCA_PREFIX
             value: ibp
-          image: vllm/vllm-openai:nightly-6f91edf96d3f3272945809c04702380053bff4de
+          image: quay.io/niliguy/vllm-openai:nightly-6f91edf9-pr50302
           imagePullPolicy: Always
           livenessProbe:
             failureThreshold: 3

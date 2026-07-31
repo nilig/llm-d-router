@@ -22,7 +22,11 @@ import sys
 from pathlib import Path
 
 BASE = Path(__file__).parent / "modelserver/gpu/vllm-glm-5.2/base"
-ENGINE_IMAGE = "vllm/vllm-openai:nightly-6f91edf96d3f3272945809c04702380053bff4de"
+# nightly-6f91edf9 + vllm PR #50302 ported (block-table width alignment;
+# the stock nightly crashes decode on first traffic at block 64 with
+# max-model-len 120000 - see workload/decode-mla-indexer-crash.log).
+# Build recipe: ../pr50302-port (Dockerfile + patched files).
+ENGINE_IMAGE = "quay.io/niliguy/vllm-openai:nightly-6f91edf9-pr50302"
 SIDECAR_IMAGE = "quay.io/niliguy/llm-d-router-disagg-sidecar:kv-source-endpoint-92e5de82"
 
 P2P_TIERED_CASE = """\
