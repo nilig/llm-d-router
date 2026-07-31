@@ -1,14 +1,39 @@
-# Blog-campaign Weka workload: recovered invocation
+# Weka workload: recovered runner, RECONSTRUCTION status
 
-Source: live Job spec and pod in `ecrncevi-dev-p1w2d1w2` on kermit
-(the GLM agentic-serving blog team's campaign namespace), read 2026-07-31
-with the namespace owner's knowledge. Job
-`agentx-aiperf-c64-a1-20260729225135` (created 2026-07-29, tree
-`new_nightly/results_p1w2_d1w2` - the guide's published-table campaign).
-Raw spec: `blog-campaign-job-c64.json`; startup log head:
+Source: live Job spec and pod in the blog team's campaign namespace on
+kermit (`ecrncevi-dev-p1w2d1w2`), read 2026-07-31. Job
+`agentx-aiperf-c64-a1-20260729225135`, writing to the canonical tree
+`/mnt/lustre/agentx-mvp/dev/new_nightly/results_p1w2_d1w2/`. Raw spec:
+`blog-campaign-job-c64.json`; startup log head:
 `blog-campaign-c64-log-head.txt`.
 
-## Invocation (c64 cell; the ladder varies only `--concurrency`)
+## What this is, precisely
+
+- It is a **`p1w2d1w2` cell at concurrency 64** - one DEP16 prefill plus
+  one DEP16 decode - NOT the `p2w1d1w2` topology this campaign targets,
+  and only the c64 cell was visible. No 100-400 ladder artifact was
+  found.
+- The scenario `inferencex-agentx-mvp` implements the
+  ongoing-conversation behavior internally: the log shows
+  `TrajectorySource` selecting sample times and building 64 active
+  trajectories. There is no separate paused-conversation CLI mode.
+- Trace admission on this run: 295 of 393 raw traces dropped, 683
+  conversations reconstructed from the 98 accepted traces, exactly 64
+  trajectories started. "~400 ongoing conversations" is not a property
+  of this cell.
+- No `o200k` step appears in the command or log; the job configures the
+  GLM tokenizer. The preprocessing recipe behind the blog's corpus
+  transformation is NOT established by this recovery.
+
+**Consequently: a campaign built from this runner is a RECONSTRUCTION
+of the blog workload pattern, not a reproduction of the blog campaign,
+until the blog team supplies the `p2w1d1w2` ladder invocations and the
+preprocessing details.** Open ask to the blog team: the concurrency
+ladder and per-cell invocations for `p2w1d1w2`, any admission filtering
+beyond the scenario lock, and the corpus preprocessing (tokenizer
+lineage included).
+
+## Invocation (c64 cell as recovered)
 
 ```
 aiperf profile \
@@ -33,29 +58,13 @@ aiperf profile \
 
 - Image: `quay.io/tms/aiperf:agentx-v0`, running digest
   `quay.io/tms/aiperf@sha256:bb0b83cf4ec897e1e89172e5a108cc428656e2a857756291b831b8cd0c0edfc5`
-- `AIPERF_DATASET_WEKA_LIVE_ASSISTANT_RESPONSES=1` (dataset preprocessing
-  toggle; part of the workload identity)
-- `UNSAFE_ARGS` unset (expands empty; the scenario lock is active)
-- Canonical artifacts:
-  `/mnt/lustre/agentx-mvp/dev/new_nightly/results_p1w2_d1w2/` (PVC
-  `lustre-pvc-vllm`, StorageClass `shared-vast`, in the blog team's
-  namespace)
+- `AIPERF_DATASET_WEKA_LIVE_ASSISTANT_RESPONSES=1` (dataset toggle;
+  part of the workload identity; its exact effect is not documented
+  here beyond the name)
+- `UNSAFE_ARGS` unset, so the scenario lock is active
 
-## Interpretation
+## Deltas versus our earlier campaigns on this scenario
 
-- There is no separate "paused-conversation" aiperf mode: the scenario
-  `inferencex-agentx-mvp` locks the replay invariants (agentic replay
-  with the corpus's recorded structure), and the blog's
-  "ongoing conversations" prose describes the corpus (393 traces) under
-  this scenario at the given `--concurrency`.
-- Deltas versus the invocation used by our earlier campaigns on the same
-  scenario: `--random-seed 42`, `--max-context-length 142000` (ours:
-  128000), the `AIPERF_DATASET_WEKA_LIVE_ASSISTANT_RESPONSES=1` toggle,
-  and the Istio gateway endpoint (ours: the EPP service directly).
-
-## Open item
-
-The published guide tables' concurrency ladder is 16/64/256 (plus
-512 on larger topologies). Confirm with the blog team which cells are
-canonical for `p1w2d1w2` and whether any admission filtering beyond the
-scenario lock applied.
+`--random-seed 42`, `--max-context-length 142000` (ours: 128000), the
+live-assistant-responses toggle, and the Istio gateway endpoint (ours:
+the EPP service directly).

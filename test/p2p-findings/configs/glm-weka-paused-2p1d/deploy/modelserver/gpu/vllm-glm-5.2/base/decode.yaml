@@ -77,7 +77,7 @@ spec:
           - name: dshm
             emptyDir:
               medium: Memory
-              sizeLimit: 256Gi
+              sizeLimit: 1500Gi
           - name: hf-cache
             hostPath:
               path: /mnt/local/hf-cache
@@ -128,7 +128,7 @@ spec:
 
                 START_RANK=$(( ${LWS_WORKER_INDEX:-0} * DP_SIZE_LOCAL ))
                 KV_EVENTS_BASE=$((5557 - START_RANK))
-                KV_EVENTS_ARGS="--kv-events-config {\"enable_kv_cache_events\":true,\"publisher\":\"zmq\",\"endpoint\":\"tcp://*:${KV_EVENTS_BASE}\",\"topic\":\"kv@${POD_IP}@zai-org/GLM-5.2-FP8\"}"
+                KV_EVENTS_ARGS="--kv-events-config {\"enable_kv_cache_events\":true,\"publisher\":\"zmq\",\"endpoint\":\"tcp://*:${KV_EVENTS_BASE}\",\"topic\":\"kv@${POD_IP}:8000@zai-org/GLM-5.2-FP8\"}"
 
                 case "${OFFLOADING_MODE:-off}" in
                   p2p-tiered)
@@ -252,6 +252,10 @@ spec:
                 valueFrom:
                   fieldRef:
                     fieldPath: status.podIP
+              - name: VLLM_P2P_SIDE_CHANNEL_HOST
+                valueFrom:
+                  fieldRef:
+                    fieldPath: status.podIP
 
               - name: CUDA_CACHE_PATH
                 value: /var/cache/vllm/cuda
@@ -318,12 +322,12 @@ spec:
             resources:
               limits:
                 ephemeral-storage: 1Ti
-                memory: 512Gi
+                memory: 1500Gi
                 nvidia.com/gpu: "8"
               requests:
                 cpu: 32
                 ephemeral-storage: 1Ti
-                memory: 512Gi
+                memory: 1500Gi
                 nvidia.com/gpu: "8"
             volumeMounts:
               - name: dshm

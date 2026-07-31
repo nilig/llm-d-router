@@ -86,7 +86,7 @@ spec:
 
                 START_RANK=$(( ${LWS_WORKER_INDEX:-0} * DP_SIZE_LOCAL ))
                 KV_EVENTS_BASE=$((5557 - START_RANK))
-                KV_EVENTS_ARGS="--kv-events-config {\"enable_kv_cache_events\":true,\"publisher\":\"zmq\",\"endpoint\":\"tcp://*:${KV_EVENTS_BASE}\",\"topic\":\"kv@${POD_IP}@zai-org/GLM-5.2-FP8\"}"
+                KV_EVENTS_ARGS="--kv-events-config {\"enable_kv_cache_events\":true,\"publisher\":\"zmq\",\"endpoint\":\"tcp://*:${KV_EVENTS_BASE}\",\"topic\":\"kv@${POD_IP}:8000@zai-org/GLM-5.2-FP8\"}"
 
                 case "${OFFLOADING_MODE:-off}" in
                   cpu)
@@ -223,6 +223,10 @@ spec:
               - name: VLLM_LOGGING_LEVEL
                 value: INFO
               - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+                valueFrom:
+                  fieldRef:
+                    fieldPath: status.podIP
+              - name: VLLM_P2P_SIDE_CHANNEL_HOST
                 valueFrom:
                   fieldRef:
                     fieldPath: status.podIP

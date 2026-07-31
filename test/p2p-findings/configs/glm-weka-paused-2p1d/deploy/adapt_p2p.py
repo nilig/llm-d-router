@@ -47,7 +47,7 @@ P2P_TIERED_CASE = """\
 
 KV_EVENTS_SNIPPET = """\
                 KV_EVENTS_BASE=$((5557 - START_RANK))
-                KV_EVENTS_ARGS="--kv-events-config {\\"enable_kv_cache_events\\":true,\\"publisher\\":\\"zmq\\",\\"endpoint\\":\\"tcp://*:${KV_EVENTS_BASE}\\",\\"topic\\":\\"kv@${POD_IP}@zai-org/GLM-5.2-FP8\\"}"
+                KV_EVENTS_ARGS="--kv-events-config {\\"enable_kv_cache_events\\":true,\\"publisher\\":\\"zmq\\",\\"endpoint\\":\\"tcp://*:${KV_EVENTS_BASE}\\",\\"topic\\":\\"kv@${POD_IP}:8000@zai-org/GLM-5.2-FP8\\"}"
 """
 
 POD_IP_ENV = """\
@@ -72,6 +72,8 @@ def patch(path, subs):
 for role in ("prefill", "decode"):
     p = BASE / f"{role}.yaml"
     s = p.read_text()
+    if "p2p-tiered" in s:
+        sys.exit(f"FATAL: {p.name} already adapted - re-export pristine bases from pr1947 first")
 
     subs = [("image: vllm/vllm-openai:nightly\n", f"image: {ENGINE_IMAGE}\n", True)]
 
@@ -121,6 +123,8 @@ for role in ("prefill", "decode"):
          True)
     )
     if role == "decode":
+        subs.append(("              sizeLimit: 256Gi\n", "              sizeLimit: 1500Gi\n", True))
+        subs.append(("                memory: 512Gi\n", "                memory: 1500Gi\n", True))
         subs.append(("image: ghcr.io/llm-d/llm-d-router-disagg-sidecar:v0.9.0",
                      f"image: {SIDECAR_IMAGE}", True))
         # sidecar P2P injection flags, mirroring the validated GLM cell
@@ -147,6 +151,23 @@ for role in ("prefill", "decode"):
              True)
         )
 
+    subs.append(
+        ("""              - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+                valueFrom:
+                  fieldRef:
+                    fieldPath: status.podIP
+""",
+         """              - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+                valueFrom:
+                  fieldRef:
+                    fieldPath: status.podIP
+              - name: VLLM_P2P_SIDE_CHANNEL_HOST
+                valueFrom:
+                  fieldRef:
+                    fieldPath: status.podIP
+""",
+         True)
+    )
     patch(p, subs)
     print(f"patched {p.name}")
 
