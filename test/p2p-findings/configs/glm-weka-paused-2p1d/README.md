@@ -1,4 +1,8 @@
-# GLM + Weka P2P campaign on the blog deployment (p2w1d1w2)
+# P2P reconstruction on the blog's p2w1d1w2 topology using the recovered Weka agentic runner
+
+Label rules: this campaign does NOT reproduce the blog's ladder or its
+corpus preprocessing (o200k lineage unestablished). It is our own
+campaign on the blog's deployment and runner.
 
 Status: PREPARED, NOT RUN. Cluster untouched beyond reads. Awaiting
 review sign-off before deployment.
@@ -61,18 +65,34 @@ concurrency cell.
 - `gates/gate1_deploy_verify.sh`: deployment verification archive
   (listeners, tiers, UCX completion per rank, EPP event flow). Abort on
   any rank without a completed tier init.
-- `gates/gate2_p2p_proof.sh`: fresh-prefix one-shot proof (control
-  ~0.0 MB vs pull ~2,276.4 MB at 24,576 tokens, source accept, HTTP
-  200) before any Weka run.
+- `gates/gate2_p2p_proof.sh`: fresh-prefix one-shot proof, one
+  independent prefix per leg (control <50 MB; engine-inject and
+  sidecar-header legs each 1,900-2,650 MB at 24,576 tokens; required
+  source-session delta across the pull legs; HTTP 200), fails closed.
+- `gates/armC_probe.sh`: the arm C organic-engagement probe (stage 1
+  stop rule).
 - `run_arm.sh` per-arm: EPP arg-swap restart, active-config and
   producer-declaration checks, fleet/foreign-job checks, warm probe,
   before/after counter snapshots (`snap_counters.sh`).
 
 ## Protocol
 
-Per cell (concurrency in {64, 128, 256}): three valid repetitions of B
-and C, counterbalanced; A run to anchor. Cold-roll policy, stop rules,
-and low-engagement interpretation per the campaign design (no
-performance A/B if the short probe shows zero source deltas or zero
-injected pulls; <5% pull-rate means a tie is expected and reported as
-such).
+Ladder: c64 (recovered-runner anchor; likely low engagement), c128
+(early spill region), c256 (expected P2P opportunity region), c400
+(blog-scale stress; may expose decode saturation).
+
+Two stages:
+
+1. Engagement: one paired B/C run per cell; on the C side,
+   `gates/armC_probe.sh <conc>` measures organic engagement first (EPP
+   `set KV cache source header` emissions per distinct request in a
+   streamed EPP log, plus source-session deltas). Zero directives fails
+   the probe and skips the cell's A/B.
+2. Measurement: at cells with successful pulls and >=5% engagement,
+   three counterbalanced B/C repetitions with paired seeds
+   (`SEED=42/43/44` on `run_arm.sh`). A run to anchor.
+
+Only B-versus-C is the causal P2P result; A is the contextual anchor
+and is never the no-P2P half of the P2P comparison. Cold-roll policy
+and stop rules otherwise per the campaign design; <5% engagement means
+a tie is expected and is reported as such.

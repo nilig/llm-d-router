@@ -7,6 +7,7 @@ NS=${NS:-nilig-p2p}
 LOADGEN=${LOADGEN:-scenc-loadgen}
 FLEET_EXPECT=${FLEET_EXPECT:-4}
 ALLOW_FOREIGN=${ALLOW_FOREIGN:-0}
+SEED=${SEED:-42}
 ARM="$1"; CONC="$2"; TAG="$3"
 SP="$(cd "$(dirname "$0")" && pwd)"; cd "$SP"
 
@@ -71,9 +72,9 @@ NS="$NS" ./snap_counters.sh "$SP/snap-$TAG-before.txt"
 # the recovered runner (see workload/README.md - reconstruction status),
 # cloned verbatim; only URL/metrics endpoints, artifact volume, namespace,
 # and the concurrency cell change.
-python3 - "$TAG" "$CONC" "$NS" << 'PY'
+python3 - "$TAG" "$CONC" "$NS" "$SEED" << 'PY'
 import json, sys
-tag, conc, ns = sys.argv[1], sys.argv[2], sys.argv[3]
+tag, conc, ns, seed = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 d = json.load(open('workload/blog-campaign-job-c64.json'))
 d.pop('status', None)
 d['metadata'] = {'name': f'weka-{tag}', 'namespace': ns}
@@ -83,7 +84,9 @@ for k in list(labels):
     if 'controller-uid' in k or 'job-name' in k: labels.pop(k)
 spec = d['spec']['template']['spec']
 c = spec['containers'][0]
-c['args'][-1] = c['args'][-1].replace('--concurrency 64', f'--concurrency {conc}')
+a = c['args'][-1].replace('--concurrency 64', f'--concurrency {conc}')
+a = a.replace('--random-seed 42', f'--random-seed {seed}')
+c['args'][-1] = a
 env = {e['name']: e for e in c.get('env', [])}
 env['URL']['value'] = f'http://p2p-pd-epp.{ns}:8081/v1'
 env['SERVER_METRICS_ARGS']['value'] = f'--server-metrics http://p2p-pd-epp.{ns}:9090/metrics'

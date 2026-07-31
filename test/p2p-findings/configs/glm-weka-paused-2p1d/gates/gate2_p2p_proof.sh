@@ -108,10 +108,20 @@ PY
   esac
 }
 
+# Port semantics on this deployment: prefill engines serve rank r directly
+# at 8000+r; decode engines serve at 8200+r behind the sidecar at 8000+r.
+# The serving endpoint used for rank addressing is IP:8000+r on BOTH roles;
+# SRC_URL (seeding) is the engine port (decode source: 8200+r).
+
 lg "== Gate 2: fresh-prefix P2P proof (independent prefixes per leg) =="
+S_PULL_START=$(session_count)
 seed_and_send control none
 seed_and_send engine-inject inject
 seed_and_send sidecar-header header
+S_PULL_END=$(session_count)
+lg "source sessions across pull legs: $((S_PULL_END-S_PULL_START))"
+[ "$((S_PULL_END-S_PULL_START))" -ge 1 ] \
+  || { lg "FAIL: no new source-side session across the pull legs - transfers were not peer transfers"; fail=1; }
 
 # sidecar evidence for the header leg
 SIDE_POD=${SIDE_POD:-}
