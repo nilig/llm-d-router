@@ -187,7 +187,7 @@ spec:
               - name: KV_OFFLOAD_CPU_BYTES
                 value: "107374182400"
               - name: ENABLE_MTP
-                value: "1"
+                value: "0"
               - name: MTP_NUM_TOKENS
                 value: "3"
               - name: VLLM_USE_V2_MODEL_RUNNER

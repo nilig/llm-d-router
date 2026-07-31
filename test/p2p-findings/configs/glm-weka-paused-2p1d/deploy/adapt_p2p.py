@@ -150,6 +150,14 @@ for role in ("prefill", "decode"):
              "              - name: OFFLOADING_MODE\n                value: \"p2p-tiered\"\n",
              True)
         )
+        # DEP8 prefill is KV-tight at max-model-len 120000 (measured: rank
+        # variance leaves ranks below the 6.12 GiB floor). MTP is inert on
+        # the P/D prefill leg, so drop the draft weights for headroom.
+        subs.append(
+            ("              - name: ENABLE_MTP\n                value: \"1\"\n",
+             "              - name: ENABLE_MTP\n                value: \"0\"\n",
+             True)
+        )
 
     subs.append(
         ("""              - name: VLLM_NIXL_SIDE_CHANNEL_HOST
