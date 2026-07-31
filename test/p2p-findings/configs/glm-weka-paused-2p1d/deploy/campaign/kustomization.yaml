@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Campaign deployment: the blog's p2w1d1w2 topology with the P2P stack
+# active on both roles (OFFLOADING_MODE=p2p-tiered is set by adapt_p2p.py
+# in the base manifests). One engine deployment serves all three arms; the
+# EPP config is the only per-arm variable.
+namespace: nilig-p2p
+resources:
+  - ../modelserver/gpu/vllm-glm-5.2/deployments/p2w1d1w2

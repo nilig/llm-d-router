@@ -1,0 +1,14 @@
+--- /private/tmp/claude-501/-Users-niliguy-github-com-llm-d-router/d1afc05f-3617-4877-9ba4-0d21b92c4170/scratchpad/findings/test/p2p-findings/configs/glm-weka-paused-2p1d/epp/armB-loadfirst.yaml	2026-07-31 01:41:06
++++ /private/tmp/claude-501/-Users-niliguy-github-com-llm-d-router/d1afc05f-3617-4877-9ba4-0d21b92c4170/scratchpad/findings/test/p2p-findings/configs/glm-weka-paused-2p1d/epp/armC-loadfirst-p2p.yaml	2026-07-31 01:41:06
+@@ -37,6 +37,11 @@
+   name: precise-prefix-cache-scorer
+   parameters:
+     prefixMatchInfoProducerName: precise-prefix-cache-producer
++- type: p2p-source-producer
++  parameters:
++    prefixMatchInfoProducerName: precise-prefix-cache-producer
++    prefillProfileName: prefill
++    minCachedTokenDelta: 12288
+ - type: queue-scorer
+ - type: active-request-scorer
+ dataLayer:
