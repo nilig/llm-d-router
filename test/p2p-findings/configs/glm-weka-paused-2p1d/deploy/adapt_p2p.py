@@ -160,6 +160,17 @@ for role in ("prefill", "decode"):
              "              - name: PREFILL_GPU_MEM_UTIL\n                value: \"0.925\"\n",
              True)
         )
+        # At util 0.925 the DeepEP warmup allocation (6.05 GiB at batch
+        # ceiling 8192) OOMs by 0.25 GiB. 7168 trims it ~12.5% (~0.76 GiB),
+        # preserving 120k admission, MTP parity, and the NIXL cache layout;
+        # applied to the shared engine deployment, so all arms see it
+        # identically and B-vs-C stays causal. Campaign adaptation - this
+        # remains a reconstruction, not a blog reproduction.
+        subs.append(
+            ("                  --max-num-batched-tokens 8192 \\\n",
+             "                  --max-num-batched-tokens 7168 \\\n",
+             True)
+        )
 
     subs.append(
         ("""              - name: VLLM_NIXL_SIDE_CHANNEL_HOST

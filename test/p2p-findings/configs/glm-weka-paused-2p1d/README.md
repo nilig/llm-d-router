@@ -43,6 +43,15 @@ campaign deltas in place (already applied to this copy):
   the pod IP on both roles; decode memory/shm raised to 1500Gi for the
   8x100 GiB tier; `PYTHONHASHSEED=0`; `--block-size 64`
 
+Campaign adaptations versus the blog engine config (all arms identical,
+so B-vs-C stays causal; this remains a reconstruction): prefill
+`PREFILL_GPU_MEM_UTIL=0.925` and prefill `--max-num-batched-tokens 7168`
+(H200 memory budget: at util 0.92 the worst ranks miss the 120k KV floor
+by 0.21 GiB; at 0.925 the DeepEP warmup allocation OOMs by 0.25 GiB at
+ceiling 8192 - crash logs in `workload/prefill-kv-oom-crash.log`; 7168
+trims the warmup ~0.76 GiB while preserving 120k admission, MTP parity,
+and the NIXL cache layout).
+
 One engine deployment serves all three arms (the EPP config is the only
 per-arm variable). Arm A therefore runs with the P2P/CPU tiers present
 but unused by its router config - disclosed, engine-identical arms.
