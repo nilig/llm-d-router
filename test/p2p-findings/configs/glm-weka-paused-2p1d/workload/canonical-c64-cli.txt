@@ -1,0 +1,4 @@
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 64 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/new_nightly/results_p1w2_d1w2/results_p1w2_d1w2_c64_attempt1' --ui 'simple'
+
+aiperf_version: 0.8.0
+request_count: None
