@@ -75,6 +75,18 @@ concurrency cell.
   producer-declaration checks, fleet/foreign-job checks, warm probe,
   before/after counter snapshots (`snap_counters.sh`).
 
+## Bring-up order
+
+```text
+kubectl kustomize deploy/campaign | kubectl apply -f -
+install_epp_configmap.sh
+activate_arm.sh <arm>
+gates/gate1_deploy_verify.sh
+gates/gate2_p2p_proof.sh
+gates/armC_probe.sh <conc>   (engagement stage, per cell)
+run_arm.sh <arm> <conc> <tag>  (measurement arms)
+```
+
 ## Protocol
 
 Ladder: c64 (recovered-runner anchor; likely low engagement), c128

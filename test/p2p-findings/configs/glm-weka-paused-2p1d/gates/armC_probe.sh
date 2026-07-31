@@ -1,7 +1,7 @@
 #!/bin/bash
 # Arm C engagement probe: the stop-rule implementation. Runs a SHORT arm C
 # burst at the target concurrency and measures organic P2P engagement
-# through the stock EPP path. Fails closed.
+# through the stock EPP path (directives deduplicated by requestID). Fails closed.
 #
 # Engagement counter: the EPP's p2p-source-producer logs
 # "set KV cache source header" at Info per emitted directive
@@ -110,7 +110,16 @@ kill $STREAM_PID 2>/dev/null || true
 S1=$(sessions)
 B1=$(prefill_load_bytes)
 
-EMITS=$(grep -c 'set KV cache source header' "$OUT/epp-stream.jsonl" || true)
+EMITS=$(python3 - "$OUT/epp-stream.jsonl" << 'PY'
+import sys, re
+ids = set()
+for ln in open(sys.argv[1], errors='ignore'):
+    if 'set KV cache source header' not in ln: continue
+    m = re.search(r'"requestID"\s*:\s*"([^"]+)"|requestID[=\s]+"?([\w-]+)', ln)
+    ids.add((m.group(1) or m.group(2)) if m else ln)
+print(len(ids))
+PY
+)
 REQS=$(python3 - "$OUT/epp-stream.jsonl" << 'PY'
 import sys, re
 ids = set()

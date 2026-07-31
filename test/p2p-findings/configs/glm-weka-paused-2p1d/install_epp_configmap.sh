@@ -47,11 +47,27 @@ if [ "$OLD" != "$CM" ]; then
   kubectl -n "$NS" rollout status deploy/p2p-pd-epp --timeout=300s | tail -1
 fi
 
-# verify the running pod sees all three files
-EPP=$(kubectl -n "$NS" get pods -l app=p2p-pd-epp -o name | head -1)
-FILES=$(kubectl -n "$NS" exec "${EPP#pod/}" -c epp -- ls /config 2>/dev/null | tr '\n' ' ')
-echo "mounted /config: $FILES"
-for f in armA-blog-plugins.yaml armB-loadfirst.yaml armC-loadfirst-p2p.yaml; do
-  case " $FILES " in *" $f "*) ;; *) echo "ABORT: $f not mounted"; exit 1;; esac
-done
-echo "EPP ConfigMap installed; use activate_arm.sh to select an arm"
+# verify via the API (the image is distroless - no exec): the READY pod's
+# /config volume must resolve to the campaign ConfigMap; the key check
+# above already proved the ConfigMap's contents
+POD_CM=$(kubectl -n "$NS" get pods -l app=p2p-pd-epp -o json | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+for pod in d['items']:
+    st=pod.get('status',{})
+    ready=any(c.get('type')=='Ready' and c.get('status')=='True'
+              for c in st.get('conditions',[]))
+    if not ready: continue
+    spec=pod['spec']
+    mn=None
+    for c in spec['containers']:
+        if c['name']=='epp':
+            for m in c.get('volumeMounts',[]):
+                if m['mountPath']=='/config': mn=m['name']
+    for v in spec.get('volumes',[]):
+        if v['name']==mn:
+            print(v.get('configMap',{}).get('name',''))
+            raise SystemExit
+print('')")
+[ "$POD_CM" = "$CM" ] || { echo "ABORT: ready EPP pod's /config volume resolves to '$POD_CM', want $CM"; exit 1; }
+echo "EPP ConfigMap installed and mounted by the ready pod; use activate_arm.sh to select an arm"
