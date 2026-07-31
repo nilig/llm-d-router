@@ -1,0 +1,81 @@
+From f6a891926f06591b946a5d22bcb95d9672c63b7e Mon Sep 17 00:00:00 2001
+From: Elvir Crncevic <elvircrn@gmail.com>
+Date: Fri, 31 Jul 2026 17:03:30 +0200
+Subject: [PATCH] GLM-5.2 fixups Signed-off-by: Elvir Crncevic
+ <elvircrn@gmail.com>
+
+---
+ guides/wide-ep-lws/modelserver/gpu/vllm-glm-5.2/README.md   | 2 +-
+ .../modelserver/gpu/vllm-glm-5.2/base/prefill.yaml          | 6 ++----
+ .../benchmark/mtp-offloading/p1w1d1w1/kustomization.yaml    | 1 +
+ .../benchmark/mtp-offloading/p1w2d1w2/kustomization.yaml    | 1 +
+ 4 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/guides/wide-ep-lws/modelserver/gpu/vllm-glm-5.2/README.md b/guides/wide-ep-lws/modelserver/gpu/vllm-glm-5.2/README.md
+index 534a3c790..46c22e89b 100644
+--- a/guides/wide-ep-lws/modelserver/gpu/vllm-glm-5.2/README.md
++++ b/guides/wide-ep-lws/modelserver/gpu/vllm-glm-5.2/README.md
+@@ -29,7 +29,7 @@ Tested on CoreWeave (CKS) with InfiniBand networking. This recipe reuses the
+ | KV transfer             | NixlConnector                                                                      |
+ | KV cache offloading     | Off (opt-in via components)                                                        |
+ | MTP speculative decoding | On (3 tokens; opt-out via `no-mtp` component)                                     |
+-| Prefill `gpu-memory-utilization` | 0.92 (single-node) / 0.88 (multi-node)                                   |
++| Prefill `gpu-memory-utilization` | 0.935                                                                    |
+ | Decode `gpu-memory-utilization`  | 0.95                                                                     |
+ | Reasoning / tool-call   | glm45 / glm47                                                                     |
+ 
+diff --git a/guides/wide-ep-lws/modelserver/gpu/vllm-glm-5.2/base/prefill.yaml b/guides/wide-ep-lws/modelserver/gpu/vllm-glm-5.2/base/prefill.yaml
+index 3e9884300..319f53c24 100644
+--- a/guides/wide-ep-lws/modelserver/gpu/vllm-glm-5.2/base/prefill.yaml
++++ b/guides/wide-ep-lws/modelserver/gpu/vllm-glm-5.2/base/prefill.yaml
+@@ -77,7 +77,7 @@ spec:
+                 # RUN vLLM GLM-5.2-FP8 prefill worker
+                 #################
+ 
+-                GPU_MEM_UTIL=${PREFILL_GPU_MEM_UTIL:-$([ "${LWS_GROUP_SIZE:-1}" -gt 1 ] && echo 0.88 || echo 0.92)}
++                GPU_MEM_UTIL=${PREFILL_GPU_MEM_UTIL:-0.935}
+ 
+                 MTP_ARGS=""
+                 if [ "${ENABLE_MTP:-1}" = "1" ]; then
+@@ -138,7 +138,7 @@ spec:
+                   --data-parallel-size-local $DP_SIZE_LOCAL \
+                   --data-parallel-address ${LWS_LEADER_ADDRESS} \
+                   --data-parallel-rpc-port 5555 \
+-                  --max-num-batched-tokens 8192 \
++                  --max-num-batched-tokens 2048 \
+                   --data-parallel-start-rank $START_RANK \
+                   --kv_transfer_config "$KV_TRANSFER_CONFIG" \
+                   --moe-backend deep_gemm \
+@@ -155,8 +155,6 @@ spec:
+                 value: ""
+               - name: MAX_MODEL_LEN
+                 value: "120000"
+-              - name: OFFLOADING_MODE
+-                value: "off"
+               - name: KV_OFFLOAD_CPU_BYTES
+                 value: "107374182400"
+               - name: ENABLE_MTP
+diff --git a/guides/wide-ep-lws/modelserver/gpu/vllm-glm-5.2/deployments/benchmark/mtp-offloading/p1w1d1w1/kustomization.yaml b/guides/wide-ep-lws/modelserver/gpu/vllm-glm-5.2/deployments/benchmark/mtp-offloading/p1w1d1w1/kustomization.yaml
+index 202b69a16..1405ac6bd 100644
+--- a/guides/wide-ep-lws/modelserver/gpu/vllm-glm-5.2/deployments/benchmark/mtp-offloading/p1w1d1w1/kustomization.yaml
++++ b/guides/wide-ep-lws/modelserver/gpu/vllm-glm-5.2/deployments/benchmark/mtp-offloading/p1w1d1w1/kustomization.yaml
+@@ -5,6 +5,7 @@ resources:
+   - ../../../../providers/coreweave
+ components:
+   - ../../../../components/offloading-tiered
++  - ../../../../components/hotfix-50302
+ patches:
+   - target:
+       kind: LeaderWorkerSet
+diff --git a/guides/wide-ep-lws/modelserver/gpu/vllm-glm-5.2/deployments/benchmark/mtp-offloading/p1w2d1w2/kustomization.yaml b/guides/wide-ep-lws/modelserver/gpu/vllm-glm-5.2/deployments/benchmark/mtp-offloading/p1w2d1w2/kustomization.yaml
+index b3461ead9..91022372b 100644
+--- a/guides/wide-ep-lws/modelserver/gpu/vllm-glm-5.2/deployments/benchmark/mtp-offloading/p1w2d1w2/kustomization.yaml
++++ b/guides/wide-ep-lws/modelserver/gpu/vllm-glm-5.2/deployments/benchmark/mtp-offloading/p1w2d1w2/kustomization.yaml
+@@ -5,6 +5,7 @@ resources:
+   - ../../../../providers/coreweave
+ components:
+   - ../../../../components/offloading-tiered
++  - ../../../../components/hotfix-50302
+ patches:
+   - target:
+       kind: LeaderWorkerSet

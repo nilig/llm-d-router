@@ -606,7 +606,7 @@ spec:
               --data-parallel-size-local $DP_SIZE_LOCAL \
               --data-parallel-address ${LWS_LEADER_ADDRESS} \
               --data-parallel-rpc-port 5555 \
-              --max-num-batched-tokens 6144 \
+              --max-num-batched-tokens 2048 \
               --data-parallel-start-rank $START_RANK \
               --block-size 64 \
               $KV_EVENTS_ARGS \
@@ -631,7 +631,7 @@ spec:
           - name: HF_HOME
             value: /mnt/hf-cache
           - name: PREFILL_GPU_MEM_UTIL
-            value: "0.925"
+            value: "0.935"
           - name: MAX_MODEL_LEN
             value: "120000"
           - name: OFFLOADING_MODE

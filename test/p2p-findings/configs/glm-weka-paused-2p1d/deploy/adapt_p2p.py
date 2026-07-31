@@ -154,25 +154,20 @@ for role in ("prefill", "decode"):
              "              - name: OFFLOADING_MODE\n                value: \"p2p-tiered\"\n",
              True)
         )
-        # DEP8 prefill is KV-tight at max-model-len 120000: single-node
-        # default util 0.92 leaves ranks DP4/DP5 at 5.91-5.95 GiB against
-        # the 6.12 GiB floor (crash logs archived in workload/). 0.925 adds
-        # ~0.7 GiB per H200 - above the 0.21 GiB deficit - without touching
-        # MAX_MODEL_LEN (workload admission) or MTP (P/D handoff parity).
+        # Prefill memory settings from the deployment author's fixups
+        # (elvircrn/llm-d f6a89192): util 0.935 and batch ceiling 2048 are
+        # what the blog benchmark runs. They also resolve the two boot
+        # failures we measured on the stock values (KV floor missed by
+        # 0.21 GiB at util 0.92; DeepGEMM warmup OOM at ceilings 8192 and
+        # 7168 - crash logs archived in workload/).
         subs.append(
             ("              - name: PREFILL_GPU_MEM_UTIL\n                value: \"\"\n",
-             "              - name: PREFILL_GPU_MEM_UTIL\n                value: \"0.925\"\n",
+             "              - name: PREFILL_GPU_MEM_UTIL\n                value: \"0.935\"\n",
              True)
         )
-        # At util 0.925 the DeepEP warmup allocation (6.05 GiB at batch
-        # ceiling 8192) OOMs by 0.25 GiB. 6144 trims it 25% (7168 still OOMed one rank at 5.30 GiB during DeepGEMM warmup - per-rank free-memory variance),
-        # preserving 120k admission, MTP parity, and the NIXL cache layout;
-        # applied to the shared engine deployment, so all arms see it
-        # identically and B-vs-C stays causal. Campaign adaptation - this
-        # remains a reconstruction, not a blog reproduction.
         subs.append(
             ("                  --max-num-batched-tokens 8192 \\\n",
-             "                  --max-num-batched-tokens 6144 \\\n",
+             "                  --max-num-batched-tokens 2048 \\\n",
              True)
         )
 
