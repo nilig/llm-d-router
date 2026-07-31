@@ -7,3 +7,14 @@ kind: Kustomization
 namespace: nilig-p2p
 resources:
   - ../modelserver/gpu/vllm-glm-5.2/deployments/p2w1d1w2
+patches:
+  # the patched engine image lives in a private quay repo; the campaign
+  # namespace carries the matching dockerconfigjson secret
+  - target:
+      kind: ServiceAccount
+      name: glm-5-2
+    patch: |-
+      - op: add
+        path: /imagePullSecrets
+        value:
+          - name: niliguy-quay-pull
