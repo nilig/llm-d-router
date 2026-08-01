@@ -1,0 +1,8 @@
+false-negative: warm P2P session reused
+
+Every byte assertion passed (control 0.0 MB; engine-inject 1341.5 MB;
+pd-stock 1341.5 MB, 0.0% deviation). The source-session delta read 0
+because the session opened by the previous gate run persisted; a live
+ESTABLISHED connection on source :7777 from the destination prefill IP
+was verified in /proc/net/tcp at fail time. Superseded by the
+warm-mesh-aware session rule (delta >= 1 OR exact live peer >= 1).

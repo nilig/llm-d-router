@@ -23,9 +23,16 @@
 #     the same byte window INTO the destination prefill engine, AND be
 #     within 5% of the engine leg's delta (the engine-inject leg is the
 #     positive control for the stock path)
-# All legs require HTTP 200; the pull legs together require >= 1 new
-# source-side session. EPP-organic engagement is validated by
-# gates/armC_probe.sh, not this gate.
+# All legs require HTTP 200. Session evidence is warm-mesh-aware:
+#   new_session_delta >= 1 OR exact_live_peer_connections >= 1
+# where the live check requires an ESTABLISHED /proc/net/tcp entry in
+# SRC_POD with local port == the derived P2P_PORT and remote IP == the
+# DST_PF_SERVING IP at gate completion. A new-session delta measures
+# connection creation, not transfer execution; P2P sessions persist
+# across runs, so on a warm mesh the delta legitimately reads 0 and the
+# exact live peer connection is the stronger evidence. Both values are
+# logged; the delta stays as diagnostic evidence. EPP-organic
+# engagement is validated by gates/armC_probe.sh, not this gate.
 #
 # Measured KV footprint on this engine (nightly-6f91edf9 + #50302,
 # GLM-5.2-FP8, block 64):
@@ -143,9 +150,22 @@ S_PULL_END=$(session_count)
 lg "engine_delta_MB=$ENGINE_DELTA pd_delta_MB=$PD_DELTA (pd within ${PD_VS_ENGINE_PCT}% required)"
 python3 -c "exit(0 if abs($PD_DELTA-$ENGINE_DELTA) <= $ENGINE_DELTA*$PD_VS_ENGINE_PCT/100.0 else 1)" \
   || { lg "FAIL: pd-stock delta ${PD_DELTA} MB deviates >${PD_VS_ENGINE_PCT}% from engine-inject ${ENGINE_DELTA} MB"; fail=1; }
-lg "source sessions across pull legs: $((S_PULL_END-S_PULL_START))"
-[ "$((S_PULL_END-S_PULL_START))" -ge 1 ] \
-  || { lg "FAIL: no new source-side session across the pull legs - transfers were not peer transfers"; fail=1; }
+SESSION_DELTA=$((S_PULL_END-S_PULL_START))
+# exact-peer live check at gate completion: ESTABLISHED connection in
+# SRC_POD on the derived P2P_PORT from the DST_PF_SERVING IP
+DST_IP=${DST_PF_SERVING%:*}
+LIVE_PEERS=$(kubectl -n "$NS" exec "$SRC_POD" -c vllm -- python3 -c "
+hexdst = ''.join(f'{int(o):02X}' for o in reversed('$DST_IP'.split('.')))
+n = 0
+for line in open('/proc/net/tcp').readlines()[1:]:
+    f = line.split()
+    if int(f[1].split(':')[1], 16) == $P2P_PORT and f[3] == '01' \
+       and f[2].split(':')[0] == hexdst:
+        n += 1
+print(n)" 2>/dev/null || echo 0)
+lg "session evidence: new_session_delta=$SESSION_DELTA exact_live_peer_connections=$LIVE_PEERS (need delta>=1 OR live>=1)"
+{ [ "$SESSION_DELTA" -ge 1 ] || [ "$LIVE_PEERS" -ge 1 ]; } \
+  || { lg "FAIL: no new source-side session and no live exact-peer connection - transfers were not peer transfers"; fail=1; }
 
 if [ "$fail" -ne 0 ]; then lg "GATE 2: FAIL"; exit 1; fi
 lg "GATE 2: PASS"
