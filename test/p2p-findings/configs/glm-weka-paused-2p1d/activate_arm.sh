@@ -3,16 +3,16 @@
 # restart a ConfigMap-only edit silently skips), then verify the active
 # config and the producer declaration count. No workload is started.
 # Shared by run_arm.sh and gates/armC_probe.sh.
-# Usage: activate_arm.sh <armA|armB|armC>
+# Usage: activate_arm.sh <blog-approximate|precise-no-p2p|precise-p2p>
 set -euo pipefail
 NS=${NS:-nilig-p2p}
 ARM="$1"
 
 case "$ARM" in
-  armA) CFGF=armA-blog-plugins.yaml; WANT=0 ;;
-  armB) CFGF=armB-loadfirst.yaml;    WANT=0 ;;
-  armC) CFGF=armC-loadfirst-p2p.yaml; WANT=1 ;;
-  *) echo "ABORT: unknown arm $ARM"; exit 1 ;;
+  blog-approximate|armA) CFGF=armA-blog-plugins.yaml; WANT=0 ;;
+  precise-no-p2p|armB) CFGF=armB-loadfirst.yaml; WANT=0 ;;
+  precise-p2p|armC) CFGF=armC-loadfirst-p2p.yaml; WANT=1 ;;
+  *) echo "ABORT: unknown configuration $ARM"; exit 1 ;;
 esac
 
 # the campaign ConfigMap and the arm's key must exist before any

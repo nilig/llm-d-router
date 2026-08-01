@@ -1,7 +1,8 @@
 #!/bin/bash
 # One campaign arm. Fails closed: config swap, producer declaration,
 # fleet readiness, foreign-workload absence, and the warm probe are all
-# hard gates. Usage: run_arm.sh <armA|armB|armC> <concurrency> <tag>
+# hard gates. Usage: run_arm.sh
+# <blog-approximate|precise-no-p2p|precise-p2p> <concurrency> <tag>
 set -euo pipefail
 NS=${NS:-nilig-p2p}
 LOADGEN=${LOADGEN:-scenc-loadgen}
@@ -12,10 +13,10 @@ ARM="$1"; CONC="$2"; TAG="$3"
 SP="$(cd "$(dirname "$0")" && pwd)"; cd "$SP"
 
 case "$ARM" in
-  armA) CFGF=armA-blog-plugins.yaml; WANT=0 ;;
-  armB) CFGF=armB-loadfirst.yaml;    WANT=0 ;;
-  armC) CFGF=armC-loadfirst-p2p.yaml; WANT=1 ;;
-  *) echo "ABORT: unknown arm $ARM"; exit 1 ;;
+  blog-approximate|armA) CFGF=armA-blog-plugins.yaml; WANT=0 ;;
+  precise-no-p2p|armB) CFGF=armB-loadfirst.yaml; WANT=0 ;;
+  precise-p2p|armC) CFGF=armC-loadfirst-p2p.yaml; WANT=1 ;;
+  *) echo "ABORT: unknown configuration $ARM"; exit 1 ;;
 esac
 
 echo "### ARM $ARM c$CONC (tag $TAG) ns=$NS ###"
@@ -48,7 +49,22 @@ except Exception as e: print('ERR',type(e).__name__)" 2>&1 | tail -1)
 done
 [ "$code" = "200" ] || { echo "ABORT: probe failed"; exit 1; }
 
+NS="$NS" ./gates/wait_fleet_quiescent.sh 180 | tee "$SP/quiescent-$TAG.txt"
+sleep 30
 NS="$NS" ./snap_counters.sh "$SP/snap-$TAG-before.txt"
+
+EPP_POD=$(kubectl -n "$NS" get pods -l app=p2p-pd-epp -o name | head -1)
+EPP_POD=${EPP_POD#pod/}
+kubectl -n "$NS" logs --tail=0 -f "$EPP_POD" -c epp 2>/dev/null \
+  | grep --line-buffered '"requestID"' > "$SP/epp-$TAG.jsonl" &
+STREAM_PID=$!
+cleanup_stream() {
+  kill "$STREAM_PID" 2>/dev/null || true
+  wait "$STREAM_PID" 2>/dev/null || true
+}
+trap cleanup_stream EXIT
+sleep 5
+kill -0 "$STREAM_PID" 2>/dev/null || { echo "ABORT: EPP log stream failed to attach"; exit 1; }
 
 # the recovered runner (see workload/README.md - reconstruction status),
 # cloned verbatim; only URL/metrics endpoints, artifact volume, namespace,
@@ -88,8 +104,29 @@ kubectl -n "$NS" wait --for=condition=complete --timeout=1800s "job/weka-$TAG" 2
   || { echo "ABORT: job did not complete"; kubectl -n "$NS" logs "job/weka-$TAG" --tail=20; exit 1; }
 JP=$(kubectl -n "$NS" get pods --no-headers | awk -v t="weka-$TAG" 'index($1,t)==1 {print $1; exit}')
 kubectl -n "$NS" logs "$JP" > "$SP/weka-$TAG.log" 2>/dev/null
+sleep 3
+cleanup_stream
+trap - EXIT
 NS="$NS" ./snap_counters.sh "$SP/snap-$TAG-after.txt"
+python3 - "$SP/epp-$TAG.jsonl" > "$SP/mechanism-$TAG.txt" << 'PY'
+import re, sys
+requests = set()
+directives = set()
+for line in open(sys.argv[1], errors='ignore'):
+    match = re.search(r'"requestID"\s*:\s*"([^"]+)"|requestID[=\s]+"?([\w-]+)', line)
+    if not match:
+        continue
+    request_id = match.group(1) or match.group(2)
+    requests.add(request_id)
+    if 'set KV cache source header' in line:
+        directives.add(request_id)
+rate = 100.0 * len(directives) / len(requests) if requests else 0.0
+print(f'requests_seen={len(requests)}')
+print(f'source_directives={len(directives)}')
+print(f'engagement_rate={rate:.1f}%')
+PY
 echo "=== summary ==="
 ERRS=$(grep -icE "error|fail" "$SP/weka-$TAG.log" || true)
 echo "error-ish lines in client log: $ERRS (inspect before trusting the arm)"
+cat "$SP/mechanism-$TAG.txt"
 grep -iE "time to first token|inter token|request latency|throughput|Benchmark Duration|request count" "$SP/weka-$TAG.log" | tail -12

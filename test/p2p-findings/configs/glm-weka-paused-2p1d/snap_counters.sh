@@ -8,13 +8,15 @@ OUT=${1:?usage: snap_counters.sh <outfile>}
 {
 echo "=== $(date -u +%FT%TZ) ==="
 echo "--- pod restarts ---"
-kubectl -n $NS get pods -l llm-d.ai/model -o custom-columns='NAME:.metadata.name,RESTARTS:.status.containerStatuses[*].restartCount' --no-headers
+kubectl -n $NS get pods -l 'llm-d.ai/inference-serving=true' -o custom-columns='NAME:.metadata.name,RESTARTS:.status.containerStatuses[*].restartCount' --no-headers
 echo "--- engine offload counters (per pod) ---"
-for p in $(kubectl -n $NS get pods -l llm-d.ai/model -o name); do
+for p in $(kubectl -n $NS get pods -l 'llm-d.ai/inference-serving=true' -o name); do
   pod=${p#pod/}
+  role=$(kubectl -n $NS get "$p" -o jsonpath='{.metadata.labels.llm-d\.ai/role}')
+  if [ "$role" = "prefill" ]; then base=8000; else base=8200; fi
   echo "## $pod"
   kubectl -n $NS exec "$pod" -c vllm -- bash -c \
-    'for port in 8200 8000; do curl -s --max-time 5 localhost:$port/metrics 2>/dev/null | grep -E "kv_offload_load_bytes_total|kv_offload_total_bytes_total|external_prefix_cache_hits|prefix_cache_hits" | head -8 && break; done' 2>/dev/null
+    "for r in 0 1 2 3 4 5 6 7; do echo rank=\$r; curl -s --max-time 5 localhost:\$(( $base + r ))/metrics 2>/dev/null | grep -E 'kv_offload_load_bytes_total|kv_offload_total_bytes_total|external_prefix_cache_hits|prefix_cache_hits'; done" 2>/dev/null
   echo "## $pod sessions"
   kubectl -n $NS logs "$pod" -c vllm --tail=100000 2>/dev/null | grep -c "created connected session" || true
 done
