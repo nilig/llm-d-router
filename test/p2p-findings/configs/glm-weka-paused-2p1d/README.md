@@ -51,9 +51,11 @@ so B-vs-C stays causal): prefill `PREFILL_GPU_MEM_UTIL=0.935` and
 prefill `--max-num-batched-tokens 2048`, the deployment author's own
 fixups (elvircrn/llm-d `f6a89192`, archived in `elvir-fixups/`) for the
 same KV-floor/warmup OOM class we measured on this topology (crash logs
-in `workload/prefill-kv-oom-crash.log`); engine image carries the open
-vllm #50302 block-table alignment fix (`pr50302-port/`), which his
-`hotfix-50302` component applies equivalently at boot.
+in `workload/prefill-kv-oom-crash.log`); engine image carries the vllm
+#50302 block-table alignment fix (`pr50302-port/`; merged upstream
+2026-07-31 as `a0cd2b69`, so any nightly containing that commit needs
+no patch), which his `hotfix-50302` component applies equivalently at
+boot.
 
 One engine deployment serves all three arms (the EPP config is the only
 per-arm variable). Arm A therefore runs with the P2P/CPU tiers present
