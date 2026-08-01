@@ -1,0 +1,3 @@
+probe c64: requests_seen=3889 source_directives=412 sessions_delta=251 prefill_loaded_MB=3906234.2
+engagement rate: 10.6% (stage-2 threshold: 5%)
+PROBE: PASS (archive in /private/tmp/claude-501/-Users-niliguy-github-com-llm-d-router/d1afc05f-3617-4877-9ba4-0d21b92c4170/scratchpad/findings/test/p2p-findings/configs/glm-weka-paused-2p1d/gates/probe-c64-20260801185307)
