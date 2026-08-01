@@ -1,18 +1,21 @@
-# Weka workload: recovered runner, RECONSTRUCTION status
+# Weka workload: recovered runner
 
-Source: live Job spec and pod in the blog team's campaign namespace on
-kermit (`ecrncevi-dev-p1w2d1w2`), read 2026-07-31. Job
+Sources: (1) live Job spec and pod in the blog team's campaign
+namespace on kermit (`ecrncevi-dev-p1w2d1w2`), read 2026-07-31 - Job
 `agentx-aiperf-c64-a1-20260729225135`, writing to the canonical tree
-`/mnt/lustre/agentx-mvp/dev/new_nightly/results_p1w2_d1w2/`. Raw spec:
-`blog-campaign-job-c64.json`; startup log head:
-`blog-campaign-c64-log-head.txt`.
+`/mnt/lustre/agentx-mvp/dev/new_nightly/results_p1w2_d1w2/`; raw spec
+`blog-campaign-job-c64.json`, startup log head
+`blog-campaign-c64-log-head.txt`. (2) The author's full result tree
+(`blog-ladder-archive/`), which confirms the invocation generalizes to
+every rung of every measured cell with only `--concurrency` varying.
 
 ## What this is, precisely
 
-- It is a **`p1w2d1w2` cell at concurrency 64** - one DEP16 prefill plus
-  one DEP16 decode - NOT the `p2w1d1w2` topology this campaign targets,
-  and only the c64 cell was visible. No 100-400 ladder artifact was
-  found.
+- The recovered Job is a **`p1w2d1w2` cell at concurrency 64** - one
+  DEP16 prefill plus one DEP16 decode - NOT the `p2w1d1w2` topology
+  this campaign targets. The author's archive establishes the full
+  ladder as c16/32/64/128 per 142k cell; no group contains
+  `p2w1d1w2`, so the campaign topology has no measured counterpart.
 - The scenario `inferencex-agentx-mvp` implements the
   ongoing-conversation behavior internally: the log shows
   `TrajectorySource` selecting sample times and building 64 active
@@ -25,13 +28,12 @@ kermit (`ecrncevi-dev-p1w2d1w2`), read 2026-07-31. Job
   GLM tokenizer. The preprocessing recipe behind the blog's corpus
   transformation is NOT established by this recovery.
 
-**Consequently: a campaign built from this runner is a RECONSTRUCTION
-of the blog workload pattern, not a reproduction of the blog campaign,
-until the blog team supplies the `p2w1d1w2` ladder invocations and the
-preprocessing details.** Open ask to the blog team: the concurrency
-ladder and per-cell invocations for `p2w1d1w2`, any admission filtering
-beyond the scenario lock, and the corpus preprocessing (tokenizer
-lineage included).
+**Status: the workload protocol is a reproduction** (invocation,
+ladder, seed, duration, and dataset artifact all match the author's
+archive; whatever preprocessing produced the published
+`semianalysis_cc_traces_weka_with_subagents` dataset is upstream of
+both campaigns and identical by construction). The deployment remains
+a campaign variant: `p2w1d1w2` was not measured by the blog.
 
 ## Invocation (c64 cell as recovered)
 

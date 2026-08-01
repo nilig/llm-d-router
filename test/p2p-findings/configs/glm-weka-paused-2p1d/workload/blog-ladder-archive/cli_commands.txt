@@ -1,0 +1,243 @@
+[142k + Baseline / results_p1w1_d1w1 / results_p1w1_d1w1_c128]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 128 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp_no_offloading/results_p1w1_d1w1/results_p1w1_d1w 1_c128_attempt1'
+
+[142k + Baseline / results_p1w1_d1w1 / results_p1w1_d1w1_c16]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 16 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp_no_offloading/results_p1w1_d1w1/results_p1w1_d1w 1_c16_attempt1'
+
+[142k + Baseline / results_p1w1_d1w1 / results_p1w1_d1w1_c32]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 32 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp_no_offloading/results_p1w1_d1w1/results_p1w1_d1w 1_c32_attempt1'
+
+[142k + Baseline / results_p1w1_d1w1 / results_p1w1_d1w1_c64]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 64 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp_no_offloading/results_p1w1_d1w1/results_p1w1_d1w 1_c64_attempt1'
+
+[142k + Baseline / results_p1w1_d1w2 / results_p1w1_d1w2_c128]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 128 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp_no_offloading/results_p1w1_d1w2/results_p1w1_d1w 2_c128_attempt1'
+
+[142k + Baseline / results_p1w1_d1w2 / results_p1w1_d1w2_c16]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 16 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp_no_offloading/results_p1w1_d1w2/results_p1w1_d1w 2_c16_attempt1'
+
+[142k + Baseline / results_p1w1_d1w2 / results_p1w1_d1w2_c32]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 32 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp_no_offloading/results_p1w1_d1w2/results_p1w1_d1w 2_c32_attempt1'
+
+[142k + Baseline / results_p1w1_d1w2 / results_p1w1_d1w2_c64]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 64 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp_no_offloading/results_p1w1_d1w2/results_p1w1_d1w 2_c64_attempt1'
+
+[142k + Baseline / results_p1w2_d1w2 / results_p1w2_d1w2_c128]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 128 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp_no_offloading/results_p1w2_d1w2/results_p1w2_d1w 2_c128_attempt1'
+
+[142k + Baseline / results_p1w2_d1w2 / results_p1w2_d1w2_c16]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 16 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp_no_offloading/results_p1w2_d1w2/results_p1w2_d1w 2_c16_attempt1'
+
+[142k + Baseline / results_p1w2_d1w2 / results_p1w2_d1w2_c32]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 32 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp_no_offloading/results_p1w2_d1w2/results_p1w2_d1w 2_c32_attempt1'
+
+[142k + Baseline / results_p1w2_d1w2 / results_p1w2_d1w2_c64]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 64 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp_no_offloading/results_p1w2_d1w2/results_p1w2_d1w 2_c64_attempt1'
+
+[142k + Baseline / results_p2w1_d1w1 / results_p2w1_d1w1_c128]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 128 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp_no_offloading/results_p2w1_d1w1/results_p2w1_d1w 1_c128_attempt1'
+
+[142k + Baseline / results_p2w1_d1w1 / results_p2w1_d1w1_c16]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 16 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp_no_offloading/results_p2w1_d1w1/results_p2w1_d1w 1_c16_attempt1'
+
+[142k + Baseline / results_p2w1_d1w1 / results_p2w1_d1w1_c32]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 32 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp_no_offloading/results_p2w1_d1w1/results_p2w1_d1w 1_c32_attempt1'
+
+[142k + Baseline / results_p2w1_d1w1 / results_p2w1_d1w1_c64]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 64 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp_no_offloading/results_p2w1_d1w1/results_p2w1_d1w 1_c64_attempt1'
+
+[142k + Baseline / results_p2w2_d1w2 / results_p2w2_d1w2_c128]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 128 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp_no_offloading/results_p2w2_d1w2/results_p2w2_d1w 2_c128_attempt1'
+
+[142k + Baseline / results_p2w2_d1w2 / results_p2w2_d1w2_c16]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 16 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp_no_offloading/results_p2w2_d1w2/results_p2w2_d1w 2_c16_attempt1'
+
+[142k + Baseline / results_p2w2_d1w2 / results_p2w2_d1w2_c32]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 32 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp_no_offloading/results_p2w2_d1w2/results_p2w2_d1w 2_c32_attempt1'
+
+[142k + Baseline / results_p2w2_d1w2 / results_p2w2_d1w2_c64]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 64 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp_no_offloading/results_p2w2_d1w2/results_p2w2_d1w 2_c64_attempt1'
+
+[142k + MTP + Offloading / results_p1w1_d1w1 / results_p1w1_d1w1_c128]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 128 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000/results_p1w1_d1w1/results_p1w1_d1w1_c128_attempt1'
+
+[142k + MTP + Offloading / results_p1w1_d1w1 / results_p1w1_d1w1_c16]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 16 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000/results_p1w1_d1w1/results_p1w1_d1w1_c16_attempt1'
+
+[142k + MTP + Offloading / results_p1w1_d1w1 / results_p1w1_d1w1_c32]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 32 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000/results_p1w1_d1w1/results_p1w1_d1w1_c32_attempt1'
+
+[142k + MTP + Offloading / results_p1w1_d1w1 / results_p1w1_d1w1_c64]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 64 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000/results_p1w1_d1w1/results_p1w1_d1w1_c64_attempt1'
+
+[142k + MTP + Offloading / results_p1w1_d1w2 / results_p1w1_d1w2_c128]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 128 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000/results_p1w1_d1w2/results_p1w1_d1w2_c128_attempt1'
+
+[142k + MTP + Offloading / results_p1w1_d1w2 / results_p1w1_d1w2_c16]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 16 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000/results_p1w1_d1w2/results_p1w1_d1w2_c16_attempt1'
+
+[142k + MTP + Offloading / results_p1w1_d1w2 / results_p1w1_d1w2_c32]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 32 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000/results_p1w1_d1w2/results_p1w1_d1w2_c32_attempt1'
+
+[142k + MTP + Offloading / results_p1w1_d1w2 / results_p1w1_d1w2_c64]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 64 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000/results_p1w1_d1w2/results_p1w1_d1w2_c64_attempt1'
+
+[142k + MTP + Offloading / results_p1w2_d1w2 / results_p1w2_d1w2_c128]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 128 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000/results_p1w2_d1w2/results_p1w2_d1w2_c128_attempt1'
+
+[142k + MTP + Offloading / results_p1w2_d1w2 / results_p1w2_d1w2_c16]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 16 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000/results_p1w2_d1w2/results_p1w2_d1w2_c16_attempt1'
+
+[142k + MTP + Offloading / results_p1w2_d1w2 / results_p1w2_d1w2_c32]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 32 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000/results_p1w2_d1w2/results_p1w2_d1w2_c32_attempt1'
+
+[142k + MTP + Offloading / results_p1w2_d1w2 / results_p1w2_d1w2_c64]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 64 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000/results_p1w2_d1w2/results_p1w2_d1w2_c64_attempt1'
+
+[142k + MTP + Offloading / results_p2w2_d1w2 / results_p2w2_d1w2_c128]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 128 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000/results_p2w2_d1w2/results_p2w2_d1w2_c128_attempt1'
+
+[142k + MTP + Offloading / results_p2w2_d1w2 / results_p2w2_d1w2_c16]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 16 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000/results_p2w2_d1w2/results_p2w2_d1w2_c16_attempt1'
+
+[142k + MTP + Offloading / results_p2w2_d1w2 / results_p2w2_d1w2_c32]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 32 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000/results_p2w2_d1w2/results_p2w2_d1w2_c32_attempt1'
+
+[142k + MTP + Offloading / results_p2w2_d1w2 / results_p2w2_d1w2_c64]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 64 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000/results_p2w2_d1w2/results_p2w2_d1w2_c64_attempt1'
+
+[142k + Offloading / results_p1w1_d1w1 / results_p1w1_d1w1_c128]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 128 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp/results_p1w1_d1w1/results_p1w1_d1w1_c128_attempt 1'
+
+[142k + Offloading / results_p1w1_d1w1 / results_p1w1_d1w1_c16]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 16 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp/results_p1w1_d1w1/results_p1w1_d1w1_c16_attempt1 '
+
+[142k + Offloading / results_p1w1_d1w1 / results_p1w1_d1w1_c32]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 32 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp/results_p1w1_d1w1/results_p1w1_d1w1_c32_attempt1 '
+
+[142k + Offloading / results_p1w1_d1w1 / results_p1w1_d1w1_c64]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 64 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp/results_p1w1_d1w1/results_p1w1_d1w1_c64_attempt1 '
+
+[142k + Offloading / results_p1w1_d1w2 / results_p1w1_d1w2_c128]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 128 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp/results_p1w1_d1w2/results_p1w1_d1w2_c128_attempt 1'
+
+[142k + Offloading / results_p1w1_d1w2 / results_p1w1_d1w2_c16]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 16 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp/results_p1w1_d1w2/results_p1w1_d1w2_c16_attempt1 '
+
+[142k + Offloading / results_p1w1_d1w2 / results_p1w1_d1w2_c32]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 32 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp/results_p1w1_d1w2/results_p1w1_d1w2_c32_attempt1 '
+
+[142k + Offloading / results_p1w1_d1w2 / results_p1w1_d1w2_c64]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 64 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp/results_p1w1_d1w2/results_p1w1_d1w2_c64_attempt1 '
+
+[142k + Offloading / results_p1w2_d1w2 / results_p1w2_d1w2_c128]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 128 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp/results_p1w2_d1w2/results_p1w2_d1w2_c128_attempt 1'
+
+[142k + Offloading / results_p1w2_d1w2 / results_p1w2_d1w2_c16]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 16 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp/results_p1w2_d1w2/results_p1w2_d1w2_c16_attempt1 '
+
+[142k + Offloading / results_p1w2_d1w2 / results_p1w2_d1w2_c32]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 32 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp/results_p1w2_d1w2/results_p1w2_d1w2_c32_attempt1 '
+
+[142k + Offloading / results_p1w2_d1w2 / results_p1w2_d1w2_c64]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 64 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp/results_p1w2_d1w2/results_p1w2_d1w2_c64_attempt1 '
+
+[142k + Offloading / results_p2w2_d1w2 / results_p2w2_d1w2_c16]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 16 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp/results_p2w2_d1w2/results_p2w2_d1w2_c16_attempt1 '
+
+[142k + Offloading / results_p2w2_d1w2 / results_p2w2_d1w2_c32]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 32 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp/results_p2w2_d1w2/results_p2w2_d1w2_c32_attempt1 '
+
+[142k + Offloading / results_p2w2_d1w2 / results_p2w2_d1w2_c64]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 142000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 64 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_142000_no_mtp/results_p2w2_d1w2/results_p2w2_d1w2_c64_attempt1 '
+
+[Full ISL + MTP + Offloading / results_p1w1_d1w1 / results_p1w1_d1w1_c128]
+NOT-FOUND
+
+[Full ISL + MTP + Offloading / results_p1w1_d1w1 / results_p1w1_d1w1_c16]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 10000000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 16 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_auto/results_p1w1_d1w1/results_p1w1_d1w1_c16_attempt1'
+
+[Full ISL + MTP + Offloading / results_p1w1_d1w1 / results_p1w1_d1w1_c256]
+NOT-FOUND
+
+[Full ISL + MTP + Offloading / results_p1w1_d1w1 / results_p1w1_d1w1_c32]
+NOT-FOUND
+
+[Full ISL + MTP + Offloading / results_p1w1_d1w1 / results_p1w1_d1w1_c512]
+NOT-FOUND
+
+[Full ISL + MTP + Offloading / results_p1w1_d1w1 / results_p1w1_d1w1_c64]
+NOT-FOUND
+
+[Full ISL + MTP + Offloading / results_p1w2_d1w2 / results_p1w2_d1w2_c128]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 10000000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 128 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_auto/results_p1w2_d1w2/results_p1w2_d1w2_c128_attempt1'
+
+[Full ISL + MTP + Offloading / results_p1w2_d1w2 / results_p1w2_d1w2_c16]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 10000000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 16 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_auto/results_p1w2_d1w2/results_p1w2_d1w2_c16_attempt1'
+
+[Full ISL + MTP + Offloading / results_p1w2_d1w2 / results_p1w2_d1w2_c256]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 10000000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 256 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_auto/results_p1w2_d1w2/results_p1w2_d1w2_c256_attempt1'
+
+[Full ISL + MTP + Offloading / results_p1w2_d1w2 / results_p1w2_d1w2_c32]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 10000000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 32 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_auto/results_p1w2_d1w2/results_p1w2_d1w2_c32_attempt1'
+
+[Full ISL + MTP + Offloading / results_p1w2_d1w2 / results_p1w2_d1w2_c512]
+NOT-FOUND
+
+[Full ISL + MTP + Offloading / results_p1w2_d1w2 / results_p1w2_d1w2_c64]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 10000000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 64 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_auto/results_p1w2_d1w2/results_p1w2_d1w2_c64_attempt1'
+
+[Full ISL + MTP + Offloading / results_p2w2_d2w2 / results_p2w2_d2w2_c128]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 10000000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 128 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_auto/results_p2w2_d2w2/results_p2w2_d2w2_c128_attempt1'
+
+[Full ISL + MTP + Offloading / results_p2w2_d2w2 / results_p2w2_d2w2_c16]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 10000000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 16 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_auto/results_p2w2_d2w2/results_p2w2_d2w2_c16_attempt1'
+
+[Full ISL + MTP + Offloading / results_p2w2_d2w2 / results_p2w2_d2w2_c256]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 10000000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 256 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_auto/results_p2w2_d2w2/results_p2w2_d2w2_c256_attempt1'
+
+[Full ISL + MTP + Offloading / results_p2w2_d2w2 / results_p2w2_d2w2_c32]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 10000000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 32 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_auto/results_p2w2_d2w2/results_p2w2_d2w2_c32_attempt1'
+
+[Full ISL + MTP + Offloading / results_p2w2_d2w2 / results_p2w2_d2w2_c512]
+NOT-FOUND
+
+[Full ISL + MTP + Offloading / results_p2w2_d2w2 / results_p2w2_d2w2_c64]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 10000000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 64 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_auto/results_p2w2_d2w2/results_p2w2_d2w2_c64_attempt1'
+
+[Full ISL + MTP + Offloading / results_p3w2_d1w2 / results_p3w2_d1w2_c128]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 10000000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 128 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_auto/results_p3w2_d1w2/results_p3w2_d1w2_c128_attempt1'
+
+[Full ISL + MTP + Offloading / results_p3w2_d1w2 / results_p3w2_d1w2_c16]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 10000000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 16 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_auto/results_p3w2_d1w2/results_p3w2_d1w2_c16_attempt1'
+
+[Full ISL + MTP + Offloading / results_p3w2_d1w2 / results_p3w2_d1w2_c256]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 10000000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 256 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_auto/results_p3w2_d1w2/results_p3w2_d1w2_c256_attempt1'
+
+[Full ISL + MTP + Offloading / results_p3w2_d1w2 / results_p3w2_d1w2_c32]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 10000000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 32 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_auto/results_p3w2_d1w2/results_p3w2_d1w2_c32_attempt1'
+
+[Full ISL + MTP + Offloading / results_p3w2_d1w2 / results_p3w2_d1w2_c512]
+NOT-FOUND
+
+[Full ISL + MTP + Offloading / results_p3w2_d1w2 / results_p3w2_d1w2_c64]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 10000000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 64 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_auto/results_p3w2_d1w2/results_p3w2_d1w2_c64_attempt1'
+
+[Full ISL + MTP + Offloading / results_p3w2_d2w2 / results_p3w2_d2w2_c128]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 10000000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 128 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_auto/results_p3w2_d2w2/results_p3w2_d2w2_c128_attempt1'
+
+[Full ISL + MTP + Offloading / results_p3w2_d2w2 / results_p3w2_d2w2_c16]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 10000000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 16 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_auto/results_p3w2_d2w2/results_p3w2_d2w2_c16_attempt1'
+
+[Full ISL + MTP + Offloading / results_p3w2_d2w2 / results_p3w2_d2w2_c256]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 10000000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 256 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_auto/results_p3w2_d2w2/results_p3w2_d2w2_c256_attempt1'
+
+[Full ISL + MTP + Offloading / results_p3w2_d2w2 / results_p3w2_d2w2_c32]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 10000000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 32 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_auto/results_p3w2_d2w2/results_p3w2_d2w2_c32_attempt1'
+
+[Full ISL + MTP + Offloading / results_p3w2_d2w2 / results_p3w2_d2w2_c512]
+NOT-FOUND
+
+[Full ISL + MTP + Offloading / results_p3w2_d2w2 / results_p3w2_d2w2_c64]
+aiperf profile --scenario 'inferencex-agentx-mvp' --url 'http://llm-d-inference-gateway-istio:80/v1' --model 'zai-org/GLM-5.2-FP8' --max-context-length 10000000 --endpoint-type 'chat' --streaming --use-server-token-count --public-dataset 'semianalysis_cc_traces_weka_with_subagents' --concurrency 64 --random-seed 42 --benchmark-duration 900 --server-metrics 'http://llm-d-inference-gateway-istio:80/metrics' --no-gpu-telemetry --output-artifact-dir '/mnt/lustre/agentx-mvp/dev/model_len_auto/results_p3w2_d2w2/results_p3w2_d2w2_c64_attempt1'
+

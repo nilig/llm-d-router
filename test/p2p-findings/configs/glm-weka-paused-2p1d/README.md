@@ -1,8 +1,11 @@
 # P2P reconstruction on the blog's p2w1d1w2 topology using the recovered Weka agentic runner
 
-Label rules: this campaign does NOT reproduce the blog's ladder or its
-corpus preprocessing (o200k lineage unestablished). It is our own
-campaign on the blog's deployment and runner.
+Label rules: the workload protocol reproduces the blog's ladder
+verbatim (invocations recovered for every rung - see
+`workload/blog-ladder-archive/`); the deployment is our own campaign
+on the blog's `p2w1d1w2` manifests, a topology the blog did not
+measure, with a newer patched engine. Absolute comparisons to blog
+numbers carry those two caveats; B-vs-C is unaffected.
 
 Status: PREPARED, NOT RUN. Cluster untouched beyond reads. Awaiting
 review sign-off before deployment.
@@ -44,13 +47,13 @@ campaign deltas in place (already applied to this copy):
   8x100 GiB tier; `PYTHONHASHSEED=0`; `--block-size 64`
 
 Campaign adaptations versus the blog engine config (all arms identical,
-so B-vs-C stays causal; this remains a reconstruction): prefill
-`PREFILL_GPU_MEM_UTIL=0.925` and prefill `--max-num-batched-tokens 7168`
-(H200 memory budget: at util 0.92 the worst ranks miss the 120k KV floor
-by 0.21 GiB; at 0.925 the DeepEP warmup allocation OOMs by 0.25 GiB at
-ceiling 8192 - crash logs in `workload/prefill-kv-oom-crash.log`; 7168
-trims the warmup ~0.76 GiB while preserving 120k admission, MTP parity,
-and the NIXL cache layout).
+so B-vs-C stays causal): prefill `PREFILL_GPU_MEM_UTIL=0.935` and
+prefill `--max-num-batched-tokens 2048`, the deployment author's own
+fixups (elvircrn/llm-d `f6a89192`, archived in `elvir-fixups/`) for the
+same KV-floor/warmup OOM class we measured on this topology (crash logs
+in `workload/prefill-kv-oom-crash.log`); engine image carries the open
+vllm #50302 block-table alignment fix (`pr50302-port/`), which his
+`hotfix-50302` component applies equivalently at boot.
 
 One engine deployment serves all three arms (the EPP config is the only
 per-arm variable). Arm A therefore runs with the P2P/CPU tiers present
@@ -59,10 +62,11 @@ Render: `kubectl kustomize deploy/campaign`.
 
 ## Workload
 
-RECONSTRUCTION, not reproduction: the recovered runner is the blog
-team's `p1w2d1w2` c64 cell (see `workload/README.md` for exactly what
-is and is not established - the `p2w1d1w2` ladder and the corpus
-preprocessing remain open asks to the blog team). The scenario
+The runner protocol is fully established: the recovered c64 Job plus
+the author's result archive (`workload/blog-ladder-archive/`) prove
+the whole ladder varies only `--concurrency` around a fixed invocation
+(seed 42, 900 s per rung, `--public-dataset
+semianalysis_cc_traces_weka_with_subagents`). The scenario
 `inferencex-agentx-mvp` implements the ongoing-conversation behavior
 internally (TrajectorySource; 64 active trajectories at c64).
 `run_arm.sh` clones the archived Job (`workload/blog-campaign-job-c64.json`)
@@ -98,9 +102,12 @@ run_arm.sh <arm> <conc> <tag>  (measurement arms)
 
 ## Protocol
 
-Ladder: c64 (recovered-runner anchor; likely low engagement), c128
-(early spill region), c256 (expected P2P opportunity region), c400
-(blog-scale stress; may expose decode saturation).
+Ladder: c16/32/64/128 - the blog's own rungs (every 142k group ran
+exactly these; `workload/blog-ladder-archive/cli_commands.txt`). The
+author's data shows the comparable `p1w2d1w2` cell entering prefill
+contention at c64 (TTFT p99 25 s) and saturation at c128 (p99 38 s),
+so the P2P opportunity region is inside the blog ladder; c256 is an
+optional extension only if engagement stays <5% through c128.
 
 Two stages:
 
