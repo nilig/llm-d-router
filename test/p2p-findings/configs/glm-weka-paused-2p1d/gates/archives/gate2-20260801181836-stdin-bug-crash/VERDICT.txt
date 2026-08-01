@@ -1,0 +1,3 @@
+Crashed before any leg: heredoc-fed kubectl exec lacked -i, so embedded
+python scripts ran empty and metric snapshots were blank. Fixed by adding
+exec -i; superseded by the next run.

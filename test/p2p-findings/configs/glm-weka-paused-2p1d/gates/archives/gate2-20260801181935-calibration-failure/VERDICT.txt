@@ -1,0 +1,7 @@
+calibration-failure: stale 92.6 KB/token expectation
+
+Pull legs moved 1341.5 MB at 24,576 tokens = 54.6 KB/token, matching this
+engine's KV arithmetic (6.12 GiB / 120k tokens). The 1900-2650 MB window
+encoded the older deployment's 92.6 KB/token footprint. Control 0.0 MB,
+both pull paths byte-identical, source session +1: transfers correct,
+window stale.

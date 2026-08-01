@@ -68,6 +68,6 @@ echo "arm $ARM active; p2p-source-producer declared: $P2P (want $WANT)"
 # be re-proven live before any measurement; armA is approximate and skips
 if [ "$ARM" != "armA" ]; then
   NS="$NS" bash "$(dirname "$0")/gates/wait_precise_subscriptions.sh" \
-    "subs-$ARM-$(date +%Y%m%d%H%M%S)" \
+    "$(dirname "$0")/gates/subscriptions/subs-$ARM-$(date +%Y%m%d%H%M%S)" \
     || { echo "ABORT: precise subscriptions incomplete after $ARM activation"; exit 1; }
 fi

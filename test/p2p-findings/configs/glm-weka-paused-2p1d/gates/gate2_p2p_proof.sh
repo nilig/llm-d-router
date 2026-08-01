@@ -16,15 +16,22 @@
 #   engine leg: prefix Y seeded on the source prefill, sent
 #     engine-direct to the destination prefill WITH kv_transfer_params
 #     injection -> loaded bytes within [PULL_MIN_MB, PULL_MAX_MB]
-#     (24,576 tokens x 92.6 KB/token ~ 2,276 MB)
 #   pd leg (stock path): prefix Z seeded on the source prefill, sent to
 #     a DECODE SIDECAR with x-prefiller-host-port = destination prefill
 #     serving endpoint and x-kv-cache-source-host-port = source prefill
 #     serving endpoint -> the sidecar's prefill-leg injection must move
-#     the same byte window INTO the destination prefill engine
+#     the same byte window INTO the destination prefill engine, AND be
+#     within 5% of the engine leg's delta (the engine-inject leg is the
+#     positive control for the stock path)
 # All legs require HTTP 200; the pull legs together require >= 1 new
 # source-side session. EPP-organic engagement is validated by
 # gates/armC_probe.sh, not this gate.
+#
+# Measured KV footprint on this engine (nightly-6f91edf9 + #50302,
+# GLM-5.2-FP8, block 64):
+#   1341.5 MB / 24,576 tokens = 54.6 KB/token
+# consistent with the engine's own KV arithmetic (6.12 GiB / 120k
+# tokens). The default window brackets that expectation.
 set -euo pipefail
 NS=${NS:-nilig-p2p}
 LOADGEN=${LOADGEN:-scenc-loadgen}
@@ -36,8 +43,9 @@ DST_PF_SERVING=${DST_PF_SERVING:?destination prefill serving endpoint ip:(8000+r
 DECODE_SIDECAR_URL=${DECODE_SIDECAR_URL:?decode sidecar url http://ip:(8000+rank)}
 TOKENS=${TOKENS:-24576}
 CONTROL_MAX_MB=${CONTROL_MAX_MB:-50}
-PULL_MIN_MB=${PULL_MIN_MB:-1900}
-PULL_MAX_MB=${PULL_MAX_MB:-2650}
+PULL_MIN_MB=${PULL_MIN_MB:-1200}
+PULL_MAX_MB=${PULL_MAX_MB:-1550}
+PD_VS_ENGINE_PCT=${PD_VS_ENGINE_PCT:-5}
 OUT=${OUT:-gate2-$(date +%Y%m%d%H%M%S)}
 mkdir -p "$OUT"
 fail=0
@@ -108,6 +116,7 @@ PY
   [ "$MODE" = "pd" ] && sleep 10
   M1=$(metrics_bytes "$DST_PF_URL/metrics")
   DELTA=$(python3 -c "print(round((${M1}-${M0})/1e6,1))")
+  LAST_DELTA=$DELTA
   lg "$LEG: http=$STATUS dst_prefill_loaded_MB=$DELTA"
   [ "$STATUS" = "200" ] || { lg "FAIL: $LEG HTTP $STATUS"; fail=1; }
   case "$MODE" in
@@ -125,8 +134,15 @@ lg "source=$SRC_PF_SERVING (p2p port $P2P_PORT) destination=$DST_PF_SERVING"
 S_PULL_START=$(session_count)
 run_leg control none
 run_leg engine-inject inject
+ENGINE_DELTA=$LAST_DELTA
 run_leg pd-stock pd
+PD_DELTA=$LAST_DELTA
 S_PULL_END=$(session_count)
+# stock path against its positive control: two materially different
+# transfers must not independently pass the absolute window
+lg "engine_delta_MB=$ENGINE_DELTA pd_delta_MB=$PD_DELTA (pd within ${PD_VS_ENGINE_PCT}% required)"
+python3 -c "exit(0 if abs($PD_DELTA-$ENGINE_DELTA) <= $ENGINE_DELTA*$PD_VS_ENGINE_PCT/100.0 else 1)" \
+  || { lg "FAIL: pd-stock delta ${PD_DELTA} MB deviates >${PD_VS_ENGINE_PCT}% from engine-inject ${ENGINE_DELTA} MB"; fail=1; }
 lg "source sessions across pull legs: $((S_PULL_END-S_PULL_START))"
 [ "$((S_PULL_END-S_PULL_START))" -ge 1 ] \
   || { lg "FAIL: no new source-side session across the pull legs - transfers were not peer transfers"; fail=1; }
