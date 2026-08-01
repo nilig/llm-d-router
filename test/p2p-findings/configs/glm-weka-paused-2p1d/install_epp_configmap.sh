@@ -15,12 +15,18 @@ kubectl -n "$NS" create configmap "$CM" \
   --from-file=armA-blog-plugins.yaml="$SP/epp/armA-blog-plugins.yaml" \
   --from-file=armB-loadfirst.yaml="$SP/epp/armB-loadfirst.yaml" \
   --from-file=armC-loadfirst-p2p.yaml="$SP/epp/armC-loadfirst-p2p.yaml" \
+  --from-file=blog-approximate.yaml="$SP/maroon-blog-policy-matrix/01-blog-approximate-no-p2p.yaml" \
+  --from-file=blog-approximate-p2p.yaml="$SP/maroon-blog-policy-matrix/02-blog-approximate-with-p2p.yaml" \
+  --from-file=blog-precise.yaml="$SP/maroon-blog-policy-matrix/03-blog-policy-precise-no-p2p.yaml" \
+  --from-file=blog-precise-p2p.yaml="$SP/maroon-blog-policy-matrix/04-blog-policy-precise-with-p2p.yaml" \
   --dry-run=client -o yaml | kubectl -n "$NS" apply -f -
 
 KEYS=$(kubectl -n "$NS" get cm "$CM" -o json | python3 -c "
 import json,sys
 d=json.load(sys.stdin)['data']
-want={'armA-blog-plugins.yaml','armB-loadfirst.yaml','armC-loadfirst-p2p.yaml'}
+want={'armA-blog-plugins.yaml','armB-loadfirst.yaml','armC-loadfirst-p2p.yaml',
+      'blog-approximate.yaml','blog-approximate-p2p.yaml',
+      'blog-precise.yaml','blog-precise-p2p.yaml'}
 missing=want-set(d)
 print('OK' if not missing else 'MISSING:'+','.join(sorted(missing)))")
 [ "$KEYS" = "OK" ] || { echo "ABORT: ConfigMap keys $KEYS"; exit 1; }

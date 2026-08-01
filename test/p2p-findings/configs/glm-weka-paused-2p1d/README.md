@@ -2,31 +2,46 @@
 
 Label rules: the workload protocol reproduces the blog's ladder
 verbatim (invocations recovered for every rung - see
-`workload/blog-ladder-archive/`); the deployment is our own campaign
-on the blog's `p2w1d1w2` manifests, a topology the blog did not
-measure, with a newer patched engine. Absolute comparisons to blog
-numbers carry those two caveats; B-vs-C is unaffected.
+`workload/blog-ladder-archive/`). PR #1947 ships the exact
+`p2w1d1w2` topology, but its published benchmark matrix has no result
+row for that topology. This campaign adapts that manifest with a newer
+patched engine and the P2P stack. Absolute comparisons to the measured
+blog rows carry those caveats; the within-index P2P comparisons are
+unaffected.
 
-Status: PREPARED, NOT RUN. Cluster untouched beyond reads. Awaiting
-review sign-off before deployment.
+Status: ACTIVE. The deployment and P2P proof gates pass. A c64 probe with
+the precise load-first policy produced organic source directives for 10.6%
+of requests (412 of 3,889); engagement is measured again for each P2P
+configuration in the blog-policy matrix.
 
-Goal: a valid P2P A/B on the GLM agentic-serving blog's deployment and
-workload, per the corrected three-arm matrix.
+Goal: measure P2P on the GLM agentic-serving blog's deployment and workload
+without changing placement policy. The exact blog approximate policy is
+measured with and without P2P, followed by its one-index precise equivalent
+with and without P2P.
 
-## Arms
+Shareable instructions and descriptively named EPP files are in
+`maroon-blog-policy-matrix/`.
 
-| Arm | Index and placement | P2P | Config |
+## Configurations
+
+| Configuration | Index and placement | P2P | Config |
 |---|---|---|---|
-| A: blog anchor | Approx two-tier (GPU w5 / CPU w2 + active w1), affinity-led; the blog's shipped values verbatim | off | `epp/armA-blog-plugins.yaml` (extracted from `epp/armA-blog-values.yaml`, pr1947) |
-| B: harder control | Precise index (podCacheSize 64), load-led (prefix w1 / queue w3 / active w1) | producer off | `epp/armB-loadfirst.yaml` |
-| C: harder + P2P | identical to B | producer on (`minCachedTokenDelta: 12288`) | `epp/armC-loadfirst-p2p.yaml` |
+| Blog approximate baseline | Two approximate producers: GPU w5 and CPU w2, plus active w1; PR #1947 config byte-for-byte | off | `maroon-blog-policy-matrix/01-blog-approximate-no-p2p.yaml` |
+| Blog approximate + P2P | Identical to the baseline | on (`minCachedTokenDelta: 12288`) | `maroon-blog-policy-matrix/02-blog-approximate-with-p2p.yaml` |
+| Blog-policy precise | One precise index covering GPU and CPU tiers; GPU w1.0 and CPU w0.4 under scorer w5, plus active w1 | off | `maroon-blog-policy-matrix/03-blog-policy-precise-no-p2p.yaml` |
+| Blog-policy precise + P2P | Identical to the precise control | on (`minCachedTokenDelta: 12288`) | `maroon-blog-policy-matrix/04-blog-policy-precise-with-p2p.yaml` |
 
-`epp/armB-armC.diff` proves B and C differ only by `p2p-source-producer`.
+Approximate uses two producers because the blog independently estimates GPU
+and CPU locality. Precise uses one index because the KV-event index already
+records both device tiers. The precise tier weights preserve the blog's 5:2
+GPU-to-CPU preference. Precise selects the best tier for each block, while the
+blog's two approximate scorers can add their independent estimates, so the
+cross-index comparison includes that unavoidable semantic difference.
 
-Attribution rules: B-vs-C is the causal P2P A/B. A is the contextual
-comparison with the published approximate policy: A-vs-C is easy-shipped
-versus harder deployment, never a P2P delta. A-vs-B prices the
-index/placement change without pulls.
+Within each index type, the P2P YAML differs from its control only by
+`p2p-source-producer`. Those two within-index comparisons are the causal P2P
+results. Approximate versus precise measures the value and operational cost of
+the index, not P2P alone.
 
 ## Deployment
 
@@ -46,8 +61,8 @@ campaign deltas in place (already applied to this copy):
   the pod IP on both roles; decode memory/shm raised to 1500Gi for the
   8x100 GiB tier; `PYTHONHASHSEED=0`; `--block-size 64`
 
-Campaign adaptations versus the blog engine config (all arms identical,
-so B-vs-C stays causal): prefill `PREFILL_GPU_MEM_UTIL=0.935` and
+Campaign adaptations versus the blog engine config (identical across all
+configurations): prefill `PREFILL_GPU_MEM_UTIL=0.935` and
 prefill `--max-num-batched-tokens 2048`, the deployment author's own
 fixups (elvircrn/llm-d `f6a89192`, archived in `elvir-fixups/`) for the
 same KV-floor/warmup OOM class we measured on this topology (crash logs
@@ -57,9 +72,10 @@ in `workload/prefill-kv-oom-crash.log`); engine image carries the vllm
 no patch), which his `hotfix-50302` component applies equivalently at
 boot.
 
-One engine deployment serves all three arms (the EPP config is the only
-per-arm variable). Arm A therefore runs with the P2P/CPU tiers present
-but unused by its router config - disclosed, engine-identical arms.
+One engine deployment serves all four configurations; the EPP config is the
+only per-run variable. The no-P2P configurations therefore run with the
+P2P/CPU tiers present but unused by the router config. This keeps the engine
+deployment identical across comparisons.
 Render: `kubectl kustomize deploy/campaign`.
 
 ## Workload
@@ -88,9 +104,8 @@ concurrency cell.
   new-session delta >= 1 OR a live ESTABLISHED exact-peer connection on
   the source's P2P port at gate completion), fails closed and is
   repeatable on a warm mesh.
-- `gates/armC_probe.sh`: the arm C organic-engagement probe (stage 1
-  stop rule).
-- `run_arm.sh` per-arm: EPP arg-swap restart, active-config and
+- `gates/armC_probe.sh`: the legacy precise-P2P organic-engagement probe.
+- `run_arm.sh` per configuration: EPP arg-swap restart, active-config and
   producer-declaration checks, fleet/foreign-job checks, warm probe,
   before/after counter snapshots (`snap_counters.sh`).
 
@@ -99,11 +114,10 @@ concurrency cell.
 ```text
 kubectl kustomize deploy/campaign | kubectl apply -f -
 install_epp_configmap.sh
-activate_arm.sh <arm>
+activate_arm.sh <configuration>
 gates/gate1_deploy_verify.sh
 gates/gate2_p2p_proof.sh
-gates/armC_probe.sh <conc>   (engagement stage, per cell)
-run_arm.sh <arm> <conc> <tag>  (measurement arms)
+run_arm.sh <configuration> <conc> <tag>
 ```
 
 ## Protocol
@@ -115,18 +129,36 @@ contention at c64 (TTFT p99 25 s) and saturation at c128 (p99 38 s),
 so the P2P opportunity region is inside the blog ladder; c256 is an
 optional extension only if engagement stays <5% through c128.
 
-Two stages:
+At c64, run all four configurations with seed 42 in this order: blog
+approximate, blog approximate + P2P, blog-policy precise, blog-policy precise
++ P2P. Repeat with seed 43 in reverse order to balance cache and order effects.
+The workload, deployment, concurrency, seed, duration, and placement policy
+remain fixed inside each P2P pair. Count organic EPP `set KV cache source
+header` emissions per distinct request for each P2P run. An engagement rate
+below 5% predicts a tie and is reported rather than hidden.
 
-1. Engagement: one paired B/C run per cell; on the C side,
-   `gates/armC_probe.sh <conc>` measures organic engagement first (EPP
-   `set KV cache source header` emissions per distinct request in a
-   streamed EPP log, plus source-session deltas). Zero directives fails
-   the probe and skips the cell's A/B.
-2. Measurement: at cells with successful pulls and >=5% engagement,
-   three counterbalanced B/C repetitions with paired seeds
-   (`SEED=42/43/44` on `run_arm.sh`). A run to anchor.
+Compare P2P with no P2P within approximate first and within precise second.
+Report approximate versus precise separately as an index comparison.
 
-Only B-versus-C is the causal P2P result; A is the contextual anchor
-and is never the no-P2P half of the P2P comparison. Cold-roll policy
-and stop rules otherwise per the campaign design; <5% engagement means
-a tie is expected and is reported as such.
+### Cache-state policy
+
+The primary result estimates sustained operation on a warm mesh. Engines,
+CPU tiers, and P2P sessions persist across variants; engines are not rolled
+within the ladder. Every precise-configuration activation restarts the EPP and
+re-proves all 32 precise-index subscriptions. AIPerf's excluded warmup
+phase is the fixed per-run warm-in (its request count varies with the
+paired seed); the following 900-second profiling phase is the measured
+window.
+
+Before each variant, stop keep-warm traffic, require zero running and waiting
+requests on every rank, use the same settle interval, and snapshot the
+mechanism counters. Resume keep-warm only during an extended operator
+pause. Archive source-directive engagement and transferred-byte evidence
+for every run with P2P.
+
+Analyze the within-seed P2P differences first and report the forward-order and
+reverse-order groups separately. If the P2P advantage reverses sign between
+those order groups, or appears in only one order, the pooled warm-mesh result
+is not causal evidence; run a cold validation pair with each configuration
+preceded by its own engine roll. Any unexpected pod recreation
+also invalidates the current pair and requires the deployment gates again.

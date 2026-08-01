@@ -2,7 +2,8 @@
 # One campaign arm. Fails closed: config swap, producer declaration,
 # fleet readiness, foreign-workload absence, and the warm probe are all
 # hard gates. Usage: run_arm.sh
-# <blog-approximate|precise-no-p2p|precise-p2p> <concurrency> <tag>
+# <blog-approximate|blog-approximate-p2p|blog-precise|
+# blog-precise-p2p> <concurrency> <tag>
 set -euo pipefail
 NS=${NS:-nilig-p2p}
 LOADGEN=${LOADGEN:-scenc-loadgen}
@@ -13,7 +14,11 @@ ARM="$1"; CONC="$2"; TAG="$3"
 SP="$(cd "$(dirname "$0")" && pwd)"; cd "$SP"
 
 case "$ARM" in
-  blog-approximate|armA) CFGF=armA-blog-plugins.yaml; WANT=0 ;;
+  blog-approximate) CFGF=blog-approximate.yaml; WANT=0 ;;
+  blog-approximate-p2p) CFGF=blog-approximate-p2p.yaml; WANT=1 ;;
+  blog-precise) CFGF=blog-precise.yaml; WANT=0 ;;
+  blog-precise-p2p) CFGF=blog-precise-p2p.yaml; WANT=1 ;;
+  armA) CFGF=armA-blog-plugins.yaml; WANT=0 ;;
   precise-no-p2p|armB) CFGF=armB-loadfirst.yaml; WANT=0 ;;
   precise-p2p|armC) CFGF=armC-loadfirst-p2p.yaml; WANT=1 ;;
   *) echo "ABORT: unknown configuration $ARM"; exit 1 ;;

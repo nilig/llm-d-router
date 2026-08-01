@@ -3,15 +3,20 @@
 # restart a ConfigMap-only edit silently skips), then verify the active
 # config and the producer declaration count. No workload is started.
 # Shared by run_arm.sh and gates/armC_probe.sh.
-# Usage: activate_arm.sh <blog-approximate|precise-no-p2p|precise-p2p>
+# Usage: activate_arm.sh <blog-approximate|blog-approximate-p2p|
+# blog-precise|blog-precise-p2p>
 set -euo pipefail
 NS=${NS:-nilig-p2p}
 ARM="$1"
 
 case "$ARM" in
-  blog-approximate|armA) CFGF=armA-blog-plugins.yaml; WANT=0 ;;
-  precise-no-p2p|armB) CFGF=armB-loadfirst.yaml; WANT=0 ;;
-  precise-p2p|armC) CFGF=armC-loadfirst-p2p.yaml; WANT=1 ;;
+  blog-approximate) CFGF=blog-approximate.yaml; WANT=0; PRECISE=0 ;;
+  blog-approximate-p2p) CFGF=blog-approximate-p2p.yaml; WANT=1; PRECISE=0 ;;
+  blog-precise) CFGF=blog-precise.yaml; WANT=0; PRECISE=1 ;;
+  blog-precise-p2p) CFGF=blog-precise-p2p.yaml; WANT=1; PRECISE=1 ;;
+  armA) CFGF=armA-blog-plugins.yaml; WANT=0; PRECISE=0 ;;
+  precise-no-p2p|armB) CFGF=armB-loadfirst.yaml; WANT=0; PRECISE=1 ;;
+  precise-p2p|armC) CFGF=armC-loadfirst-p2p.yaml; WANT=1; PRECISE=1 ;;
   *) echo "ABORT: unknown configuration $ARM"; exit 1 ;;
 esac
 
@@ -66,7 +71,7 @@ echo "arm $ARM active; p2p-source-producer declared: $P2P (want $WANT)"
 
 # every B/C swap restarts the EPP, so its precise-index subscriptions must
 # be re-proven live before any measurement; armA is approximate and skips
-if [ "$ARM" != "armA" ]; then
+if [ "$PRECISE" = "1" ]; then
   NS="$NS" bash "$(dirname "$0")/gates/wait_precise_subscriptions.sh" \
     "$(dirname "$0")/gates/subscriptions/subs-$ARM-$(date +%Y%m%d%H%M%S)" \
     || { echo "ABORT: precise subscriptions incomplete after $ARM activation"; exit 1; }
