@@ -1,0 +1,8 @@
+ABORTED: invalid duration (180s < scenario minimum 900s).
+
+The aiperf scenario 'inferencex-agentx-mvp' rejects benchmark-duration
+< 900s (steady state + KV offloading invariant); the Job failed at
+config validation before sending any request. The raw epp-stream.jsonl
+(224 MB of metric-refresh noise at --v=5) is excluded from git; the
+probe now streams only request-bearing lines and rejects short
+durations up front.

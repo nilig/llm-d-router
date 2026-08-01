@@ -15,7 +15,10 @@
 set -euo pipefail
 NS=${NS:-nilig-p2p}
 CONC=${1:?usage: armC_probe.sh <concurrency> [duration_s]}
-DUR=${2:-180}
+DUR=${2:-900}
+# the scenario locks duration >= 900s (steady state + KV offloading);
+# reject early, before arm activation or log streaming
+[ "$DUR" -ge 900 ] || { echo "ABORT: duration ${DUR}s < scenario minimum 900s"; exit 1; }
 SP="$(cd "$(dirname "$0")/.." && pwd)"
 OUT=${OUT:-$SP/gates/probe-c${CONC}-$(date +%Y%m%d%H%M%S)}
 mkdir -p "$OUT"
@@ -61,7 +64,11 @@ print(int(t))")
 
 S0=$(sessions)
 B0=$(prefill_load_bytes)
-kubectl -n "$NS" logs --tail=0 -f "$EPP_POD" -c epp > "$OUT/epp-stream.jsonl" 2>/dev/null &
+# filter to request-bearing lines: at --v=5 the raw stream is dominated
+# by metric-refresh noise (107 MB in a 3-minute attempt); the directive
+# lines all carry a requestID field
+kubectl -n "$NS" logs --tail=0 -f "$EPP_POD" -c epp 2>/dev/null \
+  | grep --line-buffered '"requestID"' > "$OUT/epp-stream.jsonl" &
 STREAM_PID=$!
 trap 'kill $STREAM_PID 2>/dev/null || true' EXIT
 # ensure the stream is attached before any directive can be emitted

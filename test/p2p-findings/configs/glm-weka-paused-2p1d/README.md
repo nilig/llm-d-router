@@ -80,10 +80,14 @@ concurrency cell.
 - `gates/gate1_deploy_verify.sh`: deployment verification archive
   (listeners, tiers, UCX completion per rank, EPP event flow). Abort on
   any rank without a completed tier init.
-- `gates/gate2_p2p_proof.sh`: fresh-prefix one-shot proof, one
-  independent prefix per leg (control <50 MB; engine-inject and
-  sidecar-header legs each 1,900-2,650 MB at 24,576 tokens; required
-  source-session delta across the pull legs; HTTP 200), fails closed.
+- `gates/gate2_p2p_proof.sh`: fresh-prefix proof, one independent
+  prefix per leg (control <50 MB; engine-inject and sidecar-header legs
+  each 1,200-1,550 MB at 24,576 tokens per the measured 54.6 KB/token
+  footprint, with the sidecar leg additionally within 5% of the
+  engine-inject positive control; HTTP 200; session evidence =
+  new-session delta >= 1 OR a live ESTABLISHED exact-peer connection on
+  the source's P2P port at gate completion), fails closed and is
+  repeatable on a warm mesh.
 - `gates/armC_probe.sh`: the arm C organic-engagement probe (stage 1
   stop rule).
 - `run_arm.sh` per-arm: EPP arg-swap restart, active-config and

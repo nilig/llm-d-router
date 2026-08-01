@@ -1,0 +1,12 @@
+╭─ Error ──────────────────────────────────────────────────────────────────────╮
+│ 1 validation error for UserConfig                                            │
+│   Value error, Scenario invariants violated (1 conflict):                    │
+│   - --benchmark-duration: got 180.0, required '>=900' (scenario              │
+│ 'inferencex-agentx-mvp' requires duration >= 900s to reach steady state and  │
+│ trigger KV offloading)                                                       │
+│ Pass --unsafe-override to convert to warnings (run will be marked            │
+│ submission_valid=false). [type=value_error, input_value={'endpoint':         │
+│ {'model_name...'inferencex-agentx-mvp'}, input_type=dict]                    │
+│     For further information visit                                            │
+│ https://errors.pydantic.dev/2.13/v/value_error                               │
+╰──────────────────────────────────────────────────────────────────────────────╯
