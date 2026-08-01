@@ -1,0 +1,13 @@
+ready model pods: 4 (want 4)
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0 kv_listeners=8 p2p_listeners=8
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0 ucx_completed=16
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0-1 kv_listeners=8 p2p_listeners=8
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0-1 ucx_completed=16
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-prefill-0 kv_listeners=8 p2p_listeners=8
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-prefill-0 ucx_completed=16
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-prefill-1 kv_listeners=8 p2p_listeners=8
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-prefill-1 ucx_completed=16
+epp kv-event lines=0 distinct rank subscribers=0 (want 32)
+FAIL: EPP shows zero KV-event activity
+FAIL: EPP subscribes to 0/32 rank endpoints
+GATE 1: FAIL (archive in gate1-20260801175057)

@@ -1,0 +1,955 @@
+{
+    "apiVersion": "v1",
+    "kind": "Pod",
+    "metadata": {
+        "annotations": {
+            "leaderworkerset.sigs.k8s.io/leader-name": "wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0",
+            "leaderworkerset.sigs.k8s.io/size": "2"
+        },
+        "creationTimestamp": "2026-08-01T14:10:43Z",
+        "generateName": "wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0-",
+        "generation": 1,
+        "labels": {
+            "apps.kubernetes.io/pod-index": "1",
+            "controller-revision-hash": "wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0-6ddd9b749b",
+            "leaderworkerset.sigs.k8s.io/group-index": "0",
+            "leaderworkerset.sigs.k8s.io/group-key": "68314bb498793565ebfb3593ee6c8bf7416d5c29",
+            "leaderworkerset.sigs.k8s.io/name": "wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode",
+            "leaderworkerset.sigs.k8s.io/template-revision-hash": "745df96df4",
+            "leaderworkerset.sigs.k8s.io/worker-index": "1",
+            "llm-d.ai/accelerator-variant": "gpu",
+            "llm-d.ai/accelerator-vendor": "nvidia",
+            "llm-d.ai/guide": "wide-ep-lws",
+            "llm-d.ai/inference-serving": "true",
+            "llm-d.ai/model": "GLM-5.2-FP8",
+            "llm-d.ai/role": "decode",
+            "statefulset.kubernetes.io/pod-name": "wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0-1",
+            "topology.kubernetes.io/region": "US-EAST-01",
+            "topology.kubernetes.io/zone": "128"
+        },
+        "name": "wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0-1",
+        "namespace": "nilig-p2p",
+        "ownerReferences": [
+            {
+                "apiVersion": "apps/v1",
+                "blockOwnerDeletion": true,
+                "controller": true,
+                "kind": "StatefulSet",
+                "name": "wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0",
+                "uid": "312790fe-5389-4d55-9288-c7cc35614e1d"
+            }
+        ],
+        "resourceVersion": "46145878",
+        "uid": "3f8f570d-755a-4d2b-96b3-907f3391438c"
+    },
+    "spec": {
+        "affinity": {
+            "podAffinity": {
+                "preferredDuringSchedulingIgnoredDuringExecution": [
+                    {
+                        "podAffinityTerm": {
+                            "labelSelector": {
+                                "matchLabels": {
+                                    "llm-d.ai/model": "GLM-5.2-FP8",
+                                    "llm-d.ai/role": "decode"
+                                }
+                            },
+                            "topologyKey": "backend.coreweave.cloud/leafgroup-name"
+                        },
+                        "weight": 100
+                    }
+                ]
+            }
+        },
+        "containers": [
+            {
+                "args": [
+                    "find /dev/shm -type f -delete\n\n# Scale MAX_TOKENS with number of decode pods\nexport MAX_TOKENS=$(( ${MAX_TOKENS_PER_NODE:-128} * LWS_GROUP_SIZE ))\n\n# Wide-EP (multi-node): reserve VRAM for NVSHMEM symmetric heap\nGPU_MEM_UTIL=${DECODE_GPU_MEM_UTIL:-0.95}\n\n# DeepEP low-latency requires: qp_depth \u003e= (max_dispatch_tokens + 1) * 2\nexport NVSHMEM_QP_DEPTH=$(( (MAX_TOKENS + 1) * 2 ))\n\nMTP_ARGS=\"\"\nif [ \"${ENABLE_MTP:-1}\" = \"1\" ]; then\n  MTP_ARGS=\"--speculative-config {\\\"method\\\":\\\"mtp\\\",\\\"num_speculative_tokens\\\":${MTP_NUM_TOKENS:-3}}\"\nfi\n\nSTART_RANK=$(( ${LWS_WORKER_INDEX:-0} * DP_SIZE_LOCAL ))\nKV_EVENTS_BASE=$((5557 - START_RANK))\nKV_EVENTS_ARGS=\"--kv-events-config {\\\"enable_kv_cache_events\\\":true,\\\"publisher\\\":\\\"zmq\\\",\\\"endpoint\\\":\\\"tcp://*:${KV_EVENTS_BASE}\\\",\\\"topic\\\":\\\"kv@${POD_IP}:8000@zai-org/GLM-5.2-FP8\\\"}\"\n\ncase \"${OFFLOADING_MODE:-off}\" in\n  p2p-tiered)\n    P2P_BASE=$((7777 - START_RANK))\n    KV_TRANSFER_CONFIG='{\"kv_connector\":\"MultiConnector\",\n                          \"kv_role\":\"kv_both\",\n                          \"kv_load_failure_policy\":\"fail\",\n                          \"kv_connector_extra_config\":{\n                            \"connectors\":[\n                              {\"kv_connector\":\"NixlConnector\",\"kv_role\":\"kv_both\"},\n                              {\"kv_connector\":\"OffloadingConnector\",\"kv_role\":\"kv_both\",\n                               \"kv_connector_extra_config\":{\n                                 \"spec_name\":\"TieringOffloadingSpec\",\n                                 \"cpu_bytes_to_use\":'\"${KV_OFFLOAD_CPU_BYTES:-107374182400}\"',\n                                 \"eviction_policy\":\"lru\",\n                                 \"offload_prompt_only\":false,\n                                 \"secondary_tiers\":[{\"type\":\"p2p\",\"host\":\"'\"${POD_IP}\"'\",\"port\":'\"${P2P_BASE}\"'}]\n                            }}]}}'\n    ;;\n  *)\n    KV_TRANSFER_CONFIG='{\"kv_connector\":\"NixlConnector\",\n                          \"kv_role\":\"kv_both\",\n                          \"kv_load_failure_policy\":\"fail\"}'\n    ;;\nesac\n\nPROFILER_ARGS=\"\"\nif [ \"${ENABLE_PROFILING:-0}\" = \"1\" ]; then\n  mkdir -p /var/cache/vllm/profile\n  PROFILER_ARGS=\"--profiler-config {\\\"profiler\\\":\\\"torch\\\",\\\"torch_profiler_dir\\\":\\\"/var/cache/vllm/profile\\\",\\\"torch_profiler_record_shapes\\\":true,\\\"torch_profiler_with_memory\\\":true,\\\"max_iterations\\\":3}\"\nfi\n\nexec vllm serve $PROFILER_ARGS $MTP_ARGS --kv-cache-dtype fp8 \\\n  zai-org/GLM-5.2-FP8 \\\n  --port 8200 \\\n  --trust-remote-code \\\n  --gpu-memory-utilization $GPU_MEM_UTIL \\\n  --max-model-len ${MAX_MODEL_LEN:-120000} \\\n  --disable-access-log-for-endpoints=/health,/metrics \\\n  --data-parallel-multi-port-external-lb \\\n  --data-parallel-supervisor-port=8208 \\\n  --enable-expert-parallel \\\n  --tensor-parallel-size $TP_SIZE \\\n  --max-num-batched-tokens ${MAX_TOKENS} \\\n  --max-num-seqs ${MAX_TOKENS} \\\n  --data-parallel-size $((LWS_GROUP_SIZE * DP_SIZE_LOCAL)) \\\n  --data-parallel-size-local $DP_SIZE_LOCAL \\\n  --data-parallel-address ${LWS_LEADER_ADDRESS} \\\n  --data-parallel-rpc-port 5555 \\\n  --data-parallel-start-rank $START_RANK \\\n  --block-size 64 \\\n  $KV_EVENTS_ARGS \\\n  --kv_transfer_config \"$KV_TRANSFER_CONFIG\" \\\n  --all2all-backend deepep_low_latency \\\n  --moe-backend deep_gemm \\\n  --reasoning-parser glm45 \\\n  --tool-call-parser glm47 \\\n  --enable-auto-tool-choice \\\n  ${KV_CACHE_MEMORY_BYTES:+--kv-cache-memory-bytes=$KV_CACHE_MEMORY_BYTES}"
+                ],
+                "command": [
+                    "/bin/bash",
+                    "-c"
+                ],
+                "env": [
+                    {
+                        "name": "LWS_LEADER_ADDRESS",
+                        "value": "wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0.wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode.nilig-p2p"
+                    },
+                    {
+                        "name": "LWS_GROUP_SIZE",
+                        "value": "2"
+                    },
+                    {
+                        "name": "LWS_WORKER_INDEX",
+                        "value": "1"
+                    },
+                    {
+                        "name": "POD_IP",
+                        "valueFrom": {
+                            "fieldRef": {
+                                "apiVersion": "v1",
+                                "fieldPath": "status.podIP"
+                            }
+                        }
+                    },
+                    {
+                        "name": "PYTHONHASHSEED",
+                        "value": "0"
+                    },
+                    {
+                        "name": "OFFLOADING_MODE",
+                        "value": "p2p-tiered"
+                    },
+                    {
+                        "name": "KV_OFFLOAD_CPU_BYTES",
+                        "value": "107374182400"
+                    },
+                    {
+                        "name": "HF_TOKEN",
+                        "valueFrom": {
+                            "secretKeyRef": {
+                                "key": "HF_TOKEN",
+                                "name": "llm-d-hf-token"
+                            }
+                        }
+                    },
+                    {
+                        "name": "HF_HOME",
+                        "value": "/mnt/hf-cache"
+                    },
+                    {
+                        "name": "DECODE_GPU_MEM_UTIL"
+                    },
+                    {
+                        "name": "MAX_MODEL_LEN",
+                        "value": "120000"
+                    },
+                    {
+                        "name": "ENABLE_PROFILING",
+                        "value": "0"
+                    },
+                    {
+                        "name": "ENABLE_MTP",
+                        "value": "1"
+                    },
+                    {
+                        "name": "MTP_NUM_TOKENS",
+                        "value": "3"
+                    },
+                    {
+                        "name": "VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS",
+                        "value": "1"
+                    },
+                    {
+                        "name": "MAX_TOKENS_PER_NODE",
+                        "value": "32"
+                    },
+                    {
+                        "name": "DP_SIZE_LOCAL",
+                        "value": "8"
+                    },
+                    {
+                        "name": "TP_SIZE",
+                        "value": "1"
+                    },
+                    {
+                        "name": "TRITON_LIBCUDA_PATH",
+                        "value": "/usr/lib64"
+                    },
+                    {
+                        "name": "VLLM_SKIP_P2P_CHECK",
+                        "value": "1"
+                    },
+                    {
+                        "name": "VLLM_RANDOMIZE_DP_DUMMY_INPUTS",
+                        "value": "1"
+                    },
+                    {
+                        "name": "VLLM_USE_DEEP_GEMM",
+                        "value": "1"
+                    },
+                    {
+                        "name": "NVIDIA_GDRCOPY",
+                        "value": "enabled"
+                    },
+                    {
+                        "name": "NVSHMEM_REMOTE_TRANSPORT",
+                        "value": "ibgda"
+                    },
+                    {
+                        "name": "NVSHMEM_IB_ENABLE_IBGDA",
+                        "value": "true"
+                    },
+                    {
+                        "name": "NVSHMEM_BOOTSTRAP_UID_SOCK_IFNAME",
+                        "value": "eth0"
+                    },
+                    {
+                        "name": "GLOO_SOCKET_IFNAME",
+                        "value": "eth0"
+                    },
+                    {
+                        "name": "NCCL_SOCKET_IFNAME",
+                        "value": "eth0"
+                    },
+                    {
+                        "name": "VLLM_HTTP_TIMEOUT_KEEP_ALIVE",
+                        "value": "120"
+                    },
+                    {
+                        "name": "VLLM_LOGGING_LEVEL",
+                        "value": "INFO"
+                    },
+                    {
+                        "name": "VLLM_NIXL_SIDE_CHANNEL_HOST",
+                        "valueFrom": {
+                            "fieldRef": {
+                                "apiVersion": "v1",
+                                "fieldPath": "status.podIP"
+                            }
+                        }
+                    },
+                    {
+                        "name": "VLLM_P2P_SIDE_CHANNEL_HOST",
+                        "valueFrom": {
+                            "fieldRef": {
+                                "apiVersion": "v1",
+                                "fieldPath": "status.podIP"
+                            }
+                        }
+                    },
+                    {
+                        "name": "CUDA_CACHE_PATH",
+                        "value": "/var/cache/vllm/cuda"
+                    },
+                    {
+                        "name": "CCACHE_DIR",
+                        "value": "/var/cache/vllm/ccache"
+                    },
+                    {
+                        "name": "VLLM_CACHE_ROOT",
+                        "value": "/var/cache/vllm/vllm"
+                    },
+                    {
+                        "name": "FLASHINFER_WORKSPACE_BASE",
+                        "value": "/var/cache/vllm/flashinfer"
+                    },
+                    {
+                        "name": "NCCL_IB_HCA",
+                        "value": "ibp"
+                    },
+                    {
+                        "name": "NVSHMEM_HCA_PREFIX",
+                        "value": "ibp"
+                    }
+                ],
+                "image": "quay.io/niliguy/vllm-openai:nightly-6f91edf9-pr50302",
+                "imagePullPolicy": "Always",
+                "livenessProbe": {
+                    "failureThreshold": 3,
+                    "httpGet": {
+                        "path": "/health",
+                        "port": "supervisor",
+                        "scheme": "HTTP"
+                    },
+                    "periodSeconds": 30,
+                    "successThreshold": 1,
+                    "timeoutSeconds": 5
+                },
+                "name": "vllm",
+                "ports": [
+                    {
+                        "containerPort": 8200,
+                        "name": "vllm-rank0",
+                        "protocol": "TCP"
+                    },
+                    {
+                        "containerPort": 8201,
+                        "name": "vllm-rank1",
+                        "protocol": "TCP"
+                    },
+                    {
+                        "containerPort": 8202,
+                        "name": "vllm-rank2",
+                        "protocol": "TCP"
+                    },
+                    {
+                        "containerPort": 8203,
+                        "name": "vllm-rank3",
+                        "protocol": "TCP"
+                    },
+                    {
+                        "containerPort": 8204,
+                        "name": "vllm-rank4",
+                        "protocol": "TCP"
+                    },
+                    {
+                        "containerPort": 8205,
+                        "name": "vllm-rank5",
+                        "protocol": "TCP"
+                    },
+                    {
+                        "containerPort": 8206,
+                        "name": "vllm-rank6",
+                        "protocol": "TCP"
+                    },
+                    {
+                        "containerPort": 8207,
+                        "name": "vllm-rank7",
+                        "protocol": "TCP"
+                    },
+                    {
+                        "containerPort": 8208,
+                        "name": "supervisor",
+                        "protocol": "TCP"
+                    },
+                    {
+                        "containerPort": 5600,
+                        "name": "nixl",
+                        "protocol": "TCP"
+                    }
+                ],
+                "readinessProbe": {
+                    "failureThreshold": 3,
+                    "httpGet": {
+                        "path": "/readyz",
+                        "port": "supervisor",
+                        "scheme": "HTTP"
+                    },
+                    "periodSeconds": 10,
+                    "successThreshold": 1,
+                    "timeoutSeconds": 5
+                },
+                "resources": {
+                    "limits": {
+                        "ephemeral-storage": "1Ti",
+                        "memory": "1500Gi",
+                        "nvidia.com/gpu": "8",
+                        "rdma/ib": "8"
+                    },
+                    "requests": {
+                        "cpu": "32",
+                        "ephemeral-storage": "1Ti",
+                        "memory": "1500Gi",
+                        "nvidia.com/gpu": "8",
+                        "rdma/ib": "8"
+                    }
+                },
+                "securityContext": {
+                    "capabilities": {
+                        "add": [
+                            "IPC_LOCK",
+                            "SYS_RAWIO"
+                        ]
+                    },
+                    "runAsGroup": 0,
+                    "runAsUser": 0
+                },
+                "startupProbe": {
+                    "failureThreshold": 2700,
+                    "httpGet": {
+                        "path": "/health",
+                        "port": "supervisor",
+                        "scheme": "HTTP"
+                    },
+                    "periodSeconds": 1,
+                    "successThreshold": 1,
+                    "timeoutSeconds": 5
+                },
+                "terminationMessagePath": "/dev/termination-log",
+                "terminationMessagePolicy": "File",
+                "volumeMounts": [
+                    {
+                        "mountPath": "/dev/shm",
+                        "name": "dshm"
+                    },
+                    {
+                        "mountPath": "/var/cache/vllm",
+                        "name": "jit-cache"
+                    },
+                    {
+                        "mountPath": "/mnt/hf-cache",
+                        "name": "hf-cache"
+                    },
+                    {
+                        "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                        "name": "kube-api-access-wqspc",
+                        "readOnly": true
+                    }
+                ]
+            },
+            {
+                "args": [
+                    "--collector.disable-defaults",
+                    "--collector.infiniband",
+                    "--collector.netstat",
+                    "--collector.netstat.fields=(.*Retrans.*|.*Timeout.*|.*LossProbe.*|.*FastRetrans.*|.*SackRecovery.*|.*Estab.*|.*Segs.*|.*Drops.*|.*Overflow.*|.*MemoryPressure.*|.*AutoCork.*|.*DSACK.*|.*Reorder.*|.*OFO.*|.*DelayedACK.*)",
+                    "--collector.pressure",
+                    "--collector.schedstat",
+                    "--collector.cpu",
+                    "--path.sysfs=/host/sys",
+                    "--path.procfs=/host/proc"
+                ],
+                "env": [
+                    {
+                        "name": "LWS_LEADER_ADDRESS",
+                        "value": "wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0.wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode.nilig-p2p"
+                    },
+                    {
+                        "name": "LWS_GROUP_SIZE",
+                        "value": "2"
+                    },
+                    {
+                        "name": "LWS_WORKER_INDEX",
+                        "value": "1"
+                    }
+                ],
+                "image": "quay.io/prometheus/node-exporter:v1.9.0",
+                "imagePullPolicy": "IfNotPresent",
+                "name": "node-exporter",
+                "ports": [
+                    {
+                        "containerPort": 9100,
+                        "name": "node-metrics",
+                        "protocol": "TCP"
+                    }
+                ],
+                "resources": {
+                    "limits": {
+                        "memory": "64Mi"
+                    },
+                    "requests": {
+                        "cpu": "50m",
+                        "memory": "64Mi"
+                    }
+                },
+                "securityContext": {
+                    "allowPrivilegeEscalation": false,
+                    "readOnlyRootFilesystem": true
+                },
+                "terminationMessagePath": "/dev/termination-log",
+                "terminationMessagePolicy": "File",
+                "volumeMounts": [
+                    {
+                        "mountPath": "/host/sys",
+                        "name": "sys",
+                        "readOnly": true
+                    },
+                    {
+                        "mountPath": "/host/proc",
+                        "name": "proc",
+                        "readOnly": true
+                    },
+                    {
+                        "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                        "name": "kube-api-access-wqspc",
+                        "readOnly": true
+                    }
+                ]
+            }
+        ],
+        "dnsPolicy": "ClusterFirst",
+        "enableServiceLinks": true,
+        "hostname": "wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0-1",
+        "imagePullSecrets": [
+            {
+                "name": "niliguy-quay-pull"
+            }
+        ],
+        "initContainers": [
+            {
+                "args": [
+                    "--port=8000",
+                    "--vllm-port=8200",
+                    "--data-parallel-size=8",
+                    "--kv-connector=nixlv2",
+                    "--enable-p2p-pull",
+                    "--p2p-connector-port=7777",
+                    "--zap-log-level=1",
+                    "--secure-proxy=false",
+                    "--enable-prefiller-sampling"
+                ],
+                "env": [
+                    {
+                        "name": "LWS_LEADER_ADDRESS",
+                        "value": "wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0.wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode.nilig-p2p"
+                    },
+                    {
+                        "name": "LWS_GROUP_SIZE",
+                        "value": "2"
+                    },
+                    {
+                        "name": "LWS_WORKER_INDEX",
+                        "value": "1"
+                    }
+                ],
+                "image": "quay.io/niliguy/llm-d-router-disagg-sidecar:kv-source-endpoint-92e5de82",
+                "imagePullPolicy": "Always",
+                "name": "routing-proxy",
+                "ports": [
+                    {
+                        "containerPort": 8000,
+                        "name": "rank0",
+                        "protocol": "TCP"
+                    },
+                    {
+                        "containerPort": 8001,
+                        "name": "rank1",
+                        "protocol": "TCP"
+                    },
+                    {
+                        "containerPort": 8002,
+                        "name": "rank2",
+                        "protocol": "TCP"
+                    },
+                    {
+                        "containerPort": 8003,
+                        "name": "rank3",
+                        "protocol": "TCP"
+                    },
+                    {
+                        "containerPort": 8004,
+                        "name": "rank4",
+                        "protocol": "TCP"
+                    },
+                    {
+                        "containerPort": 8005,
+                        "name": "rank5",
+                        "protocol": "TCP"
+                    },
+                    {
+                        "containerPort": 8006,
+                        "name": "rank6",
+                        "protocol": "TCP"
+                    },
+                    {
+                        "containerPort": 8007,
+                        "name": "rank7",
+                        "protocol": "TCP"
+                    }
+                ],
+                "resources": {},
+                "restartPolicy": "Always",
+                "securityContext": {
+                    "allowPrivilegeEscalation": false,
+                    "runAsNonRoot": true
+                },
+                "terminationMessagePath": "/dev/termination-log",
+                "terminationMessagePolicy": "File",
+                "volumeMounts": [
+                    {
+                        "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                        "name": "kube-api-access-wqspc",
+                        "readOnly": true
+                    }
+                ]
+            }
+        ],
+        "nodeName": "g13bc90",
+        "preemptionPolicy": "PreemptLowerPriority",
+        "priority": 0,
+        "restartPolicy": "Always",
+        "schedulerName": "default-scheduler",
+        "securityContext": {},
+        "serviceAccount": "glm-5-2",
+        "serviceAccountName": "glm-5-2",
+        "subdomain": "wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode",
+        "terminationGracePeriodSeconds": 30,
+        "tolerations": [
+            {
+                "effect": "NoExecute",
+                "key": "node.kubernetes.io/not-ready",
+                "operator": "Exists",
+                "tolerationSeconds": 300
+            },
+            {
+                "effect": "NoExecute",
+                "key": "node.kubernetes.io/unreachable",
+                "operator": "Exists",
+                "tolerationSeconds": 300
+            }
+        ],
+        "volumes": [
+            {
+                "emptyDir": {
+                    "medium": "Memory",
+                    "sizeLimit": "1500Gi"
+                },
+                "name": "dshm"
+            },
+            {
+                "hostPath": {
+                    "path": "/mnt/local/hf-cache",
+                    "type": "DirectoryOrCreate"
+                },
+                "name": "hf-cache"
+            },
+            {
+                "hostPath": {
+                    "path": "/mnt/local/jit-cache",
+                    "type": "DirectoryOrCreate"
+                },
+                "name": "jit-cache"
+            },
+            {
+                "hostPath": {
+                    "path": "/sys",
+                    "type": "Directory"
+                },
+                "name": "sys"
+            },
+            {
+                "hostPath": {
+                    "path": "/proc",
+                    "type": "Directory"
+                },
+                "name": "proc"
+            },
+            {
+                "name": "kube-api-access-wqspc",
+                "projected": {
+                    "defaultMode": 420,
+                    "sources": [
+                        {
+                            "serviceAccountToken": {
+                                "expirationSeconds": 3607,
+                                "path": "token"
+                            }
+                        },
+                        {
+                            "configMap": {
+                                "items": [
+                                    {
+                                        "key": "ca.crt",
+                                        "path": "ca.crt"
+                                    }
+                                ],
+                                "name": "kube-root-ca.crt"
+                            }
+                        },
+                        {
+                            "downwardAPI": {
+                                "items": [
+                                    {
+                                        "fieldRef": {
+                                            "apiVersion": "v1",
+                                            "fieldPath": "metadata.namespace"
+                                        },
+                                        "path": "namespace"
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    "status": {
+        "allocatedResources": {
+            "cpu": "32050m",
+            "ephemeral-storage": "1Ti",
+            "memory": "1536064Mi",
+            "nvidia.com/gpu": "8",
+            "rdma/ib": "8"
+        },
+        "conditions": [
+            {
+                "lastProbeTime": null,
+                "lastTransitionTime": "2026-08-01T14:10:56Z",
+                "observedGeneration": 1,
+                "status": "True",
+                "type": "PodReadyToStartContainers"
+            },
+            {
+                "lastProbeTime": null,
+                "lastTransitionTime": "2026-08-01T14:10:56Z",
+                "observedGeneration": 1,
+                "status": "True",
+                "type": "Initialized"
+            },
+            {
+                "lastProbeTime": null,
+                "lastTransitionTime": "2026-08-01T14:41:28Z",
+                "observedGeneration": 1,
+                "status": "True",
+                "type": "Ready"
+            },
+            {
+                "lastProbeTime": null,
+                "lastTransitionTime": "2026-08-01T14:41:28Z",
+                "observedGeneration": 1,
+                "status": "True",
+                "type": "ContainersReady"
+            },
+            {
+                "lastProbeTime": null,
+                "lastTransitionTime": "2026-08-01T14:10:55Z",
+                "observedGeneration": 1,
+                "status": "True",
+                "type": "PodScheduled"
+            }
+        ],
+        "containerStatuses": [
+            {
+                "allocatedResources": {
+                    "cpu": "50m",
+                    "memory": "64Mi"
+                },
+                "containerID": "containerd://286c069b7f2d767b0cee219850638a8960977b0ded6080198c67cd8ae4fc026f",
+                "image": "quay.io/prometheus/node-exporter:v1.9.0",
+                "imageID": "quay.io/prometheus/node-exporter@sha256:c99d7ee4d12a38661788f60d9eca493f08584e2e544bbd3b3fca64749f86b848",
+                "lastState": {},
+                "name": "node-exporter",
+                "ready": true,
+                "resources": {
+                    "limits": {
+                        "memory": "64Mi"
+                    },
+                    "requests": {
+                        "cpu": "50m",
+                        "memory": "64Mi"
+                    }
+                },
+                "restartCount": 0,
+                "started": true,
+                "state": {
+                    "running": {
+                        "startedAt": "2026-08-01T14:10:57Z"
+                    }
+                },
+                "user": {
+                    "linux": {
+                        "gid": 65534,
+                        "supplementalGroups": [
+                            65534
+                        ],
+                        "uid": 65534
+                    }
+                },
+                "volumeMounts": [
+                    {
+                        "mountPath": "/host/sys",
+                        "name": "sys",
+                        "readOnly": true,
+                        "recursiveReadOnly": "Disabled"
+                    },
+                    {
+                        "mountPath": "/host/proc",
+                        "name": "proc",
+                        "readOnly": true,
+                        "recursiveReadOnly": "Disabled"
+                    },
+                    {
+                        "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                        "name": "kube-api-access-wqspc",
+                        "readOnly": true,
+                        "recursiveReadOnly": "Disabled"
+                    }
+                ]
+            },
+            {
+                "allocatedResources": {
+                    "cpu": "32",
+                    "ephemeral-storage": "1Ti",
+                    "memory": "1500Gi",
+                    "nvidia.com/gpu": "8",
+                    "rdma/ib": "8"
+                },
+                "allocatedResourcesStatus": [
+                    {
+                        "name": "nvidia.com/gpu",
+                        "resources": [
+                            {
+                                "health": "Healthy",
+                                "resourceID": "GPU-5ba24b03-8174-becc-9036-4b3881b31ae2"
+                            },
+                            {
+                                "health": "Healthy",
+                                "resourceID": "GPU-b9b7cfe5-b4e4-4d9a-36e4-0c86a52a003c"
+                            },
+                            {
+                                "health": "Healthy",
+                                "resourceID": "GPU-4f67f34d-ef24-6bcb-f068-35412ce0fb1b"
+                            },
+                            {
+                                "health": "Healthy",
+                                "resourceID": "GPU-639da1cf-77ea-06d5-6ff5-f93808af0d70"
+                            },
+                            {
+                                "health": "Healthy",
+                                "resourceID": "GPU-f7123a64-1e4f-8335-07e2-7865a54128e0"
+                            },
+                            {
+                                "health": "Healthy",
+                                "resourceID": "GPU-cf549173-a543-87af-88a3-bdda841950ad"
+                            },
+                            {
+                                "health": "Healthy",
+                                "resourceID": "GPU-bf99f4d0-31d9-6644-62be-694321b80ca1"
+                            },
+                            {
+                                "health": "Healthy",
+                                "resourceID": "GPU-e69118ab-d699-9fed-9c21-88e9eb74c15d"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "rdma/ib",
+                        "resources": [
+                            {
+                                "health": "Healthy",
+                                "resourceID": "43"
+                            },
+                            {
+                                "health": "Healthy",
+                                "resourceID": "40"
+                            },
+                            {
+                                "health": "Healthy",
+                                "resourceID": "11"
+                            },
+                            {
+                                "health": "Healthy",
+                                "resourceID": "49"
+                            },
+                            {
+                                "health": "Healthy",
+                                "resourceID": "53"
+                            },
+                            {
+                                "health": "Healthy",
+                                "resourceID": "3"
+                            },
+                            {
+                                "health": "Healthy",
+                                "resourceID": "15"
+                            },
+                            {
+                                "health": "Healthy",
+                                "resourceID": "23"
+                            }
+                        ]
+                    }
+                ],
+                "containerID": "containerd://422853aa2eae7ee0d0590771781cff4782fe6bacfc30524c6f4921c61b20660d",
+                "image": "quay.io/niliguy/vllm-openai:nightly-6f91edf9-pr50302",
+                "imageID": "quay.io/niliguy/vllm-openai@sha256:58daa6bf5b15d1885a8af2129f744e8731e1a175f131b27cd18162ed31a583a1",
+                "lastState": {},
+                "name": "vllm",
+                "ready": true,
+                "resources": {
+                    "limits": {
+                        "ephemeral-storage": "1Ti",
+                        "memory": "1500Gi",
+                        "nvidia.com/gpu": "8",
+                        "rdma/ib": "8"
+                    },
+                    "requests": {
+                        "cpu": "32",
+                        "ephemeral-storage": "1Ti",
+                        "memory": "1500Gi",
+                        "nvidia.com/gpu": "8",
+                        "rdma/ib": "8"
+                    }
+                },
+                "restartCount": 0,
+                "started": true,
+                "state": {
+                    "running": {
+                        "startedAt": "2026-08-01T14:10:57Z"
+                    }
+                },
+                "user": {
+                    "linux": {
+                        "gid": 0,
+                        "supplementalGroups": [
+                            0
+                        ],
+                        "uid": 0
+                    }
+                },
+                "volumeMounts": [
+                    {
+                        "mountPath": "/dev/shm",
+                        "name": "dshm"
+                    },
+                    {
+                        "mountPath": "/var/cache/vllm",
+                        "name": "jit-cache"
+                    },
+                    {
+                        "mountPath": "/mnt/hf-cache",
+                        "name": "hf-cache"
+                    },
+                    {
+                        "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                        "name": "kube-api-access-wqspc",
+                        "readOnly": true,
+                        "recursiveReadOnly": "Disabled"
+                    }
+                ]
+            }
+        ],
+        "hostIP": "10.202.207.153",
+        "hostIPs": [
+            {
+                "ip": "10.202.207.153"
+            }
+        ],
+        "initContainerStatuses": [
+            {
+                "containerID": "containerd://5b26afa8f10b9b52f6a4f46f718e8cbdcca1320db89fefef077dbaee7fbf40f2",
+                "image": "quay.io/niliguy/llm-d-router-disagg-sidecar:kv-source-endpoint-92e5de82",
+                "imageID": "quay.io/niliguy/llm-d-router-disagg-sidecar@sha256:7925ea231aac48b4b3e46fe736d8c70b304466226f5270c034e260dae7017b65",
+                "lastState": {},
+                "name": "routing-proxy",
+                "ready": true,
+                "resources": {},
+                "restartCount": 0,
+                "started": true,
+                "state": {
+                    "running": {
+                        "startedAt": "2026-08-01T14:10:56Z"
+                    }
+                },
+                "user": {
+                    "linux": {
+                        "gid": 65532,
+                        "supplementalGroups": [
+                            65532
+                        ],
+                        "uid": 65532
+                    }
+                },
+                "volumeMounts": [
+                    {
+                        "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                        "name": "kube-api-access-wqspc",
+                        "readOnly": true,
+                        "recursiveReadOnly": "Disabled"
+                    }
+                ]
+            }
+        ],
+        "observedGeneration": 1,
+        "phase": "Running",
+        "podIP": "10.0.2.233",
+        "podIPs": [
+            {
+                "ip": "10.0.2.233"
+            }
+        ],
+        "qosClass": "Burstable",
+        "resources": {
+            "limits": {
+                "memory": "1536064Mi"
+            },
+            "requests": {
+                "cpu": "32031m",
+                "memory": "1536064Mi"
+            }
+        },
+        "startTime": "2026-08-01T14:10:55Z"
+    }
+}

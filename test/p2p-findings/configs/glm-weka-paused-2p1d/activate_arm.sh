@@ -63,3 +63,11 @@ body=json.load(sys.stdin)['data']['$CFGF']
 print(sum(1 for l in body.splitlines() if l.strip().startswith('- type: p2p-source-producer')))")
 echo "arm $ARM active; p2p-source-producer declared: $P2P (want $WANT)"
 [ "$P2P" = "$WANT" ] || { echo "ABORT: producer declaration mismatch"; exit 1; }
+
+# every B/C swap restarts the EPP, so its precise-index subscriptions must
+# be re-proven live before any measurement; armA is approximate and skips
+if [ "$ARM" != "armA" ]; then
+  NS="$NS" bash "$(dirname "$0")/gates/wait_precise_subscriptions.sh" \
+    "subs-$ARM-$(date +%Y%m%d%H%M%S)" \
+    || { echo "ABORT: precise subscriptions incomplete after $ARM activation"; exit 1; }
+fi

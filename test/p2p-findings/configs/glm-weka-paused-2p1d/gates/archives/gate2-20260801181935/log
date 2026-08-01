@@ -1,0 +1,9 @@
+== Gate 2: fresh-prefix P2P proof (independent prefixes per leg) ==
+source=10.0.11.21:8000 (p2p port 7777) destination=10.0.11.154:8000
+control: http=200 dst_prefill_loaded_MB=0.0
+engine-inject: http=200 dst_prefill_loaded_MB=1341.5
+FAIL: engine-inject moved 1341.5 MB into the destination prefill (want 1900-2650)
+pd-stock: http=200 dst_prefill_loaded_MB=1341.5
+FAIL: pd-stock moved 1341.5 MB into the destination prefill (want 1900-2650)
+source sessions across pull legs: 1
+GATE 2: FAIL

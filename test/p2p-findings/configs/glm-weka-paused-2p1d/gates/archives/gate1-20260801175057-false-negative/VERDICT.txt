@@ -1,0 +1,9 @@
+FALSE NEGATIVE: startup subscription records aged out of the bounded log tail.
+
+The EPP leg greps a bounded log tail for KV-event and subscriber lines.
+Subscription lines log once at endpoint discovery (DEBUG); at --v=5 the
+per-second metrics flood pushes them past any bounded tail, and the build
+has no per-event log line or KV-event metric. Live evidence at fail time:
+ESTABLISHED zmq connections from the EPP pod IP on all 8 per-rank
+KV-event ports of prefill-0, and precise-prefix-cache-producer invocation
+counts on /metrics. Superseded by wait_precise_subscriptions.sh.

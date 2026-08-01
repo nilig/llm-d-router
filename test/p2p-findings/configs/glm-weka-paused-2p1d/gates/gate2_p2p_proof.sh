@@ -47,7 +47,7 @@ P2P_PORT=$((7777 + SRC_RANK_PORT - 8000))
 lg() { echo "$*" | tee -a "$OUT/log"; }
 
 metrics_bytes() {
-  kubectl -n "$NS" exec "$LOADGEN" -- python3 - "$1" << 'PY'
+  kubectl -n "$NS" exec -i "$LOADGEN" -- python3 - "$1" << 'PY'
 import sys, urllib.request
 txt = urllib.request.urlopen(sys.argv[1], timeout=30).read().decode()
 def fam(match):
@@ -74,7 +74,7 @@ run_leg() {
   local LEG="$1" MODE="$2"
   local M0 M1 DELTA STATUS
   M0=$(metrics_bytes "$DST_PF_URL/metrics")
-  STATUS=$(kubectl -n "$NS" exec "$LOADGEN" -- python3 - \
+  STATUS=$(kubectl -n "$NS" exec -i "$LOADGEN" -- python3 - \
     "$SRC_PF_URL" "$DST_PF_URL" "$DECODE_SIDECAR_URL" "$MODE" \
     "$SRC_PF_SERVING" "$DST_PF_SERVING" "$P2P_PORT" "$TOKENS" << 'PY'
 import sys, json, random, urllib.request, time, uuid

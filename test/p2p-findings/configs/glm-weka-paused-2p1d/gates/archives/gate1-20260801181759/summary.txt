@@ -1,0 +1,18 @@
+ready model pods: 4 (want 4)
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0 kv_listeners=8 p2p_listeners=8
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0 ucx_completed=16
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0-1 kv_listeners=8 p2p_listeners=8
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0-1 ucx_completed=16
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-prefill-0 kv_listeners=8 p2p_listeners=8
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-prefill-0 ucx_completed=16
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-prefill-1 kv_listeners=8 p2p_listeners=8
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-prefill-1 ucx_completed=16
+current EPP pod IP: 10.0.12.184
+PASS: 32/32 rank endpoints subscribed by 10.0.12.184
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0 ports=[5557 5558 5559 5560 5561 5562 5563 5564] covered=8/8
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0-1 ports=[5557 5558 5559 5560 5561 5562 5563 5564] covered=8/8
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-prefill-0 ports=[5557 5558 5559 5560 5561 5562 5563 5564] covered=8/8
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-prefill-1 ports=[5557 5558 5559 5560 5561 5562 5563 5564] covered=8/8
+
+epp precise subscriptions: 32/32 live
+GATE 1: PASS (archive in archives/gate1-20260801181759)

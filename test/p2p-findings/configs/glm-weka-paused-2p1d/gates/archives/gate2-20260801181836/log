@@ -1,0 +1,2 @@
+== Gate 2: fresh-prefix P2P proof (independent prefixes per leg) ==
+source=10.0.11.21:8000 (p2p port 7777) destination=10.0.11.154:8000
