@@ -1,0 +1,130 @@
+{
+ "apiVersion": "batch/v1",
+ "kind": "Job",
+ "metadata": {
+  "name": "weka-c256-s43-blog-approximate-p2p",
+  "namespace": "nilig-p2p"
+ },
+ "spec": {
+  "activeDeadlineSeconds": 8100,
+  "backoffLimit": 0,
+  "completionMode": "NonIndexed",
+  "completions": 1,
+  "manualSelector": false,
+  "parallelism": 1,
+  "podReplacementPolicy": "TerminatingOrFailed",
+  "suspend": false,
+  "template": {
+   "metadata": {
+    "labels": {
+     "app": "agentx-aiperf"
+    }
+   },
+   "spec": {
+    "containers": [
+     {
+      "args": [
+       "set -euo pipefail\nif [ -z \"$ARTIFACT_DIR\" ] || [ \"$ARTIFACT_DIR\" = \"/\" ]; then\n  echo \"Refusing to clean unsafe ARTIFACT_DIR='$ARTIFACT_DIR'\" >&2\n  exit 1\nfi\nif [ -z \"$CANONICAL_ARTIFACT_DIR\" ] || [ \"$CANONICAL_ARTIFACT_DIR\" = \"/\" ]; then\n  echo \"Refusing to promote unsafe CANONICAL_ARTIFACT_DIR='$CANONICAL_ARTIFACT_DIR'\" >&2\n  exit 1\nfi\nrm -rf \"$ARTIFACT_DIR\"\nmkdir -p \"$ARTIFACT_DIR/logs\"\nset +e\n/opt/venv/bin/aiperf profile                 --scenario inferencex-agentx-mvp                 $UNSAFE_ARGS                 --url \"$URL\"                 --model \"$MODEL\"                 --max-context-length 142000                 --endpoint-type chat                 --streaming                 --use-server-token-count                 --public-dataset semianalysis_cc_traces_weka_with_subagents                 --concurrency 256                 --random-seed 43                 --benchmark-duration 900                 $SERVER_METRICS_ARGS                 $GPU_TELEMETRY_ARGS                 --output-artifact-dir \"$ARTIFACT_DIR\"                 --ui simple                 2>&1 | tee \"$ARTIFACT_DIR/logs/aiperf.log\"\nSTATUS=\"${PIPESTATUS[0]}\"\nset -e\nif [ \"$STATUS\" -ne 0 ]; then\n  exit \"$STATUS\"\nfi\nif [ ! -f \"$ARTIFACT_DIR/profile_export_aiperf.json\" ]; then\n  echo \"ERROR: profile_export_aiperf.json missing from $ARTIFACT_DIR after successful aiperf exit\" >&2\n  find \"$ARTIFACT_DIR\" -maxdepth 2 -type f | sort >&2 || true\n  exit 1\nfi\nrm -rf \"$CANONICAL_ARTIFACT_DIR\"\nmkdir -p \"$(dirname \"$CANONICAL_ARTIFACT_DIR\")\"\ncp -a \"$ARTIFACT_DIR/.\" \"$CANONICAL_ARTIFACT_DIR/\""
+      ],
+      "command": [
+       "/bin/bash",
+       "-lc"
+      ],
+      "env": [
+       {
+        "name": "AIPERF_DATASET_WEKA_LIVE_ASSISTANT_RESPONSES",
+        "value": "1"
+       },
+       {
+        "name": "HF_HOME",
+        "value": "/workspace/.cache/huggingface"
+       },
+       {
+        "name": "URL",
+        "value": "http://p2p-pd-epp.nilig-p2p:8081/v1"
+       },
+       {
+        "name": "MODEL",
+        "value": "zai-org/GLM-5.2-FP8"
+       },
+       {
+        "name": "SERVER_METRICS_ARGS",
+        "value": "--server-metrics http://p2p-pd-epp.nilig-p2p:9090/metrics"
+       },
+       {
+        "name": "GPU_TELEMETRY_ARGS",
+        "value": "--no-gpu-telemetry"
+       },
+       {
+        "name": "UNSAFE_ARGS",
+        "value": ""
+       },
+       {
+        "name": "ARTIFACT_DIR",
+        "value": "/workload/weka-c256-s43-blog-approximate-p2p/attempt1"
+       },
+       {
+        "name": "CANONICAL_ARTIFACT_DIR",
+        "value": "/workload/weka-c256-s43-blog-approximate-p2p/canonical"
+       }
+      ],
+      "envFrom": [
+       {
+        "secretRef": {
+         "name": "aiperf-hf-token",
+         "optional": true
+        }
+       }
+      ],
+      "image": "quay.io/tms/aiperf:agentx-v0",
+      "imagePullPolicy": "IfNotPresent",
+      "name": "aiperf",
+      "resources": {
+       "limits": {
+        "cpu": "64",
+        "ephemeral-storage": "20Gi",
+        "memory": "128Gi"
+       },
+       "requests": {
+        "cpu": "64",
+        "memory": "128Gi"
+       }
+      },
+      "terminationMessagePath": "/dev/termination-log",
+      "terminationMessagePolicy": "File",
+      "volumeMounts": [
+       {
+        "mountPath": "/workspace",
+        "name": "workspace"
+       },
+       {
+        "mountPath": "/workload",
+        "name": "lustre"
+       }
+      ],
+      "workingDir": "/workspace"
+     }
+    ],
+    "dnsPolicy": "ClusterFirst",
+    "restartPolicy": "Never",
+    "schedulerName": "default-scheduler",
+    "securityContext": {},
+    "terminationGracePeriodSeconds": 30,
+    "volumes": [
+     {
+      "emptyDir": {
+       "sizeLimit": "20Gi"
+      },
+      "name": "workspace"
+     },
+     {
+      "name": "lustre",
+      "persistentVolumeClaim": {
+       "claimName": "workload-pvc"
+      }
+     }
+    ]
+   }
+  }
+ }
+}
