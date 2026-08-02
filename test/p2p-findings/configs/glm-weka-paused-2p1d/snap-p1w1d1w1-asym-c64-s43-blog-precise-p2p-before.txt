@@ -1,0 +1,819 @@
+=== 2026-08-02T08:44:28Z ===
+--- pod restarts ---
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0    0,0
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-prefill-0   0,0
+--- engine offload counters (per pod) ---
+## wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0
+rank=0
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="0",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 4.41326592e+08
+vllm:kv_offload_total_bytes_total{engine="0",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 5.751256064e+011
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+vllm:kv_offload_load_bytes_total{engine="0",model_name="zai-org/GLM-5.2-FP8"} 4.41326592e+08
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="0",model_name="zai-org/GLM-5.2-FP8"} 829056.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="0",model_name="zai-org/GLM-5.2-FP8"} 1.7856564222893002e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="0",model_name="zai-org/GLM-5.2-FP8"} 1.7235773e+07
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="0",model_name="zai-org/GLM-5.2-FP8"} 1.78565642228932e+09
+rank=1
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="1",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 6.68995072e+08
+vllm:kv_offload_total_bytes_total{engine="1",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 6.3848749568e+011
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+vllm:kv_offload_load_bytes_total{engine="1",model_name="zai-org/GLM-5.2-FP8"} 6.68995072e+08
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="1",model_name="zai-org/GLM-5.2-FP8"} 815232.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="1",model_name="zai-org/GLM-5.2-FP8"} 1.7856564222851214e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="1",model_name="zai-org/GLM-5.2-FP8"} 1.8877852e+07
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="1",model_name="zai-org/GLM-5.2-FP8"} 1.7856564222851422e+09
+rank=2
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="2",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 1.12082944e+08
+vllm:kv_offload_total_bytes_total{engine="2",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 7.03954442752e+011
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+vllm:kv_offload_load_bytes_total{engine="2",model_name="zai-org/GLM-5.2-FP8"} 1.12082944e+08
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="2",model_name="zai-org/GLM-5.2-FP8"} 511552.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="2",model_name="zai-org/GLM-5.2-FP8"} 1.7856564222862065e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="2",model_name="zai-org/GLM-5.2-FP8"} 2.0889386e+07
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="2",model_name="zai-org/GLM-5.2-FP8"} 1.7856564222862313e+09
+rank=3
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="3",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 1.5761664e+08
+vllm:kv_offload_total_bytes_total{engine="3",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 4.11551057408e+011
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+vllm:kv_offload_load_bytes_total{engine="3",model_name="zai-org/GLM-5.2-FP8"} 1.5761664e+08
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="3",model_name="zai-org/GLM-5.2-FP8"} 303616.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="3",model_name="zai-org/GLM-5.2-FP8"} 1.785656422284036e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="3",model_name="zai-org/GLM-5.2-FP8"} 1.0641052e+07
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="3",model_name="zai-org/GLM-5.2-FP8"} 1.7856564222840564e+09
+rank=4
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="4",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 5.74425088e+08
+vllm:kv_offload_total_bytes_total{engine="4",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 5.829188736e+011
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+vllm:kv_offload_load_bytes_total{engine="4",model_name="zai-org/GLM-5.2-FP8"} 5.74425088e+08
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="4",model_name="zai-org/GLM-5.2-FP8"} 578496.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="4",model_name="zai-org/GLM-5.2-FP8"} 1.7856564222938106e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="4",model_name="zai-org/GLM-5.2-FP8"} 1.6676088e+07
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="4",model_name="zai-org/GLM-5.2-FP8"} 1.7856564222938466e+09
+rank=5
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="5",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 2.8020736e+08
+vllm:kv_offload_total_bytes_total{engine="5",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 6.18431653888e+011
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+vllm:kv_offload_load_bytes_total{engine="5",model_name="zai-org/GLM-5.2-FP8"} 2.8020736e+08
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="5",model_name="zai-org/GLM-5.2-FP8"} 1.092864e+06
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="5",model_name="zai-org/GLM-5.2-FP8"} 1.7856564222916548e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="5",model_name="zai-org/GLM-5.2-FP8"} 1.8849554e+07
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="5",model_name="zai-org/GLM-5.2-FP8"} 1.785656422291687e+09
+rank=6
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="6",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 1.61119232e+08
+vllm:kv_offload_total_bytes_total{engine="6",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 6.31331700224e+011
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+vllm:kv_offload_load_bytes_total{engine="6",model_name="zai-org/GLM-5.2-FP8"} 1.61119232e+08
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="6",model_name="zai-org/GLM-5.2-FP8"} 617408.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="6",model_name="zai-org/GLM-5.2-FP8"} 1.7856564222847044e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="6",model_name="zai-org/GLM-5.2-FP8"} 1.7520497e+07
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="6",model_name="zai-org/GLM-5.2-FP8"} 1.7856564222847283e+09
+rank=7
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="7",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 4.44829184e+08
+vllm:kv_offload_total_bytes_total{engine="7",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 5.57160812032e+011
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+vllm:kv_offload_load_bytes_total{engine="7",model_name="zai-org/GLM-5.2-FP8"} 4.44829184e+08
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="7",model_name="zai-org/GLM-5.2-FP8"} 299712.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="7",model_name="zai-org/GLM-5.2-FP8"} 1.785656422288375e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="7",model_name="zai-org/GLM-5.2-FP8"} 1.5985467e+07
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="7",model_name="zai-org/GLM-5.2-FP8"} 1.7856564222883973e+09
+## wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0 sessions
+2
+## wide-ep-lws-nvidia-gpu-vllm-glm-5-2-prefill-0
+rank=0
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="0",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 0.0
+vllm:kv_offload_total_bytes_total{engine="0",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 0.0
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="0",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="0",model_name="zai-org/GLM-5.2-FP8"} 1.7856600490134628e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="0",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="0",model_name="zai-org/GLM-5.2-FP8"} 1.7856600490134838e+09
+rank=1
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="1",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 0.0
+vllm:kv_offload_total_bytes_total{engine="1",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 0.0
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="1",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="1",model_name="zai-org/GLM-5.2-FP8"} 1.785660049019076e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="1",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="1",model_name="zai-org/GLM-5.2-FP8"} 1.785660049019111e+09
+rank=2
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="2",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 0.0
+vllm:kv_offload_total_bytes_total{engine="2",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 0.0
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="2",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="2",model_name="zai-org/GLM-5.2-FP8"} 1.7856600490138085e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="2",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="2",model_name="zai-org/GLM-5.2-FP8"} 1.785660049013828e+09
+rank=3
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="3",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 0.0
+vllm:kv_offload_total_bytes_total{engine="3",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 0.0
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="3",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="3",model_name="zai-org/GLM-5.2-FP8"} 1.7856600490159156e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="3",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="3",model_name="zai-org/GLM-5.2-FP8"} 1.785660049015939e+09
+rank=4
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="4",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 0.0
+vllm:kv_offload_total_bytes_total{engine="4",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 0.0
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="4",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="4",model_name="zai-org/GLM-5.2-FP8"} 1.785660049013576e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="4",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="4",model_name="zai-org/GLM-5.2-FP8"} 1.7856600490135977e+09
+rank=5
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="5",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 0.0
+vllm:kv_offload_total_bytes_total{engine="5",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 0.0
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="5",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="5",model_name="zai-org/GLM-5.2-FP8"} 1.785660049014198e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="5",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="5",model_name="zai-org/GLM-5.2-FP8"} 1.7856600490142188e+09
+rank=6
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="6",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 0.0
+vllm:kv_offload_total_bytes_total{engine="6",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 0.0
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="6",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="6",model_name="zai-org/GLM-5.2-FP8"} 1.7856600490145679e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="6",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="6",model_name="zai-org/GLM-5.2-FP8"} 1.7856600490145884e+09
+rank=7
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="7",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 0.0
+vllm:kv_offload_total_bytes_total{engine="7",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 0.0
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="7",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="7",model_name="zai-org/GLM-5.2-FP8"} 1.7856600490123608e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="7",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="7",model_name="zai-org/GLM-5.2-FP8"} 1.7856600490123827e+09
+## wide-ep-lws-nvidia-gpu-vllm-glm-5-2-prefill-0 sessions
+0
+--- EPP p2p decisions (streamed log counters) ---
+6344
+=== 2026-08-02T09:08:00Z ===
+--- pod restarts ---
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0    0,0
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-prefill-0   0,0
+--- engine offload counters (per pod) ---
+## wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0
+rank=0
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="0",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 0.0
+vllm:kv_offload_total_bytes_total{engine="0",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 0.0
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="0",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="0",model_name="zai-org/GLM-5.2-FP8"} 1.7856608120205061e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="0",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="0",model_name="zai-org/GLM-5.2-FP8"} 1.7856608120205386e+09
+rank=1
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="1",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 0.0
+vllm:kv_offload_total_bytes_total{engine="1",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 0.0
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="1",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="1",model_name="zai-org/GLM-5.2-FP8"} 1.7856608120175612e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="1",model_name="zai-org/GLM-5.2-FP8"} 2.0
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="1",model_name="zai-org/GLM-5.2-FP8"} 1.7856608120175955e+09
+rank=2
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="2",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 0.0
+vllm:kv_offload_total_bytes_total{engine="2",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 0.0
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="2",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="2",model_name="zai-org/GLM-5.2-FP8"} 1.785660812014761e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="2",model_name="zai-org/GLM-5.2-FP8"} 1.0
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="2",model_name="zai-org/GLM-5.2-FP8"} 1.7856608120147946e+09
+rank=3
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="3",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 0.0
+vllm:kv_offload_total_bytes_total{engine="3",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 0.0
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="3",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="3",model_name="zai-org/GLM-5.2-FP8"} 1.7856608120136466e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="3",model_name="zai-org/GLM-5.2-FP8"} 1.0
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="3",model_name="zai-org/GLM-5.2-FP8"} 1.7856608120136719e+09
+rank=4
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="4",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 0.0
+vllm:kv_offload_total_bytes_total{engine="4",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 0.0
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="4",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="4",model_name="zai-org/GLM-5.2-FP8"} 1.785660812013018e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="4",model_name="zai-org/GLM-5.2-FP8"} 1.0
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="4",model_name="zai-org/GLM-5.2-FP8"} 1.785660812013043e+09
+rank=5
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="5",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 0.0
+vllm:kv_offload_total_bytes_total{engine="5",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 0.0
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="5",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="5",model_name="zai-org/GLM-5.2-FP8"} 1.7856608120187497e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="5",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="5",model_name="zai-org/GLM-5.2-FP8"} 1.7856608120187876e+09
+rank=6
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="6",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 0.0
+vllm:kv_offload_total_bytes_total{engine="6",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 0.0
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="6",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="6",model_name="zai-org/GLM-5.2-FP8"} 1.7856608120101614e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="6",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="6",model_name="zai-org/GLM-5.2-FP8"} 1.7856608120101798e+09
+rank=7
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="7",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 0.0
+vllm:kv_offload_total_bytes_total{engine="7",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 0.0
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="7",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="7",model_name="zai-org/GLM-5.2-FP8"} 1.7856608120142617e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="7",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="7",model_name="zai-org/GLM-5.2-FP8"} 1.7856608120142853e+09
+## wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0 sessions
+0
+## wide-ep-lws-nvidia-gpu-vllm-glm-5-2-prefill-0
+rank=0
+rank=1
+rank=2
+rank=3
+rank=4
+rank=5
+rank=6
+rank=7
+## wide-ep-lws-nvidia-gpu-vllm-glm-5-2-prefill-0 sessions
+0
+--- EPP p2p decisions (streamed log counters) ---
+11568
+=== 2026-08-02T09:13:38Z ===
+--- pod restarts ---
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0    0,0
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-prefill-0   0,0
+--- engine offload counters (per pod) ---
+## wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0
+rank=0
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="0",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 0.0
+vllm:kv_offload_total_bytes_total{engine="0",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 5.894862336e+09
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="0",model_name="zai-org/GLM-5.2-FP8"} 16064.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="0",model_name="zai-org/GLM-5.2-FP8"} 1.7856608120205061e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="0",model_name="zai-org/GLM-5.2-FP8"} 52903.0
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="0",model_name="zai-org/GLM-5.2-FP8"} 1.7856608120205386e+09
+rank=1
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="1",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 0.0
+vllm:kv_offload_total_bytes_total{engine="1",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 1.434311424e+010
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="1",model_name="zai-org/GLM-5.2-FP8"} 64.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="1",model_name="zai-org/GLM-5.2-FP8"} 1.7856608120175612e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="1",model_name="zai-org/GLM-5.2-FP8"} 211501.0
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="1",model_name="zai-org/GLM-5.2-FP8"} 1.7856608120175955e+09
+rank=2
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="2",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 0.0
+vllm:kv_offload_total_bytes_total{engine="2",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 5.649680896e+09
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="2",model_name="zai-org/GLM-5.2-FP8"} 2944.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="2",model_name="zai-org/GLM-5.2-FP8"} 1.785660812014761e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="2",model_name="zai-org/GLM-5.2-FP8"} 30476.0
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="2",model_name="zai-org/GLM-5.2-FP8"} 1.7856608120147946e+09
+rank=3
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="3",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 0.0
+vllm:kv_offload_total_bytes_total{engine="3",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 1.1989372416e+010
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="3",model_name="zai-org/GLM-5.2-FP8"} 4544.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="3",model_name="zai-org/GLM-5.2-FP8"} 1.7856608120136466e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="3",model_name="zai-org/GLM-5.2-FP8"} 99710.0
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="3",model_name="zai-org/GLM-5.2-FP8"} 1.7856608120136719e+09
+rank=4
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="4",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 0.0
+vllm:kv_offload_total_bytes_total{engine="4",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 9.73720576e+09
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="4",model_name="zai-org/GLM-5.2-FP8"} 128.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="4",model_name="zai-org/GLM-5.2-FP8"} 1.785660812013018e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="4",model_name="zai-org/GLM-5.2-FP8"} 135635.0
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="4",model_name="zai-org/GLM-5.2-FP8"} 1.785660812013043e+09
+rank=5
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="5",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 0.0
+vllm:kv_offload_total_bytes_total{engine="5",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 9.103236608e+09
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="5",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="5",model_name="zai-org/GLM-5.2-FP8"} 1.7856608120187497e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="5",model_name="zai-org/GLM-5.2-FP8"} 143770.0
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="5",model_name="zai-org/GLM-5.2-FP8"} 1.7856608120187876e+09
+rank=6
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="6",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 0.0
+vllm:kv_offload_total_bytes_total{engine="6",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 9.432480256e+09
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="6",model_name="zai-org/GLM-5.2-FP8"} 64.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="6",model_name="zai-org/GLM-5.2-FP8"} 1.7856608120101614e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="6",model_name="zai-org/GLM-5.2-FP8"} 67920.0
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="6",model_name="zai-org/GLM-5.2-FP8"} 1.7856608120101798e+09
+rank=7
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="7",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 0.0
+vllm:kv_offload_total_bytes_total{engine="7",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 9.022676992e+09
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="7",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="7",model_name="zai-org/GLM-5.2-FP8"} 1.7856608120142617e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="7",model_name="zai-org/GLM-5.2-FP8"} 43033.0
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="7",model_name="zai-org/GLM-5.2-FP8"} 1.7856608120142853e+09
+## wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0 sessions
+7
+## wide-ep-lws-nvidia-gpu-vllm-glm-5-2-prefill-0
+rank=0
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="0",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 7.39046912e+08
+vllm:kv_offload_total_bytes_total{engine="0",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 4.073514496e+09
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+vllm:kv_offload_load_bytes_total{engine="0",model_name="zai-org/GLM-5.2-FP8"} 7.39046912e+08
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="0",model_name="zai-org/GLM-5.2-FP8"} 14592.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="0",model_name="zai-org/GLM-5.2-FP8"} 1.7856618167943404e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="0",model_name="zai-org/GLM-5.2-FP8"} 13504.0
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="0",model_name="zai-org/GLM-5.2-FP8"} 1.7856618167943754e+09
+rank=1
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="1",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 0.0
+vllm:kv_offload_total_bytes_total{engine="1",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 7.274883584e+09
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="1",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="1",model_name="zai-org/GLM-5.2-FP8"} 1.7856618167866201e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="1",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="1",model_name="zai-org/GLM-5.2-FP8"} 1.7856618167866392e+09
+rank=2
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="2",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 0.0
+vllm:kv_offload_total_bytes_total{engine="2",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 7.386966528e+09
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="2",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="2",model_name="zai-org/GLM-5.2-FP8"} 1.785661816793479e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="2",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="2",model_name="zai-org/GLM-5.2-FP8"} 1.7856618167935174e+09
+rank=3
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="3",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 3.050757632e+09
+vllm:kv_offload_total_bytes_total{engine="3",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 5.562116096e+09
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+vllm:kv_offload_load_bytes_total{engine="3",model_name="zai-org/GLM-5.2-FP8"} 3.050757632e+09
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="3",model_name="zai-org/GLM-5.2-FP8"} 136064.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="3",model_name="zai-org/GLM-5.2-FP8"} 1.7856618167912564e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="3",model_name="zai-org/GLM-5.2-FP8"} 55744.0
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="3",model_name="zai-org/GLM-5.2-FP8"} 1.785661816791287e+09
+rank=4
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="4",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 0.0
+vllm:kv_offload_total_bytes_total{engine="4",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 3.45005312e+09
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="4",model_name="zai-org/GLM-5.2-FP8"} 1216.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="4",model_name="zai-org/GLM-5.2-FP8"} 1.7856618167937865e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="4",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="4",model_name="zai-org/GLM-5.2-FP8"} 1.7856618167938056e+09
+rank=5
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="5",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 1.08580352e+09
+vllm:kv_offload_total_bytes_total{engine="5",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 6.32217856e+09
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+vllm:kv_offload_load_bytes_total{engine="5",model_name="zai-org/GLM-5.2-FP8"} 1.08580352e+09
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="5",model_name="zai-org/GLM-5.2-FP8"} 49600.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="5",model_name="zai-org/GLM-5.2-FP8"} 1.785661816791228e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="5",model_name="zai-org/GLM-5.2-FP8"} 19840.0
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="5",model_name="zai-org/GLM-5.2-FP8"} 1.7856618167912588e+09
+rank=6
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="6",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 3.71274752e+09
+vllm:kv_offload_total_bytes_total{engine="6",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 7.04020992e+09
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+vllm:kv_offload_load_bytes_total{engine="6",model_name="zai-org/GLM-5.2-FP8"} 3.71274752e+09
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="6",model_name="zai-org/GLM-5.2-FP8"} 20864.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="6",model_name="zai-org/GLM-5.2-FP8"} 1.7856618167942681e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="6",model_name="zai-org/GLM-5.2-FP8"} 67840.0
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="6",model_name="zai-org/GLM-5.2-FP8"} 1.7856618167942991e+09
+rank=7
+# HELP vllm:kv_offload_total_bytes_total Number of bytes offloaded by KV connector
+# TYPE vllm:kv_offload_total_bytes_total counter
+vllm:kv_offload_total_bytes_total{engine="7",model_name="zai-org/GLM-5.2-FP8",transfer_type="CPU_to_GPU"} 0.0
+vllm:kv_offload_total_bytes_total{engine="7",model_name="zai-org/GLM-5.2-FP8",transfer_type="GPU_to_CPU"} 7.068230656e+09
+# HELP vllm:kv_offload_load_bytes_total Total bytes loaded from offload storage to GPU.
+# TYPE vllm:kv_offload_load_bytes_total counter
+# HELP vllm:prefix_cache_hits_total Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_total counter
+vllm:prefix_cache_hits_total{engine="7",model_name="zai-org/GLM-5.2-FP8"} 512.0
+# HELP vllm:prefix_cache_hits_created Prefix cache hits, in terms of number of cached tokens.
+# TYPE vllm:prefix_cache_hits_created gauge
+vllm:prefix_cache_hits_created{engine="7",model_name="zai-org/GLM-5.2-FP8"} 1.7856618167885847e+09
+# HELP vllm:external_prefix_cache_hits_total External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_total counter
+vllm:external_prefix_cache_hits_total{engine="7",model_name="zai-org/GLM-5.2-FP8"} 0.0
+# HELP vllm:external_prefix_cache_hits_created External prefix cache hits from KV connector cross-instance cache sharing, in terms of number of cached tokens.
+# TYPE vllm:external_prefix_cache_hits_created gauge
+vllm:external_prefix_cache_hits_created{engine="7",model_name="zai-org/GLM-5.2-FP8"} 1.7856618167886078e+09
+## wide-ep-lws-nvidia-gpu-vllm-glm-5-2-prefill-0 sessions
+0
+--- EPP p2p decisions (streamed log counters) ---
+64

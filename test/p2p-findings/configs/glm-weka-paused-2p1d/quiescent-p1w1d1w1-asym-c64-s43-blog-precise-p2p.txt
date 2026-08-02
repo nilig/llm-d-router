@@ -1,0 +1,17 @@
+rank metrics: running=16/16 waiting=16/16 active=7.0 queued=29.0
+rank metrics: running=16/16 waiting=16/16 active=6.0 queued=27.0
+rank metrics: running=16/16 waiting=16/16 active=5.0 queued=22.0
+rank metrics: running=16/16 waiting=16/16 active=4.0 queued=16.0
+rank metrics: running=16/16 waiting=16/16 active=4.0 queued=14.0
+rank metrics: running=16/16 waiting=16/16 active=4.0 queued=11.0
+rank metrics: running=16/16 waiting=16/16 active=3.0 queued=8.0
+rank metrics: running=16/16 waiting=16/16 active=3.0 queued=7.0
+rank metrics: running=16/16 waiting=16/16 active=3.0 queued=7.0
+rank metrics: running=16/16 waiting=16/16 active=3.0 queued=7.0
+rank metrics: running=16/16 waiting=16/16 active=3.0 queued=7.0
+rank metrics: running=16/16 waiting=16/16 active=3.0 queued=7.0
+rank metrics: running=16/16 waiting=16/16 active=2.0 queued=7.0
+rank metrics: running=16/16 waiting=16/16 active=2.0 queued=6.0
+rank metrics: running=16/16 waiting=16/16 active=2.0 queued=2.0
+rank metrics: running=16/16 waiting=16/16 active=0.0 queued=0.0
+fleet quiescent
