@@ -1,0 +1,27 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Campaign deployment on the blog's p1w1d1w1 topology: 1 prefill node
+# (DEP8) + 1 decode node (DEP8) -> 16 GPUs. The P2P stack is active on
+# both roles (OFFLOADING_MODE=p2p-tiered is set by adapt_p2p.py in the
+# base manifests), so a single engine deployment serves all four cells;
+# the EPP config is the only per-cell variable.
+#
+# Rationale for this topology: halving the prefill side halves the
+# aggregate prefill KV tier while decode retention is unchanged, which is
+# the asymmetry a cross-node pull requires. With one prefill engine the
+# only possible source is decode, making this the prefill-pulls-from-decode
+# case. p1w1d1w1 is one of the blog's own measured topologies.
+namespace: nilig-p2p
+resources:
+  - ../modelserver/gpu/vllm-glm-5.2/deployments/p1w1d1w1
+patches:
+  # the patched engine image lives in a private quay repo; the campaign
+  # namespace carries the matching dockerconfigjson secret
+  - target:
+      kind: ServiceAccount
+      name: glm-5-2
+    patch: |-
+      - op: add
+        path: /imagePullSecrets
+        value:
+          - name: niliguy-quay-pull

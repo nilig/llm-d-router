@@ -1,0 +1,1 @@
+["--pool-name","p2p-pd","--pool-namespace","nilig-p2p","--pool-group","inference.networking.k8s.io","--zap-encoder","json","--config-file","/config/blog-precise-p2p.yaml","--grpc-health-port","9003","--health-checking","--metrics-endpoint-auth=false","--v=5","--tracing=false"]

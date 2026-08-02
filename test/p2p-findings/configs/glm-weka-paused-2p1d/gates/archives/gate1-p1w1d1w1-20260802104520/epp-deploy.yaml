@@ -1,0 +1,190 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    deployment.kubernetes.io/revision: "118"
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"labels":{"app":"p2p-pd-epp"},"name":"p2p-pd-epp","namespace":"nilig-p2p"},"spec":{"progressDeadlineSeconds":600,"replicas":1,"revisionHistoryLimit":10,"selector":{"matchLabels":{"app":"p2p-pd-epp"}},"strategy":{"type":"Recreate"},"template":{"metadata":{"annotations":{"kubectl.kubernetes.io/restartedAt":"2026-07-20T01:04:29+03:00"},"labels":{"app":"p2p-pd-epp"}},"spec":{"containers":[{"args":["set -eu; ulimit -n 65536; exec envoy \"$@\"","envoy","--service-node","envoy-proxy","--log-level","warn","--cpuset-threads","--drain-strategy","immediate","--drain-time-s","60","-c","/etc/envoy/envoy.yaml"],"command":["/bin/sh","-c"],"image":"docker.io/envoyproxy/envoy:v1.33.2","imagePullPolicy":"IfNotPresent","name":"envoy-proxy","ports":[{"containerPort":8081,"name":"http-8081","protocol":"TCP"},{"containerPort":19001,"name":"metrics-19001","protocol":"TCP"}],"readinessProbe":{"failureThreshold":1,"httpGet":{"path":"/ready","port":19001,"scheme":"HTTP"},"periodSeconds":5,"successThreshold":1,"timeoutSeconds":1},"resources":{"limits":{"memory":"8Gi"},"requests":{"cpu":"2","memory":"2Gi"}},"terminationMessagePath":"/dev/termination-log","terminationMessagePolicy":"File","volumeMounts":[{"mountPath":"/etc/envoy","name":"envoy-config","readOnly":true}]},{"args":["--pool-name","p2p-pd","--pool-namespace","nilig-p2p","--pool-group","inference.networking.k8s.io","--zap-encoder","json","--config-file","/config/armB-plugins.yaml","--grpc-health-port","9003","--health-checking","--metrics-endpoint-auth=false","--v=4","--tracing=false"],"env":[{"name":"NAMESPACE","valueFrom":{"fieldRef":{"apiVersion":"v1","fieldPath":"metadata.namespace"}}},{"name":"POD_NAME","valueFrom":{"fieldRef":{"apiVersion":"v1","fieldPath":"metadata.name"}}}],"image":"ghcr.io/vmaroon/llm-d-router-epp:dp-rank-aware-dev@sha256:60ce75823c8c341cfcdd02dd636f907943e5c3de818585efc546b04fb87b8f92","imagePullPolicy":"IfNotPresent","livenessProbe":{"failureThreshold":3,"grpc":{"port":9003,"service":"inference-extension"},"initialDelaySeconds":5,"periodSeconds":10,"successThreshold":1,"timeoutSeconds":1},"name":"epp","ports":[{"containerPort":9002,"name":"grpc","protocol":"TCP"},{"containerPort":9003,"name":"grpc-health","protocol":"TCP"},{"containerPort":9090,"name":"metrics","protocol":"TCP"}],"readinessProbe":{"failureThreshold":3,"grpc":{"port":9003,"service":"inference-extension"},"periodSeconds":2,"successThreshold":1,"timeoutSeconds":1},"resources":{"limits":{"memory":"16Gi"},"requests":{"cpu":"4","memory":"8Gi"}},"terminationMessagePath":"/dev/termination-log","terminationMessagePolicy":"File","volumeMounts":[{"mountPath":"/config","name":"plugins-config"}]}],"dnsPolicy":"ClusterFirst","restartPolicy":"Always","schedulerName":"default-scheduler","securityContext":{},"serviceAccount":"p2p-pd-epp","serviceAccountName":"p2p-pd-epp","terminationGracePeriodSeconds":30,"volumes":[{"configMap":{"defaultMode":420,"items":[{"key":"envoy.yaml","path":"envoy.yaml"}],"name":"envoy"},"name":"envoy-config"},{"configMap":{"defaultMode":420,"name":"p2p-pd-epp-plugins"},"name":"plugins-config"}]}}}}
+    nilig.campaign: 4-arm GLM weka benchmark in progress 08:34Z; config swaps automated;
+      please do not repoint EPP until ~11:30Z
+  creationTimestamp: "2026-07-20T05:47:12Z"
+  generation: 125
+  labels:
+    app: p2p-pd-epp
+  name: p2p-pd-epp
+  namespace: nilig-p2p
+  resourceVersion: "46859702"
+  uid: 96e7d6c9-9210-41be-ae94-e17b91f47e38
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: p2p-pd-epp
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/restartedAt: "2026-07-30T03:32:01+03:00"
+      labels:
+        app: p2p-pd-epp
+    spec:
+      containers:
+      - args:
+        - set -eu; ulimit -n 65536; exec envoy "$@"
+        - envoy
+        - --service-node
+        - envoy-proxy
+        - --log-level
+        - warn
+        - --cpuset-threads
+        - --drain-strategy
+        - immediate
+        - --drain-time-s
+        - "60"
+        - -c
+        - /etc/envoy/envoy.yaml
+        command:
+        - /bin/sh
+        - -c
+        image: docker.io/envoyproxy/envoy:v1.33.2
+        imagePullPolicy: IfNotPresent
+        name: envoy-proxy
+        ports:
+        - containerPort: 8081
+          name: http-8081
+          protocol: TCP
+        - containerPort: 19001
+          name: metrics-19001
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 1
+          httpGet:
+            path: /ready
+            port: 19001
+            scheme: HTTP
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          limits:
+            memory: 8Gi
+          requests:
+            cpu: "2"
+            memory: 2Gi
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /etc/envoy
+          name: envoy-config
+          readOnly: true
+      - args:
+        - --pool-name
+        - p2p-pd
+        - --pool-namespace
+        - nilig-p2p
+        - --pool-group
+        - inference.networking.k8s.io
+        - --zap-encoder
+        - json
+        - --config-file
+        - /config/blog-precise-p2p.yaml
+        - --grpc-health-port
+        - "9003"
+        - --health-checking
+        - --metrics-endpoint-auth=false
+        - --v=5
+        - --tracing=false
+        env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        image: quay.io/niliguy/llm-d-router-endpoint-picker:kv-source-endpoint-92e5de82@sha256:5a019a80b911e947a241e6632a827f66273cf3805d8266de4193d39a954fc0b4
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 3
+          grpc:
+            port: 9003
+            service: inference-extension
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: epp
+        ports:
+        - containerPort: 9002
+          name: grpc
+          protocol: TCP
+        - containerPort: 9003
+          name: grpc-health
+          protocol: TCP
+        - containerPort: 9090
+          name: metrics
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          grpc:
+            port: 9003
+            service: inference-extension
+          periodSeconds: 2
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          limits:
+            memory: 16Gi
+          requests:
+            cpu: "4"
+            memory: 8Gi
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /config
+          name: plugins-config
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccount: p2p-pd-epp
+      serviceAccountName: p2p-pd-epp
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - configMap:
+          defaultMode: 420
+          items:
+          - key: envoy.yaml
+            path: envoy.yaml
+          name: envoy
+        name: envoy-config
+      - configMap:
+          defaultMode: 420
+          name: p2p-weka-epp-plugins
+        name: plugins-config
+status:
+  availableReplicas: 1
+  conditions:
+  - lastTransitionTime: "2026-07-30T10:25:10Z"
+    lastUpdateTime: "2026-08-01T20:13:33Z"
+    message: ReplicaSet "p2p-pd-epp-6989858f9b" has successfully progressed.
+    reason: NewReplicaSetAvailable
+    status: "True"
+    type: Progressing
+  - lastTransitionTime: "2026-08-02T07:45:02Z"
+    lastUpdateTime: "2026-08-02T07:45:02Z"
+    message: Deployment has minimum availability.
+    reason: MinimumReplicasAvailable
+    status: "True"
+    type: Available
+  observedGeneration: 125
+  readyReplicas: 1
+  replicas: 1
+  terminatingReplicas: 0
+  updatedReplicas: 1
