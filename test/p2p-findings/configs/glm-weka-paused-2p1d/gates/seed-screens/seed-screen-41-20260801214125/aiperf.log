@@ -1,0 +1,231 @@
+18:41:38.234 INFO     Starting AIPerf System (cli_runner.py:148)
+18:41:38.440 INFO     GPU telemetry disabled via --no-gpu-telemetry (system_controller.py:248)
+18:41:38.452 INFO     Registered Worker Manager (id: 'worker_manager') (system_controller.py:382)
+18:41:38.505 INFO     Server Metrics: Discovered 1 endpoints: ['http://p2p-pd-epp.nilig-p2p:8081/v1/metrics'] (manager.py:74)
+18:41:38.576 INFO     Registered Server Metrics Manager (id: 'server_metrics_manager') (system_controller.py:382)
+18:41:38.577 INFO     Registered Dataset Manager (id: 'dataset_manager') (system_controller.py:382)
+18:41:38.616 INFO     Record metrics export enabled: /workload/weka-seed-screen-41-20260801214125/attempt1/profile_export.jsonl (record_export_jsonl_writer.py:58)
+18:41:38.630 INFO     Registered Record Processor (id: 'record_processor_dbabf50a') (system_controller.py:382)
+18:41:38.643 INFO     Registered Worker (id: 'worker_409ccdb8') (system_controller.py:382)
+18:41:38.647 INFO     Registered Records Manager (id: 'records_manager') (system_controller.py:382)
+18:41:38.649 INFO     Registered Worker (id: 'worker_6b603ecc') (system_controller.py:382)
+18:41:38.651 INFO     Registered Worker (id: 'worker_b668d44d') (system_controller.py:382)
+18:41:38.652 INFO     Registered Worker (id: 'worker_b85c156b') (system_controller.py:382)
+18:41:38.653 INFO     Registered Worker (id: 'worker_6b725309') (system_controller.py:382)
+18:41:38.655 INFO     Registered Worker (id: 'worker_fbc572c5') (system_controller.py:382)
+18:41:38.656 INFO     Registered Worker (id: 'worker_73fff994') (system_controller.py:382)
+18:41:38.656 INFO     Registered Worker (id: 'worker_c8364241') (system_controller.py:382)
+18:41:38.658 INFO     Registered Worker (id: 'worker_accdcc30') (system_controller.py:382)
+18:41:38.658 INFO     Registered Worker (id: 'worker_0962d046') (system_controller.py:382)
+18:41:38.658 INFO     Registered Worker (id: 'worker_3fe14dac') (system_controller.py:382)
+18:41:38.659 INFO     Registered Timing Manager (id: 'timing_manager') (system_controller.py:382)
+18:41:38.660 INFO     Registered Worker (id: 'worker_2c4b807d') (system_controller.py:382)
+18:41:38.661 INFO     Registered Worker (id: 'worker_222cee95') (system_controller.py:382)
+18:41:38.661 INFO     Registered Worker (id: 'worker_4a99f3db') (system_controller.py:382)
+18:41:38.663 INFO     Registered Worker (id: 'worker_863a5806') (system_controller.py:382)
+18:41:38.664 INFO     Registered Worker (id: 'worker_2742f315') (system_controller.py:382)
+18:41:38.666 INFO     Registered Worker (id: 'worker_eaf58e7f') (system_controller.py:382)
+18:41:38.666 INFO     Registered Worker (id: 'worker_84f5f673') (system_controller.py:382)
+18:41:38.668 INFO     Registered Worker (id: 'worker_ac58b098') (system_controller.py:382)
+18:41:38.668 INFO     Registered Worker (id: 'worker_04b453bb') (system_controller.py:382)
+18:41:38.668 INFO     Registered Worker (id: 'worker_6ea10639') (system_controller.py:382)
+18:41:38.670 INFO     Registered Worker (id: 'worker_0a64a4b8') (system_controller.py:382)
+18:41:38.700 INFO     Registered Worker (id: 'worker_6d6bcc14') (system_controller.py:382)
+18:41:38.704 INFO     Registered Worker (id: 'worker_c6da8103') (system_controller.py:382)
+18:41:38.712 INFO     Registered Worker (id: 'worker_3d9d97e3') (system_controller.py:382)
+18:41:38.726 INFO     Registered Record Processor (id: 'record_processor_a90a38b7') (system_controller.py:382)
+18:41:38.726 INFO     Registered Record Processor (id: 'record_processor_d1e6b6ad') (system_controller.py:382)
+18:41:38.726 INFO     Registered Record Processor (id: 'record_processor_ba53dcc2') (system_controller.py:382)
+18:41:38.726 INFO     Registered Record Processor (id: 'record_processor_f049dc0f') (system_controller.py:382)
+18:41:38.727 INFO     Registered Record Processor (id: 'record_processor_f2a5b8e8') (system_controller.py:382)
+18:41:38.727 INFO     Registered Record Processor (id: 'record_processor_a577439b') (system_controller.py:382)
+18:41:38.727 INFO     Registered Record Processor (id: 'record_processor_641bd7d1') (system_controller.py:382)
+18:41:38.770 INFO     Registered Worker (id: 'worker_c3b65730') (system_controller.py:382)
+18:41:38.770 INFO     Registered Worker (id: 'worker_9a400bdb') (system_controller.py:382)
+18:41:38.770 INFO     Registered Worker (id: 'worker_981f9c26') (system_controller.py:382)
+18:41:38.773 INFO     Registered Worker (id: 'worker_377bfb6b') (system_controller.py:382)
+18:41:38.774 INFO     Registered Worker (id: 'worker_0b150339') (system_controller.py:382)
+18:41:38.788 INFO     Registered Worker (id: 'worker_750d232b') (system_controller.py:382)
+18:41:38.812 INFO     Registered Worker (id: 'worker_a356771b') (system_controller.py:382)
+18:41:38.942 INFO     AIPerf System is CONFIGURING (system_controller.py:270)
+18:41:38.942 INFO     Configuring all services to start profiling (system_controller.py:283)
+18:41:38.943 INFO     Tokenization is disabled for this endpoint, skipping tokenizer configuration (inference_result_parser.py:79)
+18:41:38.943 INFO     Tokenization is disabled for this endpoint, skipping tokenizer configuration (inference_result_parser.py:79)
+18:41:38.943 INFO     Tokenization is disabled for this endpoint, skipping tokenizer configuration (inference_result_parser.py:79)
+18:41:38.943 INFO     Tokenization is disabled for this endpoint, skipping tokenizer configuration (inference_result_parser.py:79)
+18:41:38.943 INFO     Tokenization is disabled for this endpoint, skipping tokenizer configuration (inference_result_parser.py:79)
+18:41:38.943 INFO     Tokenization is disabled for this endpoint, skipping tokenizer configuration (inference_result_parser.py:79)
+18:41:38.943 INFO     Waiting for dataset to be configured before configuring timing (manager.py:117)
+18:41:38.943 INFO     Tokenization is disabled for this endpoint, skipping tokenizer configuration (inference_result_parser.py:79)
+18:41:38.943 INFO     Tokenization is disabled for this endpoint, skipping tokenizer configuration (inference_result_parser.py:79)
+18:41:38.946 INFO     Configuring tokenizer(s) for dataset manager (dataset_manager.py:218)
+18:41:38.962 INFO     Server Metrics: Capturing baseline metrics... (manager.py:157)
+18:41:38.970 INFO     Skipping unsupported summary metric: go_gc_duration_seconds (data_collector.py:286)
+18:41:39.004 INFO     Server metrics enabled - 1/2 endpoint(s) reachable. (system_controller.py:529)
+18:41:39.004 WARNING  Unreachable endpoints: http://p2p-pd-epp.nilig-p2p:8081/v1/metrics (system_controller.py:536)
+18:41:40.429 INFO     HTTP Request: GET https://huggingface.co/api/agent-harnesses "HTTP/1.1 200 OK" (_client.py:1025)
+18:41:40.456 INFO     HTTP Request: GET https://huggingface.co/api/models/zai-org/GLM-5.2-FP8 "HTTP/1.1 200 OK" (_client.py:1025)
+18:41:40.484 INFO     HTTP Request: HEAD https://huggingface.co/zai-org/GLM-5.2-FP8/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect" (_client.py:1025)
+18:41:40.495 INFO     HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/zai-org/GLM-5.2-FP8/ba978f7d347eaf65d22f1a86833408afdb953541/config.json "HTTP/1.1 200 OK" (_client.py:1025)
+18:41:40.507 INFO     HTTP Request: GET https://huggingface.co/api/resolve-cache/models/zai-org/GLM-5.2-FP8/ba978f7d347eaf65d22f1a86833408afdb953541/config.json "HTTP/1.1 200 OK" (_client.py:1025)
+18:41:40.536 INFO     HTTP Request: HEAD https://huggingface.co/zai-org/GLM-5.2-FP8/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect" (_client.py:1025)
+18:41:40.536 WARNING  Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads. (_http.py:951)
+18:41:40.547 INFO     HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/zai-org/GLM-5.2-FP8/ba978f7d347eaf65d22f1a86833408afdb953541/tokenizer_config.json "HTTP/1.1 200 OK" (_client.py:1025)
+18:41:40.559 INFO     HTTP Request: GET https://huggingface.co/api/resolve-cache/models/zai-org/GLM-5.2-FP8/ba978f7d347eaf65d22f1a86833408afdb953541/tokenizer_config.json "HTTP/1.1 200 OK" (_client.py:1025)
+18:41:40.585 INFO     HTTP Request: GET https://huggingface.co/api/models/zai-org/GLM-5.2-FP8/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found" (_client.py:1025)
+18:41:40.614 INFO     HTTP Request: GET https://huggingface.co/api/models/zai-org/GLM-5.2-FP8/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK" (_client.py:1025)
+18:41:40.644 INFO     HTTP Request: HEAD https://huggingface.co/zai-org/GLM-5.2-FP8/resolve/main/tokenizer.json "HTTP/1.1 302 Found" (_client.py:1025)
+18:41:41.109 INFO     HTTP Request: HEAD https://huggingface.co/zai-org/GLM-5.2-FP8/resolve/main/tokenizer.model "HTTP/1.1 404 Not Found" (_client.py:1025)
+18:41:41.132 INFO     HTTP Request: HEAD https://huggingface.co/zai-org/GLM-5.2-FP8/resolve/main/added_tokens.json "HTTP/1.1 404 Not Found" (_client.py:1025)
+18:41:41.157 INFO     HTTP Request: HEAD https://huggingface.co/zai-org/GLM-5.2-FP8/resolve/main/special_tokens_map.json "HTTP/1.1 404 Not Found" (_client.py:1025)
+18:41:41.180 INFO     HTTP Request: HEAD https://huggingface.co/zai-org/GLM-5.2-FP8/resolve/main/chat_template.jinja "HTTP/1.1 307 Temporary Redirect" (_client.py:1025)
+18:41:41.193 INFO     HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/zai-org/GLM-5.2-FP8/ba978f7d347eaf65d22f1a86833408afdb953541/chat_template.jinja "HTTP/1.1 200 OK" (_client.py:1025)
+18:41:41.211 INFO     HTTP Request: GET https://huggingface.co/api/resolve-cache/models/zai-org/GLM-5.2-FP8/ba978f7d347eaf65d22f1a86833408afdb953541/chat_template.jinja "HTTP/1.1 200 OK" (_client.py:1025)
+18:41:42.380 INFO     HTTP Request: GET https://huggingface.co/api/models/zai-org/GLM-5.2-FP8 "HTTP/1.1 200 OK" (_client.py:1025)
+18:41:42.424 INFO     Tokenizer(s) configured in 3.48 seconds (dataset_manager.py:222)
+18:41:42.425 INFO     Configuring dataset for dataset_manager (dataset_manager.py:228)
+18:41:44.420 INFO     Using preferred sampling strategy for semianalysis_cc_traces_weka_with_subagents: sequential (public.py:70)
+18:41:44.940 INFO     Loading HuggingFace dataset 'semianalysisai/cc-traces-weka-062126' (split=train) (base_hf_dataset.py:44)
+18:41:44.968 INFO     HTTP Request: HEAD https://huggingface.co/datasets/semianalysisai/cc-traces-weka-062126/resolve/main/README.md "HTTP/1.1 307 Temporary Redirect" (_client.py:1025)
+18:41:44.979 INFO     HTTP Request: HEAD https://huggingface.co/api/resolve-cache/datasets/semianalysisai/cc-traces-weka-062126/23f152f6f0f9399a85901b89a6458def0ef16729/README.md "HTTP/1.1 200 OK" (_client.py:1025)
+18:41:44.993 INFO     HTTP Request: GET https://huggingface.co/api/resolve-cache/datasets/semianalysisai/cc-traces-weka-062126/23f152f6f0f9399a85901b89a6458def0ef16729/README.md "HTTP/1.1 200 OK" (_client.py:1025)
+18:41:45.018 INFO     HTTP Request: HEAD https://huggingface.co/datasets/semianalysisai/cc-traces-weka-062126/resolve/23f152f6f0f9399a85901b89a6458def0ef16729/cc-traces-weka-062126.py "HTTP/1.1 404 Not Found" (_client.py:1025)
+18:41:45.079 INFO     HTTP Request: HEAD https://s3.amazonaws.com/datasets.huggingface.co/datasets/datasets/semianalysisai/cc-traces-weka-062126/semianalysisai/cc-traces-weka-062126.py "HTTP/1.1 404 Not Found" (_client.py:1025)
+18:41:45.111 INFO     HTTP Request: GET https://huggingface.co/api/datasets/semianalysisai/cc-traces-weka-062126/revision/23f152f6f0f9399a85901b89a6458def0ef16729 "HTTP/1.1 200 OK" (_client.py:1025)
+18:41:45.133 INFO     HTTP Request: HEAD https://huggingface.co/datasets/semianalysisai/cc-traces-weka-062126/resolve/23f152f6f0f9399a85901b89a6458def0ef16729/.huggingface.yaml "HTTP/1.1 404 Not Found" (_client.py:1025)
+18:41:45.194 INFO     HTTP Request: GET https://datasets-server.huggingface.co/info?dataset=semianalysisai/cc-traces-weka-062126 "HTTP/1.1 200 OK" (_client.py:1025)
+18:41:45.229 INFO     HTTP Request: GET https://huggingface.co/api/datasets/semianalysisai/cc-traces-weka-062126/tree/23f152f6f0f9399a85901b89a6458def0ef16729?recursive=false&expand=false "HTTP/1.1 200 OK" (_client.py:1025)
+18:41:45.256 INFO     HTTP Request: HEAD https://huggingface.co/datasets/semianalysisai/cc-traces-weka-062126/resolve/23f152f6f0f9399a85901b89a6458def0ef16729/dataset_infos.json "HTTP/1.1 404 Not Found" (_client.py:1025)
+18:41:45.580 INFO     HTTP Request: HEAD https://huggingface.co/datasets/semianalysisai/cc-traces-weka-062126/resolve/23f152f6f0f9399a85901b89a6458def0ef16729/traces.jsonl "HTTP/1.1 302 Found" (_client.py:1025)
+Generating train split:   0%|          | 0/393 [00:00<?, ? examples/s]Generating train split:   1%|          | 4/393 [00:00<00:20, 19.19 examples/s]Generating train split:   2%|▏         | 7/393 [00:00<00:42,  9.18 examples/s]Generating train split:   4%|▎         | 14/393 [00:00<00:22, 17.00 examples/s]Generating train split:   8%|▊         | 31/393 [00:03<00:41,  8.64 examples/s]Generating train split:   9%|▉         | 37/393 [00:03<00:34, 10.31 examples/s]Generating train split:  11%|█         | 42/393 [00:04<00:33, 10.48 examples/s]Generating train split:  11%|█▏        | 45/393 [00:04<00:42,  8.19 examples/s]Generating train split:  14%|█▎        | 54/393 [00:05<00:28, 11.82 examples/s]Generating train split:  14%|█▍        | 56/393 [00:05<00:40,  8.35 examples/s]Generating train split:  15%|█▍        | 58/393 [00:06<00:43,  7.72 examples/s]Generating train split:  16%|█▌        | 61/393 [00:06<00:41,  7.91 examples/s]Generating train split:  18%|█▊        | 70/393 [00:06<00:26, 12.30 examples/s]Generating train split:  18%|█▊        | 72/393 [00:07<00:31, 10.09 examples/s]Generating train split:  21%|██        | 81/393 [00:07<00:20, 15.56 examples/s]Generating train split:  22%|██▏       | 88/393 [00:07<00:15, 19.29 examples/s]Generating train split:  24%|██▍       | 94/393 [00:07<00:13, 21.53 examples/s]Generating train split:  26%|██▌       | 102/393 [00:08<00:17, 17.04 examples/s]Generating train split:  28%|██▊       | 112/393 [00:09<00:15, 18.25 examples/s]Generating train split:  29%|██▉       | 115/393 [00:09<00:19, 14.09 examples/s]Generating train split:  31%|███       | 121/393 [00:09<00:18, 15.10 examples/s]Generating train split:  32%|███▏      | 127/393 [00:10<00:19, 13.91 examples/s]Generating train split:  35%|███▍      | 136/393 [00:10<00:13, 19.06 examples/s]Generating train split:  36%|███▌      | 140/393 [00:12<00:36,  6.92 examples/s]Generating train split:  38%|███▊      | 148/393 [00:16<01:01,  3.98 examples/s]Generating train split:  39%|███▊      | 152/393 [00:16<00:54,  4.46 examples/s]Generating train split:  39%|███▉      | 155/393 [00:18<01:05,  3.65 examples/s]Generating train split:  40%|████      | 159/393 [00:18<00:57,  4.10 examples/s]Generating train split:  41%|████      | 160/393 [00:19<00:57,  4.05 examples/s]Generating train split:  41%|████      | 162/393 [00:19<00:52,  4.44 examples/s]Generating train split:  42%|████▏     | 167/393 [00:20<00:44,  5.12 examples/s]Generating train split:  44%|████▎     | 171/393 [00:20<00:33,  6.69 examples/s]Generating train split:  45%|████▌     | 177/393 [00:20<00:25,  8.37 examples/s]Generating train split:  47%|████▋     | 183/393 [00:22<00:34,  6.10 examples/s]Generating train split:  49%|████▉     | 192/393 [00:22<00:20,  9.83 examples/s]Generating train split:  51%|█████     | 200/393 [00:22<00:15, 12.80 examples/s]Generating train split:  52%|█████▏    | 205/393 [00:23<00:14, 12.62 examples/s]Generating train split:  53%|█████▎    | 207/393 [00:23<00:15, 12.14 examples/s]Generating train split:  53%|█████▎    | 209/393 [00:23<00:18,  9.84 examples/s]Generating train split:  54%|█████▎    | 211/393 [00:24<00:21,  8.59 examples/s]Generating train split:  54%|█████▍    | 213/393 [00:24<00:20,  8.66 examples/s]Generating train split:  58%|█████▊    | 226/393 [00:24<00:08, 19.61 examples/s]Generating train split:  59%|█████▉    | 231/393 [00:24<00:08, 18.21 examples/s]Generating train split:  61%|██████    | 239/393 [00:25<00:06, 22.68 examples/s]Generating train split:  64%|██████▎   | 250/393 [00:25<00:04, 30.38 examples/s]Generating train split:  65%|██████▍   | 254/393 [00:25<00:05, 26.38 examples/s]Generating train split:  66%|██████▌   | 258/393 [00:25<00:05, 25.01 examples/s]Generating train split:  67%|██████▋   | 264/393 [00:26<00:06, 18.89 examples/s]Generating train split:  69%|██████▉   | 273/393 [00:26<00:04, 24.67 examples/s]Generating train split:  70%|███████   | 276/393 [00:26<00:05, 21.12 examples/s]Generating train split:  71%|███████   | 280/393 [00:26<00:05, 20.04 examples/s]Generating train split:  74%|███████▎  | 289/393 [00:27<00:04, 21.54 examples/s]Generating train split:  77%|███████▋  | 301/393 [00:28<00:08, 11.34 examples/s]Generating train split:  79%|███████▉  | 310/393 [00:29<00:06, 12.74 examples/s]Generating train split:  80%|███████▉  | 314/393 [00:30<00:09,  8.58 examples/s]Generating train split:  81%|████████  | 317/393 [00:30<00:08,  9.05 examples/s]Generating train split:  82%|████████▏ | 321/393 [00:31<00:06, 10.42 examples/s]Generating train split:  84%|████████▎ | 329/393 [00:31<00:04, 14.25 examples/s]Generating train split:  85%|████████▌ | 336/393 [00:32<00:06,  8.42 examples/s]Generating train split:  88%|████████▊ | 345/393 [00:33<00:04, 10.15 examples/s]Generating train split:  88%|████████▊ | 347/393 [00:33<00:04,  9.32 examples/s]Generating train split:  89%|████████▉ | 351/393 [00:34<00:03, 10.64 examples/s]Generating train split:  90%|█████████ | 354/393 [00:34<00:03, 10.93 examples/s]Generating train split:  91%|█████████ | 358/393 [00:34<00:03, 11.64 examples/s]Generating train split:  93%|█████████▎| 365/393 [00:34<00:01, 16.16 examples/s]Generating train split:  95%|█████████▍| 372/393 [00:34<00:01, 20.26 examples/s]Generating train split:  95%|█████████▌| 375/393 [00:35<00:00, 19.40 examples/s]Generating train split:  97%|█████████▋| 380/393 [00:35<00:00, 13.76 examples/s]Generating train split:  98%|█████████▊| 385/393 [00:36<00:00, 14.54 examples/s]Generating train split: 100%|██████████| 393/393 [00:36<00:00, 20.36 examples/s]Generating train split: 100%|██████████| 393/393 [00:36<00:00, 10.86 examples/s]
+18:42:26.944 INFO     Loading all 393 traces (semianalysis_cc_traces_weka.py:121)
+18:42:51.931 INFO     --max-context-length=142000: dropped 295/393 traces exceeding the limit (largest observed: 996579 tokens). (weka_trace.py:1133)
+18:42:54.928 INFO     WekaTraceLoader: spawning 16 worker process(es) for parallel reconstruction of 98 trace(s) (weka_trace.py:2663)
+18:42:58.054 INFO     WekaTraceLoader: reconstructed 9/98 (9%) in 0.9s (10.0 traces/s) (weka_parallel_convert.py:736)
+18:42:58.054 INFO     WekaTraceLoader: reconstructed 18/98 (18%) in 0.9s (20.0 traces/s) (weka_parallel_convert.py:736)
+18:42:58.054 INFO     WekaTraceLoader: reconstructed 27/98 (28%) in 0.9s (30.0 traces/s) (weka_parallel_convert.py:736)
+18:42:58.287 INFO     WekaTraceLoader: reconstructed 36/98 (37%) in 1.1s (31.8 traces/s) (weka_parallel_convert.py:736)
+18:43:01.709 INFO     WekaTraceLoader: reconstructed 45/98 (46%) in 4.6s (9.9 traces/s) (weka_parallel_convert.py:736)
+18:43:01.709 INFO     WekaTraceLoader: reconstructed 54/98 (55%) in 4.6s (11.9 traces/s) (weka_parallel_convert.py:736)
+18:43:01.709 INFO     WekaTraceLoader: reconstructed 63/98 (64%) in 4.6s (13.8 traces/s) (weka_parallel_convert.py:736)
+18:43:01.709 INFO     WekaTraceLoader: reconstructed 72/98 (73%) in 4.6s (15.8 traces/s) (weka_parallel_convert.py:736)
+18:43:01.709 INFO     WekaTraceLoader: reconstructed 81/98 (83%) in 4.6s (17.8 traces/s) (weka_parallel_convert.py:736)
+18:43:01.709 INFO     WekaTraceLoader: reconstructed 90/98 (92%) in 4.6s (19.8 traces/s) (weka_parallel_convert.py:736)
+18:43:01.710 INFO     WekaTraceLoader: reconstructed 98/98 (100%) in 4.6s (21.5 traces/s) (weka_parallel_convert.py:736)
+18:43:01.751 INFO     WekaTraceLoader: workers finished in 6.9s; assembling Conversation objects (weka_trace.py:2678)
+18:43:01.886 INFO     WekaTraceLoader: flattened-agent detection split 51 trace(s) into 146 extra agent chain(s) (110 aux sidecars [9 reductions], 0 worker-group members, 146 seams merged, 0 empty-hash requests kept on main) (weka_trace.py:1664)
+18:43:01.886 INFO     WekaTraceLoader: reconstructed 683 conversation(s) in 7.0s (total load+synth+reconstruct: 7.0s) (weka_trace.py:1675)
+18:43:01.889 WARNING  max_tokens=0 on turn is invalid (must be > 0); clamping to 1 (base.py:343)
+18:43:04.289 INFO     Memory-mapped backing store initialized (streaming to /tmp/aiperf_mmap_a26fbef4-c90f-48a8-a21e-df55e2e05e44/dataset.dat) (memory_map_utils.py:150)
+18:43:04.790 INFO     Data file finalized: 683 conversations, 152.08 MB (memory_map_utils.py:274)
+18:43:04.791 INFO     Index file created: /tmp/aiperf_mmap_a26fbef4-c90f-48a8-a21e-df55e2e05e44/index.dat (memory_map_utils.py:281)
+18:43:04.791 INFO     Backing store finalized: client_type=DatasetClientStoreType.MEMORY_MAP format=MemoryMapFormat.CONVERSATION data_file_path=PosixPath('/tmp/aiperf_mmap_a26fbef4-c90f-48a8-a21e-df55e2e05e44/dataset.dat') index_file_path=PosixPath('/tmp/aiperf_mmap_a26fbef4-c90f-48a8-a21e-df55e2e05e44/index.dat') conversation_count=683 total_size_bytes=159465327 compressed=False compressed_size_bytes=0 (dataset_manager.py:767)
+18:43:04.829 INFO     sampling strategy: sequential, unique conversations: 683, unique turn count: 5502 (dataset_manager.py:784)
+18:43:04.840 INFO     Skipping inputs.json generation (dataset_manager.py:252)
+18:43:04.909 INFO     TrajectorySource: built 64 trajectories from 98 traces (trajectory_source.py:333)
+18:43:04.909 INFO       range cfg=[0.00, 1.00]  observed sample pct: min=  3% median= 50% max= 98% (trajectory_source.py:338)
+18:43:04.909 INFO         lane=00  sample_time= 56%  root_next= 18/33  ( 55% turns)  live=1 ready=1  trace_id=006c98de37d819e95b0840e25426bb7ca99d (trajectory_source.py:340)
+18:43:04.909 INFO         lane=01  sample_time= 20%  root_next=  3/7   ( 43% turns)  live=15 ready=14  trace_id=04dba6fe621301a1d01fd63b8d02c9645c48 (trajectory_source.py:340)
+18:43:04.909 INFO         lane=02  sample_time= 77%  root_next= 41/52  ( 79% turns)  live=1 ready=1  trace_id=05f72f78a037cfa5cd4e4541960a574701d9 (trajectory_source.py:340)
+18:43:04.909 INFO         lane=03  sample_time= 67%  root_next=  0/1   (  0% turns)  live=1 ready=1  trace_id=063179eb93f4337a662e859c5a2c5638e03f (trajectory_source.py:340)
+18:43:04.909 INFO         lane=04  sample_time= 63%  root_next= 21/34  ( 62% turns)  live=1 ready=1  trace_id=077ea9e6554f45bbad9c24a8462bae9a8512 (trajectory_source.py:340)
+18:43:04.909 INFO         lane=05  sample_time= 62%  root_next=  8/9   ( 89% turns)  live=3 ready=2  trace_id=07dd40536557a1d6440a923557c3129dc929 (trajectory_source.py:340)
+18:43:04.909 INFO         lane=06  sample_time=  8%  root_next=  4/31  ( 13% turns)  live=1 ready=1  trace_id=0a688303b1ae62a97607af8021f2130c2caf (trajectory_source.py:340)
+18:43:04.909 INFO         lane=07  sample_time=  6%  root_next=  3/24  ( 12% turns)  live=2 ready=1  trace_id=0bcd99353218b9a386b1c4aec13d77abecdb (trajectory_source.py:340)
+18:43:04.909 INFO         lane=08  sample_time= 59%  root_next= 25/46  ( 54% turns)  live=1 ready=1  trace_id=0bed163ac9566086e14ffd85c7481096d49d (trajectory_source.py:340)
+18:43:04.909 INFO         lane=09  sample_time= 34%  root_next=  0/2   (  0% turns)  live=1 ready=1  trace_id=0f909e7d63c0d5e1f060d727ada25d910d89 (trajectory_source.py:340)
+18:43:04.909 INFO         lane=10  sample_time= 97%  root_next= 80/84  ( 95% turns)  live=1 ready=1  trace_id=1007f04d2c64580308858bb42f292992929d (trajectory_source.py:340)
+18:43:04.909 INFO         lane=11  sample_time= 55%  root_next=  3/5   ( 60% turns)  live=4 ready=3  trace_id=12bd4c7c82ae413b035253cb800fc5312111 (trajectory_source.py:340)
+18:43:04.909 INFO         lane=12  sample_time= 32%  root_next=  8/20  ( 40% turns)  live=1 ready=1  trace_id=12cfecf98c158ab54fb65980602421f00d69 (trajectory_source.py:340)
+18:43:04.909 INFO         lane=13  sample_time=  5%  root_next=  2/27  (  7% turns)  live=1 ready=1  trace_id=14129d470e508b236be22188aa78548ef805 (trajectory_source.py:340)
+18:43:04.909 INFO         lane=14  sample_time= 27%  root_next=  8/27  ( 30% turns)  live=1 ready=1  trace_id=17808bf55e26681520f3f11f47b5e1260108 (trajectory_source.py:340)
+18:43:04.909 INFO         lane=15  sample_time= 17%  root_next=  7/27  ( 26% turns)  live=1 ready=1  trace_id=1b5229e3aa8893ca2f4d07d248f9cd9752fb (trajectory_source.py:340)
+18:43:04.909 INFO         lane=16  sample_time= 85%  root_next= 29/34  ( 85% turns)  live=1 ready=1  trace_id=203147a7ad6c355f99290d8ac7811e6de5be (trajectory_source.py:340)
+18:43:04.909 INFO         lane=17  sample_time= 57%  root_next=  0/38  (  0% turns)  live=2 ready=2  trace_id=20c87b0b00ac5895cc4528c971b71cce3960 (trajectory_source.py:340)
+18:43:04.909 INFO         lane=18  sample_time= 76%  root_next= 12/17  ( 71% turns)  live=1 ready=1  trace_id=23074f92872cd4f8212d04cd87e71a2ced7b (trajectory_source.py:340)
+18:43:04.909 INFO         lane=19  sample_time=  9%  root_next=  7/67  ( 10% turns)  live=1 ready=1  trace_id=23a576b18cd4bacef3d1aa138b060b9407ce (trajectory_source.py:340)
+18:43:04.909 INFO         lane=20  sample_time=  4%  root_next=  2/19  ( 11% turns)  live=2 ready=1  trace_id=240cd2e1b10e5b738ac6fee166b2aca7eff2 (trajectory_source.py:340)
+18:43:04.909 INFO         lane=21  sample_time= 60%  root_next= 19/29  ( 66% turns)  live=1 ready=1  trace_id=24f457bf9e42d6ffb1cc4bbd279c650bb8b6 (trajectory_source.py:340)
+18:43:04.909 INFO         lane=22  sample_time= 52%  root_next= 17/29  ( 59% turns)  live=1 ready=1  trace_id=259d1cc35e11b72660b8d6a33867cbb93759 (trajectory_source.py:340)
+18:43:04.909 INFO         lane=23  sample_time= 92%  root_next=  0/5   (  0% turns)  live=1 ready=1  trace_id=2a2da059b7425d9dc1f999fca1177bc1cdb9 (trajectory_source.py:340)
+18:43:04.909 INFO         lane=24  sample_time= 30%  root_next= 12/34  ( 35% turns)  live=2 ready=2  trace_id=2d5f050bf77e34d6650e4af92c61bb82a1c9 (trajectory_source.py:340)
+18:43:04.910 INFO         lane=25  sample_time= 23%  root_next= 19/63  ( 30% turns)  live=1 ready=1  trace_id=3317a925c2a7f40e9eafe5f5532793a23c67 (trajectory_source.py:340)
+18:43:04.910 INFO         lane=26  sample_time=  6%  root_next=  2/20  ( 10% turns)  live=1 ready=1  trace_id=3531533f1f293048fc9691b112feafc44e62 (trajectory_source.py:340)
+18:43:04.910 INFO         lane=27  sample_time= 98%  root_next= 58/60  ( 97% turns)  live=1 ready=1  trace_id=35de830dbe1dbe90e6eaa36bc4814c7410ec (trajectory_source.py:340)
+18:43:04.910 INFO         lane=28  sample_time= 83%  root_next= 22/27  ( 81% turns)  live=1 ready=1  trace_id=3735de09df4f9ac454aee913e2a00633ad0d (trajectory_source.py:340)
+18:43:04.910 INFO         lane=29  sample_time=  5%  root_next=  3/34  (  9% turns)  live=1 ready=1  trace_id=37c8d244d81e01d3b70c9f7fe619d9392a24 (trajectory_source.py:340)
+18:43:04.910 INFO         lane=30  sample_time= 45%  root_next= 20/38  ( 53% turns)  live=1 ready=1  trace_id=3a066e6ad705e8792dec8c84610bbee401cb (trajectory_source.py:340)
+18:43:04.910 INFO         lane=31  sample_time= 77%  root_next= 25/30  ( 83% turns)  live=1 ready=1  trace_id=3c1fbf5cf98484c7f9ef07f2d4b00e65d829 (trajectory_source.py:340)
+18:43:04.910 INFO         lane=32  sample_time= 96%  root_next= 22/23  ( 96% turns)  live=1 ready=1  trace_id=3d8fcda6a4decdb4d4f56839db6eba041e60 (trajectory_source.py:340)
+18:43:04.910 INFO         lane=33  sample_time= 33%  root_next=  3/21  ( 14% turns)  live=1 ready=1  trace_id=3e573575f7a9f0d647460e769c0a64e71d59 (trajectory_source.py:340)
+18:43:04.910 INFO         lane=34  sample_time= 79%  root_next=  7/9   ( 78% turns)  live=4 ready=3  trace_id=3e8b931fd474375ea08ae58872aea7a8e0f5 (trajectory_source.py:340)
+18:43:04.910 INFO         lane=35  sample_time= 69%  root_next= 40/59  ( 68% turns)  live=1 ready=1  trace_id=421c59c8640de974ad4d7644b9ea88738998 (trajectory_source.py:340)
+18:43:04.910 INFO         lane=36  sample_time= 24%  root_next=  9/12  ( 75% turns)  live=250 ready=249  trace_id=439e5f9ed3159bd826529d8ae5bd1536903f (trajectory_source.py:340)
+18:43:04.910 INFO         lane=37  sample_time= 61%  root_next= 16/23  ( 70% turns)  live=1 ready=1  trace_id=43eb23b676fb4a9f9bccbc568dbca0d6b352 (trajectory_source.py:340)
+18:43:04.910 INFO         lane=38  sample_time= 96%  root_next= 21/23  ( 91% turns)  live=1 ready=1  trace_id=457a7bf22f9e6961870d5b356ab2bd780fff (trajectory_source.py:340)
+18:43:04.910 INFO         lane=39  sample_time= 11%  root_next=  4/25  ( 16% turns)  live=1 ready=1  trace_id=46c7f09048fc482e94f4552b0a99a4ca5e30 (trajectory_source.py:340)
+18:43:04.910 INFO         lane=40  sample_time= 97%  root_next= 19/20  ( 95% turns)  live=1 ready=1  trace_id=47a89e30bcdf1bc8002a026ad7ebfc914766 (trajectory_source.py:340)
+18:43:04.910 INFO         lane=41  sample_time= 78%  root_next=  3/5   ( 60% turns)  live=2 ready=1  trace_id=4cb074e3cbf03d1709e2b44cbe575807813b (trajectory_source.py:340)
+18:43:04.910 INFO         lane=42  sample_time= 48%  root_next= 22/46  ( 48% turns)  live=1 ready=1  trace_id=4dcd9742e24aa2939887e7b24aaa58e4215a (trajectory_source.py:340)
+18:43:04.910 INFO         lane=43  sample_time= 90%  root_next=  0/31  (  0% turns)  live=1 ready=1  trace_id=526f242b0f14fa34da24eb7346123c5025cd (trajectory_source.py:340)
+18:43:04.910 INFO         lane=44  sample_time= 16%  root_next=  4/23  ( 17% turns)  live=1 ready=1  trace_id=528995cdde1ebf15ccf0b79aec42dba31ce2 (trajectory_source.py:340)
+18:43:04.910 INFO         lane=45  sample_time= 94%  root_next= 19/20  ( 95% turns)  live=1 ready=1  trace_id=557810b129b9cb3e7402235470567c4e4dc0 (trajectory_source.py:340)
+18:43:04.910 INFO         lane=46  sample_time= 21%  root_next=  7/28  ( 25% turns)  live=1 ready=1  trace_id=557f96e1c557baa7724b7bdfd13c48cce434 (trajectory_source.py:340)
+18:43:04.910 INFO         lane=47  sample_time=  3%  root_next=  1/24  (  4% turns)  live=1 ready=1  trace_id=5c5e408b76e5e22747853915f67be3c491a4 (trajectory_source.py:340)
+18:43:04.910 INFO         lane=48  sample_time=  7%  root_next=  7/67  ( 10% turns)  live=1 ready=1  trace_id=5ca97cc975a39a898d775b63881b22fe178e (trajectory_source.py:340)
+18:43:04.910 INFO         lane=49  sample_time= 94%  root_next= 57/61  ( 93% turns)  live=1 ready=1  trace_id=62378a8a0d0bdde1ebd85f5dd60a43cd8110 (trajectory_source.py:340)
+18:43:04.910 INFO         lane=50  sample_time= 55%  root_next=  0/20  (  0% turns)  live=2 ready=2  trace_id=6a66ece7b14e61912eb266be794a6bf62faf (trajectory_source.py:340)
+18:43:04.910 INFO         lane=51  sample_time= 17%  root_next=  6/36  ( 17% turns)  live=1 ready=1  trace_id=6d5c6b957d5f634a7f820ddff7389e161def (trajectory_source.py:340)
+18:43:04.910 INFO         lane=52  sample_time= 12%  root_next=  4/19  ( 21% turns)  live=1 ready=1  trace_id=751fbb2089c7c4303f3ed241f3a7a27a3f2c (trajectory_source.py:340)
+18:43:04.910 INFO         lane=53  sample_time= 14%  root_next=  3/21  ( 14% turns)  live=1 ready=1  trace_id=768086c44de172b3719b40f29aec56303892 (trajectory_source.py:340)
+18:43:04.910 INFO         lane=54  sample_time= 72%  root_next=  0/22  (  0% turns)  live=2 ready=2  trace_id=77cfef0760bda37fb6f8829cebd9a7871aa5 (trajectory_source.py:340)
+18:43:04.910 INFO         lane=55  sample_time= 12%  root_next=  5/25  ( 20% turns)  live=1 ready=1  trace_id=79ea3049f1c4977e9457ffc2feeae309e24b (trajectory_source.py:340)
+18:43:04.910 INFO         lane=56  sample_time= 63%  root_next= 20/32  ( 62% turns)  live=1 ready=1  trace_id=7b962f1dde638a046d1ce381c550fd26e664 (trajectory_source.py:340)
+18:43:04.910 INFO         lane=57  sample_time= 13%  root_next=  4/24  ( 17% turns)  live=1 ready=1  trace_id=7e370a371b3de565f62dd133bd9e496947ac (trajectory_source.py:340)
+18:43:04.910 INFO         lane=58  sample_time= 40%  root_next=  8/21  ( 38% turns)  live=1 ready=1  trace_id=7e6f3a869f85c4774c84d9ee8b6137a758cc (trajectory_source.py:340)
+18:43:04.910 INFO         lane=59  sample_time= 75%  root_next=  0/10  (  0% turns)  live=11 ready=11  trace_id=89629bb87e4c39185e192ade167a8ff4092b (trajectory_source.py:340)
+18:43:04.911 INFO         lane=60  sample_time= 11%  root_next=  3/35  (  9% turns)  live=1 ready=1  trace_id=8c099fe8073c296bc1f0d744fe98e3cc96b3 (trajectory_source.py:340)
+18:43:04.911 INFO         lane=61  sample_time= 45%  root_next=  0/1   (  0% turns)  live=1 ready=1  trace_id=8e9656e01451be8f2bfcad65595a5d48fd7a (trajectory_source.py:340)
+18:43:04.911 INFO         lane=62  sample_time=  4%  root_next=  2/24  (  8% turns)  live=1 ready=1  trace_id=91237fb5e1b97fcdf9c1e3b2dd60bfdde1c0 (trajectory_source.py:340)
+18:43:04.911 INFO         lane=63  sample_time= 71%  root_next=  0/17  (  0% turns)  live=1 ready=1  trace_id=979ae6377c88be0e93531cdb9632795b6a7a (trajectory_source.py:340)
+18:43:04.911 INFO     Initialized 2 phase(s): ['Warmup', 'Profiling'] (phase_orchestrator.py:200)
+18:43:05.040 INFO     Dataset client initialized and freed 683 conversations from memory (dataset_manager.py:301)
+18:43:05.134 INFO     Populated mmap cache entry /root/.cache/aiperf/dataset_mmap/532054b0f4a94d6ceb145108fdca3868 (mmap_cache.py:499)
+18:43:05.134 INFO     Dataset configured in 82.71 seconds (dataset_manager.py:261)
+18:43:05.135 INFO     All services configured in 86.19 seconds (system_controller.py:295)
+18:43:05.135 INFO     AIPerf System is CONFIGURED (system_controller.py:272)
+18:43:05.136 INFO     Server Metrics: Started 1 collector(s) successfully (manager.py:221)
+18:43:05.138 INFO     All services started profiling successfully (system_controller.py:317)
+18:43:05.138 INFO     AIPerf System is PROFILING (system_controller.py:274)
+18:43:05.152 NOTICE   Phase warmup started | target: 81 requests (runner.py:364)
+18:43:05.152 INFO     WARMUP execute: dispatching 81 trajectory credits (agentic_replay.py:472)
+18:43:05.152 INFO     Credit phase start: warmup (records_manager.py:795)
+18:43:05.153 INFO     WARMUP spread: 10.0s ramp aligning 81 request(s) on t* (earliest fires at 0, last at 10.0s) (agentic_replay.py:539)
+Warmup: 0/81 |[33m          [0m|   0% [00:00<?]Warmup: 0/81 |[33m          [0m|   0% [00:00<?]                                        18:43:05.164 WARNING  Terminal warmup failure for trace 439e5f9ed3159bd826529d8ae5bd1536903f; aborting run early (broadcasting ProfileCancelCommand). (callback_handler.py:282)
+18:43:05.164 WARNING  Received profile cancel command: {"message_type":"command","service_id":"timing_manager","command":"profile_cancel","command_id":"b36b483e-69da-4e03-b2b2-8631427bd174","reason":"warmup_failure"} (records_manager.py:895)
+18:43:05.164 INFO     Processing records results... (records_manager.py:1075)
+18:43:05.164 WARNING  Run aborted (warmup_failure); will exit non-zero. (system_controller.py:427)
+18:43:05.165 INFO     Waiting for server metrics results... (system_controller.py:762)
+18:43:05.171 INFO     All results received, initiating shutdown (system_controller.py:757)
+18:43:05.172 ERROR    Tried to flush buffer, but file handle is not open: /workload/weka-seed-screen-41-20260801214125/attempt1/profile_export.jsonl (buffered_jsonl_writer_mixin.py:142)
+18:43:05.172 ERROR    Error in aiohttp request: ServerDisconnectedError('Server disconnected') (aiohttp_client.py:278)
+18:43:05.172 ERROR    Error in aiohttp request: ServerDisconnectedError('Server disconnected') (aiohttp_client.py:278)
+18:43:05.172 NOTICE   Phase warmup sending complete | sent=13, completed=1, in_flight=12 | sessions: sent=8, completed=0 (runner.py:655)
+18:43:05.172 ERROR    Error in aiohttp request: ServerDisconnectedError('Server disconnected') (aiohttp_client.py:278)
+18:43:05.172 ERROR    Error in aiohttp request: ServerDisconnectedError('Server disconnected') (aiohttp_client.py:278)
+18:43:05.172 ERROR    Error in aiohttp request: ServerDisconnectedError('Server disconnected') (aiohttp_client.py:278)
+18:43:05.172 ERROR    Error in aiohttp request: ServerDisconnectedError('Server disconnected') (aiohttp_client.py:278)
+18:43:05.172 ERROR    Error in aiohttp request: ServerDisconnectedError('Server disconnected') (aiohttp_client.py:278)
+18:43:05.172 ERROR    Error in aiohttp request: ServerDisconnectedError('Server disconnected') (aiohttp_client.py:278)
+18:43:05.172 ERROR    Error in aiohttp request: ServerDisconnectedError('Server disconnected') (aiohttp_client.py:278)
+18:43:05.172 NOTICE   All credits completed (phase_orchestrator.py:215)
+18:43:05.173 ERROR    Error in aiohttp request: ServerDisconnectedError('Server disconnected') (aiohttp_client.py:278)
+18:43:05.173 ERROR    Error in aiohttp request: ServerDisconnectedError('Server disconnected') (aiohttp_client.py:278)
+
+╭─ AIPerf System Exit Errors ──────────────────────────────────────────────────╮
+│ • Service: timing_manager                                                    │
+│    Operation: Profiling                                                      │
+│    Error: ProfileAborted                                                     │
+│    Reason: Benchmark aborted: warmup_failure.                                │
+╰──────────────────────────────────────────────────────────────────────────────╯
+Log File: /workload/weka-seed-screen-41-20260801214125/attempt1/logs/aiperf.log

@@ -10,6 +10,7 @@ LOADGEN=${LOADGEN:-scenc-loadgen}
 FLEET_EXPECT=${FLEET_EXPECT:-4}
 ALLOW_FOREIGN=${ALLOW_FOREIGN:-0}
 SEED=${SEED:-42}
+AIPERF_UNSAFE_ARGS=${AIPERF_UNSAFE_ARGS:-}
 ARM="$1"; CONC="$2"; TAG="$3"
 SP="$(cd "$(dirname "$0")" && pwd)"; cd "$SP"
 
@@ -74,9 +75,9 @@ kill -0 "$STREAM_PID" 2>/dev/null || { echo "ABORT: EPP log stream failed to att
 # the recovered runner (see workload/README.md - reconstruction status),
 # cloned verbatim; only URL/metrics endpoints, artifact volume, namespace,
 # and the concurrency cell change.
-python3 - "$TAG" "$CONC" "$NS" "$SEED" << 'PY'
+python3 - "$TAG" "$CONC" "$NS" "$SEED" "$AIPERF_UNSAFE_ARGS" << 'PY'
 import json, sys
-tag, conc, ns, seed = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+tag, conc, ns, seed, unsafe_args = sys.argv[1:6]
 d = json.load(open('workload/blog-campaign-job-c64.json'))
 d.pop('status', None)
 d['metadata'] = {'name': f'weka-{tag}', 'namespace': ns}
@@ -92,6 +93,7 @@ c['args'][-1] = a
 env = {e['name']: e for e in c.get('env', [])}
 env['URL']['value'] = f'http://p2p-pd-epp.{ns}:8081/v1'
 env['SERVER_METRICS_ARGS']['value'] = f'--server-metrics http://p2p-pd-epp.{ns}:9090/metrics'
+env['UNSAFE_ARGS']['value'] = unsafe_args
 env['ARTIFACT_DIR']['value'] = f'/workload/weka-{tag}/attempt1'
 env['CANONICAL_ARTIFACT_DIR']['value'] = f'/workload/weka-{tag}/canonical'
 for v in spec['volumes']:

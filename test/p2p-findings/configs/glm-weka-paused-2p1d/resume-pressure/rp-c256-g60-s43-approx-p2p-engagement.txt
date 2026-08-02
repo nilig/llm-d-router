@@ -1,0 +1,9 @@
+requests_seen=8022
+source_directives=0
+engagement_rate=0.000%
+source_evaluations=6798
+positive_remote_advantage=28
+qualifying_remote_advantage_ge_12288=0
+positive_delta_min=64
+positive_delta_median=640
+positive_delta_max=3456

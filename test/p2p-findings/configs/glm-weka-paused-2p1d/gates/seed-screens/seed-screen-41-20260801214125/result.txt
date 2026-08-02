@@ -1,0 +1,2 @@
+Warmup: 0/81 |[33m          [0m|   0% [00:00<?]Warmup: 0/81 |[33m          [0m|   0% [00:00<?]                                        18:43:05.164 WARNING  Terminal warmup failure for trace 439e5f9ed3159bd826529d8ae5bd1536903f; aborting run early (broadcasting ProfileCancelCommand). (callback_handler.py:282)
+SEED 41: FAIL

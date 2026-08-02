@@ -1,0 +1,15 @@
+INVALID: seed 44 precise load-aware with P2P, first attempt
+
+The job aborted during the excluded warmup at 2026-08-01T18:19:53Z.
+The first request for trace 439e5f9ed3159bd826529d8ae5bd1536903f
+was classified as a terminal warmup failure. AIPerf broadcast its profile
+cancellation immediately; the ServerDisconnectedError results on the 10
+other in-flight requests are cancellation consequences, not the cause.
+No profiling window started, so this attempt contributes no performance
+sample. A retry reproduced the same terminal trace failure.
+
+The four engine pods and router remained healthy with zero restarts, and
+a separate 16-request concurrent router probe passed. Seed 44 without
+P2P failed on the identical trace before profiling, so this is a workload-
+seed failure rather than a P2P result. Seed 44 is excluded from both
+variants and replaced by seed 47 in the balanced measurement schedule.

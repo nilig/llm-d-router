@@ -1,0 +1,7 @@
+current EPP pod IP: 10.0.12.247
+PASS: 32/32 rank endpoints subscribed by 10.0.12.247
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0 ports=[5557 5558 5559 5560 5561 5562 5563 5564] covered=8/8
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0-1 ports=[5557 5558 5559 5560 5561 5562 5563 5564] covered=8/8
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-prefill-0 ports=[5557 5558 5559 5560 5561 5562 5563 5564] covered=8/8
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-prefill-1 ports=[5557 5558 5559 5560 5561 5562 5563 5564] covered=8/8
+
