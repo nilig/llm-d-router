@@ -1,0 +1,124 @@
+{
+  "source_trace": "a2a25745b7f9a00c8b32552b4cb4367bf3e0",
+  "group_index": 1,
+  "burst_window_s": 30.0,
+  "window_id": "a2a25745b7f9a00c8b32552b4cb4367bf3e0-g1",
+  "anchor_row": 85,
+  "join_row": 96,
+  "kept_rows": [
+    85,
+    86,
+    87,
+    88,
+    89,
+    90,
+    91,
+    92,
+    93,
+    94,
+    95,
+    96
+  ],
+  "timestamp_offset_s": 5388.983,
+  "block_size": 64,
+  "selection": {
+    "width": 10,
+    "shared_prefix_blocks": 1097,
+    "shared_prefix_tokens": 70208,
+    "inherited_fraction": 0.0009,
+    "max_gap_s": 7.863,
+    "span_s": 34.506,
+    "peak_start_context_tokens": 71470,
+    "peak_context_tokens": 195880
+  },
+  "prediction": {
+    "avoided_prefill_rate_tok_s": 6100.0,
+    "cold_seed_branches": 1,
+    "expected_pulls": 9,
+    "expected_saving_per_pull_s": 11.51,
+    "expected_total_saving_s": 103.59,
+    "expected_pull_tokens_total": 631872
+  },
+  "branches": [
+    {
+      "agent_id": "subagent_004_7cd3e4a4",
+      "session_id": "a2a25745b7f9a00c8b32552b4cb4367bf3e0-g1::sa:subagent_004_7cd3e4a4",
+      "source_row": 86,
+      "spawn_s": 10.672,
+      "first_input_tokens": 71040,
+      "inner_requests": 24
+    },
+    {
+      "agent_id": "subagent_005_73ecc885",
+      "session_id": "a2a25745b7f9a00c8b32552b4cb4367bf3e0-g1::sa:subagent_005_73ecc885",
+      "source_row": 87,
+      "spawn_s": 14.589,
+      "first_input_tokens": 70848,
+      "inner_requests": 5
+    },
+    {
+      "agent_id": "subagent_006_f9c74afb",
+      "session_id": "a2a25745b7f9a00c8b32552b4cb4367bf3e0-g1::sa:subagent_006_f9c74afb",
+      "source_row": 88,
+      "spawn_s": 17.132,
+      "first_input_tokens": 70848,
+      "inner_requests": 7
+    },
+    {
+      "agent_id": "subagent_007_7bc92d90",
+      "session_id": "a2a25745b7f9a00c8b32552b4cb4367bf3e0-g1::sa:subagent_007_7bc92d90",
+      "source_row": 89,
+      "spawn_s": 21.037,
+      "first_input_tokens": 71104,
+      "inner_requests": 11
+    },
+    {
+      "agent_id": "subagent_008_c259b320",
+      "session_id": "a2a25745b7f9a00c8b32552b4cb4367bf3e0-g1::sa:subagent_008_c259b320",
+      "source_row": 90,
+      "spawn_s": 25.197,
+      "first_input_tokens": 71040,
+      "inner_requests": 3
+    },
+    {
+      "agent_id": "subagent_009_fdcb995a",
+      "session_id": "a2a25745b7f9a00c8b32552b4cb4367bf3e0-g1::sa:subagent_009_fdcb995a",
+      "source_row": 91,
+      "spawn_s": 26.428,
+      "first_input_tokens": 70848,
+      "inner_requests": 19
+    },
+    {
+      "agent_id": "subagent_010_cc7fa9c8",
+      "session_id": "a2a25745b7f9a00c8b32552b4cb4367bf3e0-g1::sa:subagent_010_cc7fa9c8",
+      "source_row": 92,
+      "spawn_s": 32.983,
+      "first_input_tokens": 71040,
+      "inner_requests": 23
+    },
+    {
+      "agent_id": "subagent_011_19fae4be",
+      "session_id": "a2a25745b7f9a00c8b32552b4cb4367bf3e0-g1::sa:subagent_011_19fae4be",
+      "source_row": 93,
+      "spawn_s": 34.155,
+      "first_input_tokens": 70848,
+      "inner_requests": 6
+    },
+    {
+      "agent_id": "subagent_012_54de4e6e",
+      "session_id": "a2a25745b7f9a00c8b32552b4cb4367bf3e0-g1::sa:subagent_012_54de4e6e",
+      "source_row": 94,
+      "spawn_s": 37.315,
+      "first_input_tokens": 71040,
+      "inner_requests": 48
+    },
+    {
+      "agent_id": "subagent_013_b1bbde10",
+      "session_id": "a2a25745b7f9a00c8b32552b4cb4367bf3e0-g1::sa:subagent_013_b1bbde10",
+      "source_row": 95,
+      "spawn_s": 45.178,
+      "first_input_tokens": 71040,
+      "inner_requests": 38
+    }
+  ]
+}

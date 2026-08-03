@@ -1,0 +1,195 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    nilig.campaign: 4-arm GLM weka benchmark in progress 08:34Z; config swaps automated;
+      please do not repoint EPP until ~11:30Z
+  labels:
+    app: agentx-slo-epp
+  name: agentx-slo-epp
+  namespace: nilig-agentx-slo
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: agentx-slo-epp
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: agentx-slo-epp
+    spec:
+      containers:
+      - args:
+        - set -eu; ulimit -n 65536; exec envoy "$@"
+        - envoy
+        - --service-node
+        - envoy-proxy
+        - --log-level
+        - warn
+        - --cpuset-threads
+        - --drain-strategy
+        - immediate
+        - --drain-time-s
+        - '60'
+        - -c
+        - /etc/envoy/envoy.yaml
+        command:
+        - /bin/sh
+        - -c
+        image: docker.io/envoyproxy/envoy:v1.33.2
+        imagePullPolicy: IfNotPresent
+        name: envoy-proxy
+        ports:
+        - containerPort: 8081
+          name: http-8081
+          protocol: TCP
+        - containerPort: 19001
+          name: metrics-19001
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 1
+          httpGet:
+            path: /ready
+            port: 19001
+            scheme: HTTP
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          limits:
+            memory: 8Gi
+          requests:
+            cpu: '2'
+            memory: 2Gi
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /etc/envoy
+          name: envoy-config
+          readOnly: true
+      - args:
+        - --pool-name
+        - agentx-slo
+        - --pool-namespace
+        - nilig-agentx-slo
+        - --pool-group
+        - inference.networking.k8s.io
+        - --zap-encoder
+        - json
+        - --config-file
+        - /config/p2p-off.yaml
+        - --grpc-health-port
+        - '9003'
+        - --health-checking
+        - --metrics-endpoint-auth=false
+        - --v=5
+        - --tracing=false
+        env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        image: ghcr.io/llm-d/llm-d-router-endpoint-picker-dev:main@sha256:088e4b744051187aa0c3bd0d3bbb52cf0c63231985e9e17acce1554d04a2350b
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 3
+          grpc:
+            port: 9003
+            service: inference-extension
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: epp
+        ports:
+        - containerPort: 9002
+          name: grpc
+          protocol: TCP
+        - containerPort: 9003
+          name: grpc-health
+          protocol: TCP
+        - containerPort: 9090
+          name: metrics
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          grpc:
+            port: 9003
+            service: inference-extension
+          periodSeconds: 2
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          limits:
+            memory: 16Gi
+          requests:
+            cpu: '4'
+            memory: 8Gi
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /config
+          name: plugins-config
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccount: agentx-slo-epp
+      serviceAccountName: agentx-slo-epp
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - configMap:
+          defaultMode: 420
+          items:
+          - key: envoy.yaml
+            path: envoy.yaml
+          name: envoy
+        name: envoy-config
+      - configMap:
+          defaultMode: 420
+          name: p2p-weka-epp-plugins
+        name: plugins-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: p2p-pd-epp
+  name: agentx-slo-epp
+  namespace: nilig-agentx-slo
+spec:
+  internalTrafficPolicy: Cluster
+  ipFamilies:
+  - IPv4
+  ipFamilyPolicy: SingleStack
+  ports:
+  - name: grpc
+    port: 9002
+    protocol: TCP
+    targetPort: 9002
+  - name: metrics
+    port: 9090
+    protocol: TCP
+    targetPort: 9090
+  - name: http-8081
+    port: 8081
+    protocol: TCP
+    targetPort: 8081
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 8081
+  selector:
+    app: agentx-slo-epp
+  sessionAffinity: None
+  type: ClusterIP

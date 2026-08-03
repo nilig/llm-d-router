@@ -1,0 +1,88 @@
+{
+  "source_trace": "631738ac31321409f3a8de750fd5cd0ea334",
+  "group_index": 17,
+  "burst_window_s": 30.0,
+  "window_id": "631738ac31321409f3a8de750fd5cd0ea334-g17",
+  "anchor_row": 652,
+  "join_row": 659,
+  "kept_rows": [
+    652,
+    653,
+    654,
+    655,
+    656,
+    657,
+    658,
+    659
+  ],
+  "timestamp_offset_s": 286298.644,
+  "block_size": 64,
+  "selection": {
+    "width": 6,
+    "shared_prefix_blocks": 650,
+    "shared_prefix_tokens": 41600,
+    "inherited_fraction": 0.0,
+    "max_gap_s": 1.753,
+    "span_s": 2.27,
+    "peak_start_context_tokens": 44350,
+    "peak_context_tokens": 196461
+  },
+  "prediction": {
+    "avoided_prefill_rate_tok_s": 6100.0,
+    "cold_seed_branches": 1,
+    "expected_pulls": 5,
+    "expected_saving_per_pull_s": 6.82,
+    "expected_total_saving_s": 34.1,
+    "expected_pull_tokens_total": 208000
+  },
+  "branches": [
+    {
+      "agent_id": "subagent_104_de98e61a",
+      "session_id": "631738ac31321409f3a8de750fd5cd0ea334-g17::sa:subagent_104_de98e61a",
+      "source_row": 653,
+      "spawn_s": 15.37,
+      "first_input_tokens": 43968,
+      "inner_requests": 9
+    },
+    {
+      "agent_id": "subagent_105_f983da1c",
+      "session_id": "631738ac31321409f3a8de750fd5cd0ea334-g17::sa:subagent_105_f983da1c",
+      "source_row": 654,
+      "spawn_s": 17.123,
+      "first_input_tokens": 43968,
+      "inner_requests": 18
+    },
+    {
+      "agent_id": "subagent_106_ca6dd10b",
+      "session_id": "631738ac31321409f3a8de750fd5cd0ea334-g17::sa:subagent_106_ca6dd10b",
+      "source_row": 655,
+      "spawn_s": 17.439,
+      "first_input_tokens": 43968,
+      "inner_requests": 18
+    },
+    {
+      "agent_id": "subagent_107_3bb7c285",
+      "session_id": "631738ac31321409f3a8de750fd5cd0ea334-g17::sa:subagent_107_3bb7c285",
+      "source_row": 656,
+      "spawn_s": 17.439,
+      "first_input_tokens": 44160,
+      "inner_requests": 18
+    },
+    {
+      "agent_id": "subagent_108_fb9d08ef",
+      "session_id": "631738ac31321409f3a8de750fd5cd0ea334-g17::sa:subagent_108_fb9d08ef",
+      "source_row": 657,
+      "spawn_s": 17.546,
+      "first_input_tokens": 43968,
+      "inner_requests": 8
+    },
+    {
+      "agent_id": "subagent_109_ac3d5152",
+      "session_id": "631738ac31321409f3a8de750fd5cd0ea334-g17::sa:subagent_109_ac3d5152",
+      "source_row": 658,
+      "spawn_s": 17.64,
+      "first_input_tokens": 43968,
+      "inner_requests": 11
+    }
+  ]
+}

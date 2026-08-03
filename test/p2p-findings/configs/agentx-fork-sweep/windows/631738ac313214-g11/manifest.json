@@ -1,0 +1,169 @@
+{
+  "source_trace": "631738ac31321409f3a8de750fd5cd0ea334",
+  "group_index": 11,
+  "burst_window_s": 30.0,
+  "window_id": "631738ac31321409f3a8de750fd5cd0ea334-g11",
+  "anchor_row": 351,
+  "join_row": 382,
+  "kept_rows": [
+    351,
+    358,
+    359,
+    360,
+    361,
+    362,
+    363,
+    365,
+    369,
+    371,
+    372,
+    375,
+    377,
+    378,
+    380,
+    381,
+    382
+  ],
+  "timestamp_offset_s": 73307.412,
+  "block_size": 64,
+  "selection": {
+    "width": 15,
+    "shared_prefix_blocks": 632,
+    "shared_prefix_tokens": 40448,
+    "inherited_fraction": 0.0,
+    "max_gap_s": 29.986,
+    "span_s": 159.252,
+    "peak_start_context_tokens": 43167,
+    "peak_context_tokens": 193834
+  },
+  "prediction": {
+    "avoided_prefill_rate_tok_s": 6100.0,
+    "cold_seed_branches": 1,
+    "expected_pulls": 14,
+    "expected_saving_per_pull_s": 6.631,
+    "expected_total_saving_s": 92.83,
+    "expected_pull_tokens_total": 566272
+  },
+  "branches": [
+    {
+      "agent_id": "subagent_074_7e6ca6e9",
+      "session_id": "631738ac31321409f3a8de750fd5cd0ea334-g11::sa:subagent_074_7e6ca6e9",
+      "source_row": 358,
+      "spawn_s": 95.794,
+      "first_input_tokens": 42880,
+      "inner_requests": 28
+    },
+    {
+      "agent_id": "subagent_075_ada093be",
+      "session_id": "631738ac31321409f3a8de750fd5cd0ea334-g11::sa:subagent_075_ada093be",
+      "source_row": 359,
+      "spawn_s": 101.551,
+      "first_input_tokens": 42944,
+      "inner_requests": 9
+    },
+    {
+      "agent_id": "subagent_076_dab93c48",
+      "session_id": "631738ac31321409f3a8de750fd5cd0ea334-g11::sa:subagent_076_dab93c48",
+      "source_row": 360,
+      "spawn_s": 102.203,
+      "first_input_tokens": 42944,
+      "inner_requests": 11
+    },
+    {
+      "agent_id": "subagent_077_b20ef67b",
+      "session_id": "631738ac31321409f3a8de750fd5cd0ea334-g11::sa:subagent_077_b20ef67b",
+      "source_row": 361,
+      "spawn_s": 130.846,
+      "first_input_tokens": 42944,
+      "inner_requests": 7
+    },
+    {
+      "agent_id": "subagent_078_fe289886",
+      "session_id": "631738ac31321409f3a8de750fd5cd0ea334-g11::sa:subagent_078_fe289886",
+      "source_row": 362,
+      "spawn_s": 140.833,
+      "first_input_tokens": 42944,
+      "inner_requests": 8
+    },
+    {
+      "agent_id": "subagent_079_068ca9c8",
+      "session_id": "631738ac31321409f3a8de750fd5cd0ea334-g11::sa:subagent_079_068ca9c8",
+      "source_row": 363,
+      "spawn_s": 150.899,
+      "first_input_tokens": 42944,
+      "inner_requests": 8
+    },
+    {
+      "agent_id": "subagent_080_1885557e",
+      "session_id": "631738ac31321409f3a8de750fd5cd0ea334-g11::sa:subagent_080_1885557e",
+      "source_row": 365,
+      "spawn_s": 154.911,
+      "first_input_tokens": 42944,
+      "inner_requests": 9
+    },
+    {
+      "agent_id": "subagent_081_1b12b5a6",
+      "session_id": "631738ac31321409f3a8de750fd5cd0ea334-g11::sa:subagent_081_1b12b5a6",
+      "source_row": 369,
+      "spawn_s": 173.542,
+      "first_input_tokens": 42944,
+      "inner_requests": 14
+    },
+    {
+      "agent_id": "subagent_082_ef329983",
+      "session_id": "631738ac31321409f3a8de750fd5cd0ea334-g11::sa:subagent_082_ef329983",
+      "source_row": 371,
+      "spawn_s": 183.119,
+      "first_input_tokens": 42944,
+      "inner_requests": 9
+    },
+    {
+      "agent_id": "subagent_083_9387f26b",
+      "session_id": "631738ac31321409f3a8de750fd5cd0ea334-g11::sa:subagent_083_9387f26b",
+      "source_row": 372,
+      "spawn_s": 184.929,
+      "first_input_tokens": 42944,
+      "inner_requests": 8
+    },
+    {
+      "agent_id": "subagent_084_1ca45673",
+      "session_id": "631738ac31321409f3a8de750fd5cd0ea334-g11::sa:subagent_084_1ca45673",
+      "source_row": 375,
+      "spawn_s": 195.071,
+      "first_input_tokens": 42944,
+      "inner_requests": 8
+    },
+    {
+      "agent_id": "subagent_085_6646a13f",
+      "session_id": "631738ac31321409f3a8de750fd5cd0ea334-g11::sa:subagent_085_6646a13f",
+      "source_row": 377,
+      "spawn_s": 215.277,
+      "first_input_tokens": 42944,
+      "inner_requests": 8
+    },
+    {
+      "agent_id": "subagent_086_4be9c919",
+      "session_id": "631738ac31321409f3a8de750fd5cd0ea334-g11::sa:subagent_086_4be9c919",
+      "source_row": 378,
+      "spawn_s": 215.813,
+      "first_input_tokens": 42944,
+      "inner_requests": 9
+    },
+    {
+      "agent_id": "subagent_087_0218e062",
+      "session_id": "631738ac31321409f3a8de750fd5cd0ea334-g11::sa:subagent_087_0218e062",
+      "source_row": 380,
+      "spawn_s": 225.06,
+      "first_input_tokens": 42944,
+      "inner_requests": 15
+    },
+    {
+      "agent_id": "subagent_088_926d394d",
+      "session_id": "631738ac31321409f3a8de750fd5cd0ea334-g11::sa:subagent_088_926d394d",
+      "source_row": 381,
+      "spawn_s": 255.046,
+      "first_input_tokens": 42944,
+      "inner_requests": 8
+    }
+  ]
+}

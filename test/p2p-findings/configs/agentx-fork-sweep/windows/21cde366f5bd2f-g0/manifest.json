@@ -1,0 +1,79 @@
+{
+  "source_trace": "21cde366f5bd2f0ff2031b0538496c7e2a05",
+  "group_index": 0,
+  "burst_window_s": 30.0,
+  "window_id": "21cde366f5bd2f0ff2031b0538496c7e2a05-g0",
+  "anchor_row": 35,
+  "join_row": 44,
+  "kept_rows": [
+    35,
+    36,
+    38,
+    39,
+    40,
+    41,
+    44
+  ],
+  "timestamp_offset_s": 766.474,
+  "block_size": 64,
+  "selection": {
+    "width": 5,
+    "shared_prefix_blocks": 650,
+    "shared_prefix_tokens": 41600,
+    "inherited_fraction": 0.0,
+    "max_gap_s": 6.837,
+    "span_s": 9.239,
+    "peak_start_context_tokens": 55270,
+    "peak_context_tokens": 99105
+  },
+  "prediction": {
+    "avoided_prefill_rate_tok_s": 6100.0,
+    "cold_seed_branches": 1,
+    "expected_pulls": 4,
+    "expected_saving_per_pull_s": 6.82,
+    "expected_total_saving_s": 27.28,
+    "expected_pull_tokens_total": 166400
+  },
+  "branches": [
+    {
+      "agent_id": "subagent_001_e9ca89da",
+      "session_id": "21cde366f5bd2f0ff2031b0538496c7e2a05-g0::sa:subagent_001_e9ca89da",
+      "source_row": 36,
+      "spawn_s": 29.109,
+      "first_input_tokens": 43520,
+      "inner_requests": 13
+    },
+    {
+      "agent_id": "subagent_002_575fc6b9",
+      "session_id": "21cde366f5bd2f0ff2031b0538496c7e2a05-g0::sa:subagent_002_575fc6b9",
+      "source_row": 38,
+      "spawn_s": 31.372,
+      "first_input_tokens": 43584,
+      "inner_requests": 12
+    },
+    {
+      "agent_id": "subagent_003_9ac79e0a",
+      "session_id": "21cde366f5bd2f0ff2031b0538496c7e2a05-g0::sa:subagent_003_9ac79e0a",
+      "source_row": 39,
+      "spawn_s": 31.38,
+      "first_input_tokens": 43648,
+      "inner_requests": 19
+    },
+    {
+      "agent_id": "subagent_004_b23947c8",
+      "session_id": "21cde366f5bd2f0ff2031b0538496c7e2a05-g0::sa:subagent_004_b23947c8",
+      "source_row": 40,
+      "spawn_s": 31.511,
+      "first_input_tokens": 43584,
+      "inner_requests": 13
+    },
+    {
+      "agent_id": "subagent_005_80bf365d",
+      "session_id": "21cde366f5bd2f0ff2031b0538496c7e2a05-g0::sa:subagent_005_80bf365d",
+      "source_row": 41,
+      "spawn_s": 38.348,
+      "first_input_tokens": 54848,
+      "inner_requests": 15
+    }
+  ]
+}

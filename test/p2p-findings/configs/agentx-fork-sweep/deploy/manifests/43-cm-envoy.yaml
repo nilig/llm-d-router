@@ -1,0 +1,111 @@
+apiVersion: v1
+data:
+  envoy.yaml: "admin:\n  address:\n    socket_address:\n      address: 127.0.0.1\n\
+    \      port_value: 19000\n  access_log:\n    - name: envoy.access_loggers.file\n\
+    \      typed_config:\n        \"@type\": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog\n\
+    \        path: /dev/null\nstatic_resources:\n  listeners:\n    - name: envoy-proxy-ready-0.0.0.0-19001\n\
+    \      address:\n        socket_address:\n          address: 0.0.0.0\n       \
+    \   port_value: 19001\n      additional_addresses:\n      - address:\n       \
+    \   socket_address:\n            address: \"::\"\n            port_value: 19001\n\
+    \      filter_chains:\n        - filters:\n            - name: envoy.filters.network.http_connection_manager\n\
+    \              typed_config:\n                \"@type\": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager\n\
+    \                stat_prefix: envoy-ready-http\n                route_config:\n\
+    \                  name: local_route\n                  virtual_hosts:\n     \
+    \               - name: prometheus_stats\n                      domains: [\"*\"\
+    ]\n                      routes:\n                        - match:\n         \
+    \                   prefix: \"/stats/prometheus\"\n                          route:\n\
+    \                            cluster: \"prometheus_stats\"\n                http_filters:\n\
+    \                  - name: envoy.filters.http.health_check\n                 \
+    \   typed_config:\n                      \"@type\": type.googleapis.com/envoy.extensions.filters.http.health_check.v3.HealthCheck\n\
+    \                      pass_through_mode: false\n                      headers:\n\
+    \                        - name: \":path\"\n                          string_match:\n\
+    \                            exact: \"/ready\"\n                  - name: envoy.filters.http.router\n\
+    \                    typed_config:\n                      \"@type\": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router\n\
+    \    - name: vllm\n      address:\n        socket_address:\n          address:\
+    \ 0.0.0.0\n          port_value: 8081\n      additional_addresses:\n      - address:\n\
+    \          socket_address:\n            address: \"::\"\n            port_value:\
+    \ 8081\n      per_connection_buffer_limit_bytes: 32768\n      access_log:\n  \
+    \      - name: envoy.access_loggers.file\n          filter:\n            response_flag_filter:\n\
+    \              flags: [\"NR\"]\n          typed_config:\n            \"@type\"\
+    : type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog\n\
+    \            path: /dev/stdout\n            log_format:\n              text_format_source:\n\
+    \                inline_string: \"{\\\"start_time\\\":\\\"%START_TIME%\\\",\\\"\
+    method\\\":\\\"%REQ(:METHOD)%\\\",...}\\n\"\n      filter_chains:\n        - name:\
+    \ vllm\n          filters:\n            - name: envoy.filters.network.http_connection_manager\n\
+    \              typed_config:\n                \"@type\": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager\n\
+    \                stat_prefix: http-8081\n                route_config:\n     \
+    \             name: vllm\n                  virtual_hosts:\n                 \
+    \   - name: vllm-default\n                      domains: [\"*\"]\n           \
+    \           routes:\n                        - match:\n                      \
+    \      prefix: \"/\"\n                          route:\n                     \
+    \       cluster: original_destination_cluster\n                            timeout:\
+    \ 86400s\n                            idle_timeout: 86400s\n                 \
+    \           upgrade_configs:\n                              - upgrade_type: websocket\n\
+    \                          typed_per_filter_config:\n                        \
+    \    envoy.filters.http.ext_proc:\n                              \"@type\": type.googleapis.com/envoy.config.route.v3.FilterConfig\n\
+    \                              config: {}\n                http_filters:\n   \
+    \               - name: envoy.filters.http.ext_proc\n                    typed_config:\n\
+    \                      \"@type\": type.googleapis.com/envoy.extensions.filters.http.ext_proc.v3.ExternalProcessor\n\
+    \                      failure_mode_allow: true\n                      grpc_service:\n\
+    \                        envoy_grpc:\n                          cluster_name:\
+    \ ext_proc\n                          authority: localhost:9002\n            \
+    \            timeout: 10s\n                      processing_mode:\n          \
+    \              request_header_mode: SEND\n                        response_header_mode:\
+    \ SEND\n                        request_body_mode: FULL_DUPLEX_STREAMED\n    \
+    \                    response_body_mode: FULL_DUPLEX_STREAMED\n              \
+    \          request_trailer_mode: SEND\n                        response_trailer_mode:\
+    \ SEND\n                      message_timeout: 1000s\n                  - name:\
+    \ envoy.filters.http.router\n                    typed_config:\n             \
+    \         \"@type\": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router\n\
+    \                      suppress_envoy_headers: true\n                http2_protocol_options:\n\
+    \                  max_concurrent_streams: 100\n                  initial_stream_window_size:\
+    \ 65536\n                  initial_connection_window_size: 1048576\n         \
+    \       use_remote_address: true\n                normalize_path: true\n     \
+    \           merge_slashes: true\n                server_header_transformation:\
+    \ PASS_THROUGH\n                common_http_protocol_options:\n              \
+    \    headers_with_underscores_action: REJECT_REQUEST\n                path_with_escaped_slashes_action:\
+    \ UNESCAPE_AND_REDIRECT\n                access_log:\n                  - name:\
+    \ envoy.access_loggers.file\n                    typed_config:\n             \
+    \         \"@type\": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog\n\
+    \                      path: /dev/stdout\n                      log_format:\n\
+    \                        text_format_source:\n                          inline_string:\
+    \ \"{\\\"start_time\\\":\\\"%START_TIME%\\\",\\\"method\\\":\\\"%REQ(:METHOD)%\\\
+    \",...}\\n\"\n  clusters:\n    - name: prometheus_stats\n      type: STATIC\n\
+    \      connect_timeout: 0.250s\n      load_assignment:\n        cluster_name:\
+    \ prometheus_stats\n        endpoints:\n          - lb_endpoints:\n          \
+    \    - endpoint:\n                  address:\n                    socket_address:\n\
+    \                      address: 127.0.0.1\n                      port_value: 19000\n\
+    \    - name: original_destination_cluster\n      type: ORIGINAL_DST\n      connect_timeout:\
+    \ 1000s\n      lb_policy: CLUSTER_PROVIDED\n      circuit_breakers:\n        thresholds:\n\
+    \          - max_connections: 40000\n            max_pending_requests: 40000\n\
+    \            max_requests: 40000\n      original_dst_lb_config:\n        use_http_header:\
+    \ true\n        http_header_name: x-gateway-destination-endpoint\n    - name:\
+    \ ext_proc\n      type: STATIC\n      connect_timeout: 86400s\n      lb_policy:\
+    \ LEAST_REQUEST\n      circuit_breakers:\n        thresholds:\n          - max_connections:\
+    \ 40000\n            max_pending_requests: 40000\n            max_requests: 40000\n\
+    \            max_retries: 1024\n      health_checks:\n        - timeout: 2s\n\
+    \          interval: 10s\n          unhealthy_threshold: 3\n          healthy_threshold:\
+    \ 2\n          reuse_connection: true\n          grpc_health_check:\n        \
+    \    service_name: \"envoy.service.ext_proc.v3.ExternalProcessor\"\n         \
+    \ tls_options:\n            alpn_protocols: [\"h2\"]\n      transport_socket:\n\
+    \        name: \"envoy.transport_sockets.tls\"\n        typed_config:\n      \
+    \    \"@type\": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext\n\
+    \          common_tls_context:\n            validation_context:\n      typed_extension_protocol_options:\n\
+    \        envoy.extensions.upstreams.http.v3.HttpProtocolOptions:\n          \"\
+    @type\": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions\n\
+    \          explicit_http_config:\n            http2_protocol_options:\n      \
+    \        initial_stream_window_size: 65536\n              initial_connection_window_size:\
+    \ 1048576\n      load_assignment:\n        cluster_name: ext_proc\n        endpoints:\n\
+    \          - locality:\n              region: ext_proc/e2e/0\n            lb_endpoints:\n\
+    \              - endpoint:\n                  address:\n                    socket_address:\n\
+    \                      address: 127.0.0.1\n                      port_value: 9002\n\
+    \                load_balancing_weight: 1\n"
+kind: ConfigMap
+metadata:
+  annotations:
+    meta.helm.sh/release-name: llm-d-router
+    meta.helm.sh/release-namespace: nilig-p2p
+  labels:
+    app.kubernetes.io/managed-by: Helm
+  name: envoy
+  namespace: nilig-agentx-slo

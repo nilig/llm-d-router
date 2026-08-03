@@ -1,0 +1,81 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: agentx-slo-epp
+  namespace: nilig-agentx-slo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: agentx-slo-epp-sa
+  namespace: nilig-agentx-slo
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - pods
+  verbs:
+  - get
+  - watch
+  - list
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: agentx-slo-epp-non-sa
+  namespace: nilig-agentx-slo
+rules:
+- apiGroups:
+  - inference.networking.x-k8s.io
+  resources:
+  - inferenceobjectives
+  - inferencemodelrewrites
+  verbs:
+  - get
+  - watch
+  - list
+- apiGroups:
+  - llm-d.ai
+  resources:
+  - inferenceobjectives
+  - inferencemodelrewrites
+  verbs:
+  - get
+  - watch
+  - list
+- apiGroups:
+  - inference.networking.k8s.io
+  resources:
+  - inferencepools
+  verbs:
+  - get
+  - watch
+  - list
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: agentx-slo-epp-sa
+  namespace: nilig-agentx-slo
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: agentx-slo-epp-sa
+subjects:
+- kind: ServiceAccount
+  name: agentx-slo-epp
+  namespace: nilig-agentx-slo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: agentx-slo-epp-non-sa
+  namespace: nilig-agentx-slo
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: agentx-slo-epp-non-sa
+subjects:
+- kind: ServiceAccount
+  name: agentx-slo-epp
+  namespace: nilig-agentx-slo
