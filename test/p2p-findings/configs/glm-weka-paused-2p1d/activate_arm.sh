@@ -11,6 +11,7 @@ ARM="$1"
 
 case "$ARM" in
   blog-approximate) CFGF=blog-approximate.yaml; WANT=0; PRECISE=0 ;;
+  blog-approximate-p2p-fitted) CFGF=blog-approximate-p2p-fitted.yaml; WANT=1; PRECISE=0 ;;
   blog-approximate-p2p) CFGF=blog-approximate-p2p.yaml; WANT=1; PRECISE=0 ;;
   blog-precise) CFGF=blog-precise.yaml; WANT=0; PRECISE=1 ;;
   blog-precise-p2p) CFGF=blog-precise-p2p.yaml; WANT=1; PRECISE=1 ;;

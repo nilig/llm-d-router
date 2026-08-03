@@ -1,0 +1,53 @@
+=== 2026-08-03T06:27:54Z ===
+--- pod restarts ---
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0     0,0
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0-1   0,0
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-prefill-0    0,0
+wide-ep-lws-nvidia-gpu-vllm-glm-5-2-prefill-1    0,0
+--- engine offload counters (per pod) ---
+## wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0
+rank=0
+rank=1
+rank=2
+rank=3
+rank=4
+rank=5
+rank=6
+rank=7
+## wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0 sessions
+0
+## wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0-1
+rank=0
+rank=1
+rank=2
+rank=3
+rank=4
+rank=5
+rank=6
+rank=7
+## wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode-0-1 sessions
+0
+## wide-ep-lws-nvidia-gpu-vllm-glm-5-2-prefill-0
+rank=0
+rank=1
+rank=2
+rank=3
+rank=4
+rank=5
+rank=6
+rank=7
+## wide-ep-lws-nvidia-gpu-vllm-glm-5-2-prefill-0 sessions
+0
+## wide-ep-lws-nvidia-gpu-vllm-glm-5-2-prefill-1
+rank=0
+rank=1
+rank=2
+rank=3
+rank=4
+rank=5
+rank=6
+rank=7
+## wide-ep-lws-nvidia-gpu-vllm-glm-5-2-prefill-1 sessions
+0
+--- EPP p2p decisions (streamed log counters) ---
+16

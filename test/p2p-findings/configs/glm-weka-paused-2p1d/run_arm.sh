@@ -16,6 +16,7 @@ SP="$(cd "$(dirname "$0")" && pwd)"; cd "$SP"
 
 case "$ARM" in
   blog-approximate) CFGF=blog-approximate.yaml; WANT=0 ;;
+  blog-approximate-p2p-fitted) CFGF=blog-approximate-p2p-fitted.yaml; WANT=1 ;;
   blog-approximate-p2p) CFGF=blog-approximate-p2p.yaml; WANT=1 ;;
   blog-precise) CFGF=blog-precise.yaml; WANT=0 ;;
   blog-precise-p2p) CFGF=blog-precise-p2p.yaml; WANT=1 ;;
