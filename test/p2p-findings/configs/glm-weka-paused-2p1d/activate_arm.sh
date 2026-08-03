@@ -10,6 +10,7 @@ NS=${NS:-nilig-p2p}
 ARM="$1"
 
 case "$ARM" in
+  blog-approximate-fitted) CFGF=blog-approximate-fitted.yaml; WANT=0; PRECISE=0 ;;
   blog-approximate) CFGF=blog-approximate.yaml; WANT=0; PRECISE=0 ;;
   blog-approximate-p2p-fitted) CFGF=blog-approximate-p2p-fitted.yaml; WANT=1; PRECISE=0 ;;
   blog-approximate-p2p) CFGF=blog-approximate-p2p.yaml; WANT=1; PRECISE=0 ;;
