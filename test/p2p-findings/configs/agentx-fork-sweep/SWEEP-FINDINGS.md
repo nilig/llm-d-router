@@ -155,3 +155,44 @@ rank-compensated p2p port across pods.
 - `subagent_009` absent from the p2p arm's export (loader quirk, open).
 - EPP `requestID` does not join to aiperf `x_request_id` (envoy re-mints);
   attribution used timing + ISL correlation and engine counters.
+
+## Addendum 2: fork value is tail cleanup (wide twins, 2P+2D)
+
+Two further experiments on 2026-08-04, cell scaled to 2 prefill + 2 decode pods
+(32 GPUs) after a W=44 burst overran single-pod decode KV (1.76M live tokens vs
+1.68M capacity; engine 500s, pod replaced -- see gate D2 for how a dead-fleet
+run still yields a complete-looking export).
+
+### Hot-spot twins, one prefill pod (W=10, ~70K prefix, bursty)
+
+p2p arm fired 5 pulls (352,000 tokens, engine-confirmed) but LOST on latency:
+pulled branches 3.5-4.2 s vs the baseline's 1.0-1.8 s. The baseline had a fast
+path this analysis has not yet attributed (candidates: same-pod tier service,
+in-flight prefix sharing). Recorded as a negative result: on a single prefill
+pod, router-level P2P is not the cheapest rescue.
+
+### Wide twins, two prefill pods (W=44 baseline / W=43 p2p, ~40K prefix)
+
+| | baseline W=44 | p2p W=43 |
+|---|---|---|
+| starts < 2 s | 26/36 | 31/33 |
+| starts 2-6 s | 7 | **0** |
+| burst-head colds (6-12 s) | 2 | 2 |
+| pathological | 1 x 363.8 s | none |
+| p50 | 1,339 ms | 1,248 ms |
+| **p90** | **4,686 ms** | **1,606 ms (-66%)** |
+| pulls | 0 | 3 (121,728 tok, engine-confirmed) |
+
+Reading: recompute at 40K costs only ~6.6 s and holders multiply exponentially,
+so the fork self-heals and the median floors at ~1.3 s in both arms. What P2P
+removes is the straggler band -- every 2-6 s entry -- leaving only the two
+burst-head colds that no mechanism can serve (they predate any copy existing).
+
+Convergence across three campaigns: Maroon's forks (aggregate flat, p99
+-43%/-37%), our W=8 (one tail event), our W=43/44 (p90 -66%, median flat).
+**Fork value is tail cleanup.** An aggregate-mean win requires the no-live-holder
+regime instead (restart/preemption recovery), where every session pays the cold
+price in baseline.
+
+Twin caveat: matched-but-different windows per arm (43 vs 44 children,
+prefixes within 0.8%); reverse-assignment replicate in progress.
