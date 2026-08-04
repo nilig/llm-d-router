@@ -67,7 +67,14 @@ print('established conns from EPP:', n)"
 Expect `DP_SIZE_LOCAL` connections per pod for KV events. Tonight: 8 on prefill
 (plus 8 on the serving ports) and 8 on decode = **16/16 ranks**.
 
-## C-bis. Arm switching resets the index
+**Poll it, do not sample once.** Subscriptions are not established at the
+moment the engines report Ready. Sampled immediately, this gate read 0/16 and
+looked like a hard failure; 20 seconds later it was 16/16. A single-shot check
+here produces false alarms, and worse, invites someone to disable the gate.
+
+## D. Campaign hygiene
+
+### D1. Arm switching resets the index
 
 Switching arms by patching the EPP restarts it, and the precise index does not
 survive: `KVEventsConfig.replay_endpoint` is null, so a fresh EPP learns only
@@ -92,7 +99,7 @@ What is not acceptable is restarting for one arm only. Gate on it: record EPP po
 age and index size at the first measured request of every arm, and refuse to
 compare arms whose values differ by more than the declared tolerance.
 
-## C-ter. The fleet can vanish between arms
+### D2. The fleet can vanish between arms
 
 The gpu-pruner scales idle LWS roles to 0 within ~15-20 minutes. A gap between
 two arms is enough. Tonight: control drained at 19:47, treatment started at
@@ -129,20 +136,52 @@ Also re-run gate C1 after **every** arm switch: patching the EPP gives it a new
 pod IP, so a subscription count taken before the switch says nothing about the
 pod now serving.
 
-## D. Reading the counters
+### D3. Verify the instrument can detect absence
+
+Two checks in this campaign returned "0" for reasons unrelated to the thing
+being measured, and both would have inverted the conclusion.
+
+**`kubectl logs --tail=N` returns the LAST N lines.** A startup-log capture
+written as `logs --tail=400 | head -200` contains no startup lines at all: at
+`--v=5` the EPP emits thousands of trace lines within seconds of boot. The
+capture reported `p2p-source-producer mentions: 0` while the plugin was in fact
+instantiated and running. Stream from the beginning and let `head` close it:
+
+```bash
+kubectl -n $NS logs "$POD" -c epp 2>/dev/null | head -400 > startup.log
+```
+
+**Prove the positive case before trusting the negative.** Before believing "0
+mentions", assert the capture contains lines that must be present regardless --
+`Flags processed`, `Loaded raw configuration`, `Instantiated all plugins`. If
+those are missing, the capture is broken, not the subject.
+
+The general rule: a gate that can only return "absent" is not a gate. It must
+distinguish "the thing is missing" from "I am not looking where it is".
+
+### D4. Never edit a running script
+
+Bash reads scripts incrementally from disk. Patching `run_fork_arm.sh` while it
+executed shifted byte offsets under the live interpreter, which hit a syntax
+error mid-campaign and skipped the artifact pull for an arm that had already
+finished. The data survived on the PVC, but two of four arms were lost.
+
+Edit a copy and swap between runs, or stop the run first.
+
+## E. Reading the counters
 
 Three ways to be wrong, all observed:
 
-**D1 — `series` is a list, one entry per rank.** A reader that walks the JSON and
+**E1 — `series` is a list, one entry per rank.** A reader that walks the JSON and
 keeps one value reports a single rank. On a 16-rank cell that was a **4.8x**
 undercount (12,722,175 reported vs 61,374,262 actual).
 
-**D2 — series count must equal the expected rank count.** Summing correctly
+**E2 — series count must equal the expected rank count.** Summing correctly
 doesn't help if the export only sees half the fleet. One export tonight had 16
 series for a 32-rank cell and just **6** for `kv_offload_load_bytes`. Warn when
 `len(series) < expected_ranks`; role attribution is impossible in that state.
 
-**D3 — never sum prefill and decode external counters.** A P/D decode rank
+**E3 — never sum prefill and decode external counters.** A P/D decode rank
 fetches from prefill over NIXL by design. This run's **control** arm — P2P off
 entirely — reported `ext_cache_hit=42.8%`. Read as engagement, that is a
 completely fabricated result.
@@ -150,15 +189,15 @@ completely fabricated result.
 Related: `kv_offload_load_bytes` counts local CPU->GPU restores too, so
 loaded-bytes alone is never pull evidence.
 
-## E. Workload actually exercises the mechanism
+## F. Workload actually exercises the mechanism
 
 | # | Gate | Why |
 |---|---|---|
-| E1 | Shared prefix > pull-vs-recompute crossover (~8,650 tokens measured) | Below it a pull is slower than recompute |
-| E2 | `--max-context-length` == server `--max-model-len` | A larger client cap admits traces that overflow at the server and count toward the validity threshold |
-| E3 | Pull opportunities exist structurally | Affinity routing captures 96-97% of available reuse, so the residual is small unless siblings are forced apart |
+| F1 | Shared prefix > pull-vs-recompute crossover (~8,650 tokens measured) | Below it a pull is slower than recompute |
+| F2 | `--max-context-length` == server `--max-model-len` | A larger client cap admits traces that overflow at the server and count toward the validity threshold |
+| F3 | Pull opportunities exist structurally | Affinity routing captures 96-97% of available reuse, so the residual is small unless siblings are forced apart |
 
-E3 is the one worth stating loudest in a guide. P2P addresses the reuse that
+F3 is the one worth stating loudest in a guide. P2P addresses the reuse that
 placement *cannot* capture. On agentic traces that means parallel subagent
 fan-out — siblings sharing a parent prefix cannot all sit on the holder rank.
 Chasing engagement by raising concurrency instead pushes the cluster to
@@ -166,9 +205,9 @@ saturation, where any latency win is unpublishable.
 
 ## Suggested shape in the guide
 
-A single `verify-p2p.sh` that runs A -> B -> C and refuses to proceed, plus a
-short "reading the counters" section covering D. E belongs in the benchmarking
-guidance rather than a script.
+A single `verify-p2p.sh` that runs A -> B -> C and refuses to proceed. D is
+campaign protocol, E is a short "reading the counters" section, and F belongs in
+the benchmarking guidance rather than a script.
 
 Fail-closed matters: each of these is a case where the run completes, produces
 plausible numbers, and the numbers mean nothing.

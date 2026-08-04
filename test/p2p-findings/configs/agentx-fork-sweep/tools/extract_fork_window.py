@@ -81,6 +81,11 @@ def main() -> None:
                     help="'all', 'first', or an integer count of inner requests per subagent")
     ap.add_argument("--no-join", action="store_true",
                     help="omit the following parent turn (no SPAWN_JOIN, no task-completion metric)")
+    ap.add_argument("--cut-at-last-spawn", action="store_true",
+                    help="drop inner requests after the last sibling's spawn time. This is the "
+                         "measured real-fork protocol: the window ends at the final branch start, "
+                         "keeping the inner requests that load the seed rank while capping context "
+                         "growth (later turns can exceed the server's max-model-len)")
     ap.add_argument("--rate", type=float, default=DEFAULT_RATE)
     ap.add_argument("--out-dir", default="windows")
     args = ap.parse_args()
@@ -112,11 +117,17 @@ def main() -> None:
     keep_rows = sorted(set(keep_rows))
 
     delta = target["requests"][before].get("t", 0.0)
+    last_spawn = max(target["requests"][i].get("t", 0.0) for i, _ in members)
     out_requests = []
     for i in keep_rows:
         r = target["requests"][i]
         if r.get("type") == "subagent":
             r = trim_inner(r, args.keep_inner)
+            if args.cut_at_last_spawn:
+                import copy as _copy
+                r = _copy.deepcopy(r)
+                r["requests"] = [ir for ir in (r.get("requests") or [])
+                                 if ir.get("t", 0.0) <= last_spawn + 1e-6]
         out_requests.append(shift(r, delta))
 
     window = {

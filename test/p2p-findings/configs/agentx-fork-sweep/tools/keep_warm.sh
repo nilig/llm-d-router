@@ -15,10 +15,10 @@ POD=${POD:-workload-access}
 EPP=${EPP:-agentx-slo-epp}
 
 while true; do
-  n=$(kubectl -n "$NS" get lws -o json 2>/dev/null \
+  n=$(timeout 30 kubectl -n "$NS" get lws -o json 2>/dev/null \
       | python3 -c "import json,sys;print(sum(x.get('status',{}).get('readyReplicas',0) or 0 for x in json.load(sys.stdin)['items']))" 2>/dev/null || echo 0)
   if [ "${n:-0}" -gt 0 ]; then
-    kubectl -n "$NS" exec "$POD" -- python3 -c "
+    timeout 90 kubectl -n "$NS" exec "$POD" -- python3 -c "
 import json,urllib.request
 b=json.dumps({'model':'zai-org/GLM-5.2-FP8',
               'messages':[{'role':'user','content':'ping'}],

@@ -51,6 +51,20 @@ print(f\"{ci} {cs[ci]['args'].index('--config-file')+1}\")")
   kubectl -n "$NS" rollout status "deploy/${EPP}" --timeout=5m
 fi
 
+# Capture startup logs before --v=5 volume rotates them away. Last run the
+# "Instantiated all plugins" line was gone by the time it was needed, so whether
+# p2p-source-producer registered could not be established at all.
+log "capturing EPP startup log"
+sleep 5
+# No --tail: that returns the LAST N lines, which at --v=5 is trace spam within
+# seconds of boot and contains no startup lines at all. Stream from the
+# beginning and let head close it early.
+kubectl -n "$NS" logs "deploy/${EPP}" -c epp 2>/dev/null \
+  | head -400 > "${WINDOW}/epp-startup-${ARM}.log" || true
+# grep -c exits 1 on zero matches; under `set -e` that would abort the arm, and
+# zero is the correct answer for the control arm.
+echo "  p2p-source-producer mentions at startup: $(grep -c 'p2p-source-producer' "${WINDOW}/epp-startup-${ARM}.log" 2>/dev/null || echo 0)"
+
 log "capturing EPP stream for pull attribution"
 kubectl -n "$NS" logs -f "deploy/${EPP}" -c epp --since=1s \
   | grep --line-buffered '"requestID"' > "${WINDOW}/epp-${ARM}.jsonl" &
@@ -83,6 +97,7 @@ spec:
             --input-file ${REMOTE}/trace.json \\
             --custom-dataset-type weka_trace \\
             --fixed-schedule \\
+            --extra-inputs ignore_eos:true \\
             --use-server-token-count \\
             --server-metrics 'http://${EPP}.${NS}:9090/metrics' \\
             --no-gpu-telemetry \\
@@ -107,6 +122,10 @@ EOF
 # than for job completion, so both arms terminate on the same rule.
 prev=-1; stable=0
 for i in $(seq 1 240); do
+  if kubectl -n "$NS" get job "$NAME" -o jsonpath='{.status.failed}' 2>/dev/null | grep -qE '^[1-9]'; then
+    echo "JOB FAILED -- aborting wait"; kubectl -n "$NS" logs "job/${NAME}" --tail=15 2>/dev/null | tail -8
+    break
+  fi
   n=$(kubectl -n "$NS" exec "$PVC_POD" -- sh -c "wc -l < ${OUT}/profile_export.jsonl 2>/dev/null || echo 0" 2>/dev/null | tr -d "[:space:]")
   n=${n:-0}
   if [ "$n" = "$prev" ] && [ "$n" -gt 0 ]; then

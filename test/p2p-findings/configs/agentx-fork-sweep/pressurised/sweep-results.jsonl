@@ -1,0 +1,4 @@
+{"label": "K=1", "evaluations": 50, "no_peer": 22, "self_match": 26, "non_self": 24, "delta_min": 0, "delta_median": 0, "delta_p90": 0, "delta_max": 0, "clearing_gate": 0, "gate": 12288, "pulls": 0}
+{"label": "K=4", "evaluations": 385, "no_peer": 43, "self_match": 190, "non_self": 195, "delta_min": 0, "delta_median": 0, "delta_p90": 0, "delta_max": 1920, "clearing_gate": 0, "gate": 12288, "pulls": 0}
+{"label": "K=8", "evaluations": 777, "no_peer": 155, "self_match": 459, "non_self": 318, "delta_min": -64, "delta_median": 0, "delta_p90": 0, "delta_max": 2560, "clearing_gate": 0, "gate": 12288, "pulls": 0}
+{"label": "K=14", "evaluations": 1690, "no_peer": 287, "self_match": 833, "non_self": 857, "delta_min": -64, "delta_median": 0, "delta_p90": 0, "delta_max": 12224, "clearing_gate": 0, "gate": 12288, "pulls": 0}

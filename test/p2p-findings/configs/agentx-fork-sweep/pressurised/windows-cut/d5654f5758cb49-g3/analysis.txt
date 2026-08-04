@@ -1,0 +1,14 @@
+window d5654f5758cb492c6ad55ad95bc7e268b7a4-g3  W=8  prefix=75,520 tok
+predicted: 7 pulls x 12.38s = 86.7s
+branch starts matched in both arms: 3 of 8
+
+branch (conversation)                       ISL   control       p2p  delta_ms  pull  cache_read
+-----------------------------------------------------------------------------------------------
+d5654f5758cb492c6ad55ad95bc7e268b7a4-g   77,550    13,800    13,904       104  unse           0
+d5654f5758cb492c6ad55ad95bc7e268b7a4-g   77,102     1,072     1,278       206  unse           0
+d5654f5758cb492c6ad55ad95bc7e268b7a4-g   76,781     1,251     1,001      -251  unse           0
+
+all branch starts : n=3 median 104 ms  mean 20 ms
+not pulled        : n=3  median delta 104 ms (expected ~0; this is the untouched population and calibrates noise)
+
+wrote windows-cut/d5654f5758cb49-g3/analysis.json

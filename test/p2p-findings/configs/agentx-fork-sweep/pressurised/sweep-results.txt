@@ -1,0 +1,22 @@
+[K=1] evaluations=50 no_peer=22 self_match=26 non_self=24
+[K=1]   best-minus-computing tokens: min=0 median=0 p90=0 max=0
+[K=1]   clearing gate 12,288: 0 of 24 (0.0%)
+[K=1]   pulls issued: 0
+[K=4] evaluations=385 no_peer=43 self_match=190 non_self=195
+[K=4]   best-minus-computing tokens: min=0 median=0 p90=0 max=1,920
+[K=4]   clearing gate 12,288: 0 of 195 (0.0%)
+[K=4]   pulls issued: 0
+[K=8] evaluations=777 no_peer=155 self_match=459 non_self=318
+[K=8]   best-minus-computing tokens: min=-64 median=0 p90=0 max=2,560
+[K=8]   clearing gate 12,288: 0 of 318 (0.0%)
+[K=8]   pulls issued: 0
+[K=14] evaluations=1690 no_peer=287 self_match=833 non_self=857
+[K=14]   best-minus-computing tokens: min=-64 median=0 p90=0 max=12,224
+[K=14]   clearing gate 12,288: 0 of 857 (0.0%)
+[K=14]   pulls issued: 0
+[spill-on d5654f-g3] evaluations=0 no_peer=0 self_match=0 non_self=0
+[spill-on d5654f-g3]   pulls issued: 0
+[spill-on d5654f-g3] evaluations=32 no_peer=4 self_match=16 non_self=16
+[spill-on d5654f-g3]   best-minus-computing tokens: min=0 median=0 p90=1,408 max=77,376
+[spill-on d5654f-g3]   clearing gate 12,288: 1 of 16 (6.2%)
+[spill-on d5654f-g3]   pulls issued: 1

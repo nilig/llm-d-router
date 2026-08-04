@@ -1,0 +1,110 @@
+{
+  "source_trace": "d5654f5758cb492c6ad55ad95bc7e268b7a4",
+  "group_index": 3,
+  "burst_window_s": 30.0,
+  "window_id": "d5654f5758cb492c6ad55ad95bc7e268b7a4-g3",
+  "anchor_row": 76,
+  "join_row": 85,
+  "kept_rows": [
+    76,
+    77,
+    78,
+    79,
+    80,
+    81,
+    82,
+    83,
+    84,
+    85
+  ],
+  "timestamp_offset_s": 16606.562,
+  "block_size": 64,
+  "selection": {
+    "width": 8,
+    "shared_prefix_blocks": 1180,
+    "shared_prefix_tokens": 75520,
+    "inherited_fraction": 0.0102,
+    "max_gap_s": 23.766,
+    "span_s": 145.059,
+    "peak_start_context_tokens": 77738,
+    "peak_context_tokens": 330850
+  },
+  "prediction": {
+    "avoided_prefill_rate_tok_s": 6100.0,
+    "cold_seed_branches": 1,
+    "expected_pulls": 7,
+    "expected_saving_per_pull_s": 12.38,
+    "expected_total_saving_s": 86.66,
+    "expected_pull_tokens_total": 528640
+  },
+  "branches": [
+    {
+      "agent_id": "subagent_007_cbde6f1d",
+      "session_id": "d5654f5758cb492c6ad55ad95bc7e268b7a4-g3::sa:subagent_007_cbde6f1d",
+      "source_row": 77,
+      "spawn_s": 37.101,
+      "first_input_tokens": 77568,
+      "inner_requests": 138
+    },
+    {
+      "agent_id": "subagent_008_dfbe0bba",
+      "session_id": "d5654f5758cb492c6ad55ad95bc7e268b7a4-g3::sa:subagent_008_dfbe0bba",
+      "source_row": 78,
+      "spawn_s": 60.867,
+      "first_input_tokens": 77248,
+      "inner_requests": 57
+    },
+    {
+      "agent_id": "subagent_009_f66c64a0",
+      "session_id": "d5654f5758cb492c6ad55ad95bc7e268b7a4-g3::sa:subagent_009_f66c64a0",
+      "source_row": 79,
+      "spawn_s": 82.479,
+      "first_input_tokens": 76928,
+      "inner_requests": 54
+    },
+    {
+      "agent_id": "subagent_010_5d7023c6",
+      "session_id": "d5654f5758cb492c6ad55ad95bc7e268b7a4-g3::sa:subagent_010_5d7023c6",
+      "source_row": 80,
+      "spawn_s": 103.061,
+      "first_input_tokens": 77120,
+      "inner_requests": 21
+    },
+    {
+      "agent_id": "subagent_011_9beb1a77",
+      "session_id": "d5654f5758cb492c6ad55ad95bc7e268b7a4-g3::sa:subagent_011_9beb1a77",
+      "source_row": 81,
+      "spawn_s": 121.056,
+      "first_input_tokens": 76864,
+      "inner_requests": 44
+    },
+    {
+      "agent_id": "subagent_012_596aa739",
+      "session_id": "d5654f5758cb492c6ad55ad95bc7e268b7a4-g3::sa:subagent_012_596aa739",
+      "source_row": 82,
+      "spawn_s": 141.712,
+      "first_input_tokens": 76928,
+      "inner_requests": 48
+    },
+    {
+      "agent_id": "subagent_013_3c460772",
+      "session_id": "d5654f5758cb492c6ad55ad95bc7e268b7a4-g3::sa:subagent_013_3c460772",
+      "source_row": 83,
+      "spawn_s": 164.331,
+      "first_input_tokens": 76928,
+      "inner_requests": 72
+    },
+    {
+      "agent_id": "subagent_014_3f1ea415",
+      "session_id": "d5654f5758cb492c6ad55ad95bc7e268b7a4-g3::sa:subagent_014_3f1ea415",
+      "source_row": 84,
+      "spawn_s": 182.16,
+      "first_input_tokens": 76800,
+      "inner_requests": 82
+    }
+  ],
+  "deviations": [
+    "6 inner requests of subagent_010 dropped (in+out > 119K; cell max-model-len=120000, source cell ran MAX_MODEL_LEN=auto)",
+    "window cut at last child's first request per the measured protocol"
+  ]
+}
