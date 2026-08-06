@@ -1,0 +1,14 @@
+{
+ "window_id": "staggered-v1",
+ "composition": [
+  "d8c3707c6b26fa-g1@+0s",
+  "069d7bf5f1efb4-g0@+100s",
+  "8c0579868fbd7c-g1@+200s",
+  "5cbd632dae8626-g0@+300s",
+  "631738ac313214-g6@+420s"
+ ],
+ "hash_stride": 200000,
+ "total_span_s": 1294.8,
+ "block_size": 64,
+ "note": "real spawn timing preserved; overlapped starts provide mutual background load"
+}

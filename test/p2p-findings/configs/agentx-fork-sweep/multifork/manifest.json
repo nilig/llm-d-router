@@ -1,0 +1,23 @@
+{
+ "window_id": "multifork-v1",
+ "composition": [
+  "21cde366f5bd2f-g7(t+0s)",
+  "631738ac313214-g11(t+291s)",
+  "c97f752dfb70c0-g2(t+598s)",
+  "631738ac313214-g17(t+771s)",
+  "21cde366f5bd2f-g0(t+819s)",
+  "cc95f57029d3e5-g0(t+1073s)"
+ ],
+ "gap_s": 30.0,
+ "hash_stride": 200000,
+ "widths": [
+  30,
+  15,
+  10,
+  6,
+  5,
+  4
+ ],
+ "total_duration_s": 1182.3,
+ "block_size": 64
+}
