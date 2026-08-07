@@ -47,7 +47,7 @@ GPU-resident holder 5:2 over a CPU-only one) has not been run.
 |---|---|
 | precise routing guide | `nilig/llm-d` branch `guides/precise-kv-routing-wide-ep`, commits `84e826c8` (render), `a39e835c` (weights), `3b4521e5` (GIE prerequisite) |
 | p2p guide (PR llm-d#2067 branch) | commit `9cc1d88c`: render overlays restructured (`render/` = model servers, `render/standalone/` = pool), 11 precise configs weighted |
-| benchmark cell manifests + live ConfigMaps | `tmp/agentx-slo/manifests` + `agentx-slo-arms` CMs: all precise keys weighted, render manifest replaced |
+| benchmark cell manifests + live ConfigMaps | `deploy/manifests` + `agentx-slo-arms` CMs: all precise keys weighted, render manifest replaced |
 
 Compatibility findings folded into the guide: multi-port target pools need
 GIE bundle >= v1.5.0-rc.2 (v1.0.x caps `targetPorts` at 1); `appProtocol`

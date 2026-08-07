@@ -99,7 +99,7 @@ spec:
             fieldRef:
               apiVersion: v1
               fieldPath: metadata.name
-        image: ghcr.io/llm-d/llm-d-router-endpoint-picker-dev:main@sha256:088e4b744051187aa0c3bd0d3bbb52cf0c63231985e9e17acce1554d04a2350b
+        image: quay.io/niliguy/llm-d-router-endpoint-picker:p2p-srcload-c261389b
         imagePullPolicy: IfNotPresent
         livenessProbe:
           failureThreshold: 3
@@ -157,8 +157,10 @@ spec:
         name: envoy-config
       - configMap:
           defaultMode: 420
-          name: p2p-weka-epp-plugins
+          name: agentx-slo-arms
         name: plugins-config
+      imagePullSecrets:
+      - name: niliguy-quay-pull
 ---
 apiVersion: v1
 kind: Service

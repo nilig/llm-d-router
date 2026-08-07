@@ -187,6 +187,11 @@ data:
           kvBlockIndexConfig:
             inMemoryConfig:
               podCacheSize: 128
+          kvCacheBackendConfigs:
+          - name: gpu
+            weight: 1.0
+          - name: cpu
+            weight: 0.4
         tokenProcessorConfig:
           blockSize: 64
         kvEventsConfig:
@@ -246,6 +251,11 @@ data:
           kvBlockIndexConfig:
             inMemoryConfig:
               podCacheSize: 128
+          kvCacheBackendConfigs:
+          - name: gpu
+            weight: 1.0
+          - name: cpu
+            weight: 0.4
         tokenProcessorConfig:
           blockSize: 64
         kvEventsConfig:
@@ -286,4 +296,3 @@ data:
       - pluginRef: decode-filter
       - pluginRef: active-request-scorer
       - pluginRef: max-score-picker
-

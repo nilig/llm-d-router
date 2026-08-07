@@ -1,95 +1,22 @@
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: glm-5-2-render
-  namespace: nilig-agentx-slo
-spec:
-  progressDeadlineSeconds: 600
-  replicas: 2
-  revisionHistoryLimit: 10
-  selector:
-    matchLabels:
-      app: glm-5-2-render
-  strategy:
-    rollingUpdate:
-      maxSurge: 25%
-      maxUnavailable: 25%
-    type: RollingUpdate
-  template:
-    metadata:
-      labels:
-        app: glm-5-2-render
-    spec:
-      automountServiceAccountToken: false
-      containers:
-      - args:
-        - zai-org/GLM-5.2-FP8
-        - --port=8000
-        command:
-        - vllm
-        - launch
-        - render
-        env:
-        - name: HF_HOME
-          value: /tmp/hf
-        - name: HF_TOKEN
-          valueFrom:
-            secretKeyRef:
-              key: HF_TOKEN
-              name: llm-d-hf-token
-        image: docker.io/vllm/vllm-openai-cpu:v0.23.0@sha256:89e1fbe829038b1a560601990c8ec89625c622a969fcbc8f10ce48b6139795be
-        imagePullPolicy: IfNotPresent
-        name: render
-        ports:
-        - containerPort: 8000
-          name: http
-          protocol: TCP
-        readinessProbe:
-          failureThreshold: 60
-          httpGet:
-            path: /health
-            port: http
-            scheme: HTTP
-          periodSeconds: 5
-          successThreshold: 1
-          timeoutSeconds: 5
-        resources:
-          limits:
-            cpu: '4'
-            memory: 12Gi
-          requests:
-            cpu: '1'
-            memory: 4Gi
-        terminationMessagePath: /dev/termination-log
-        terminationMessagePolicy: File
-        volumeMounts:
-        - mountPath: /tmp/hf
-          name: hf-cache
-      dnsPolicy: ClusterFirst
-      restartPolicy: Always
-      schedulerName: default-scheduler
-      securityContext: {}
-      terminationGracePeriodSeconds: 30
-      volumes:
-      - emptyDir: {}
-        name: hf-cache
----
 apiVersion: v1
 kind: Service
 metadata:
   name: glm-5-2-render
   namespace: nilig-agentx-slo
 spec:
-  internalTrafficPolicy: Cluster
-  ipFamilies:
-  - IPv4
-  ipFamilyPolicy: SingleStack
+  # This Service owns no pods: it fronts the prefill model servers, which
+  # already expose vLLM's /v1/*/render endpoints, so the EPP token-producer
+  # tokenizes on the serving fleet and render capacity scales with it
+  # (llm-d/llm-d#2188). Prefill pods are selected rather than decode because
+  # the decode pods' port 8000 belongs to the routing-proxy sidecar, not vLLM.
+  # Only Ready endpoints receive traffic, so render calls never reach a pod
+  # still loading weights - but until the first prefill is Ready the Service
+  # has no endpoints and token-producer calls fail.
+  selector:
+    llm-d.ai/model: GLM-5.2-FP8
+    llm-d.ai/role: prefill
   ports:
   - name: http
     port: 8000
     protocol: TCP
-    targetPort: http
-  selector:
-    app: glm-5-2-render
-  sessionAffinity: None
-  type: ClusterIP
+    targetPort: 8000
