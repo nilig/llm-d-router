@@ -1,0 +1,18 @@
+apiVersion: v1
+data:
+  precise-routing.yaml: "# Arm P2+P2P - calibrated precise with the p2p-source-producer and the CPU\n# backend weight set to 0.4 (the team's calibrated value) now that the\n# offloading connector makes\
+    \ the CPU tier real.\napiVersion: llm-d.ai/v1alpha1\nkind: EndpointPickerConfig\nplugins:\n- type: disagg-headers-handler\n- type: always-disagg-pd-decider\n- type: disagg-profile-handler\n  parameters:\n\
+    \    deciderPluginName: always-disagg-pd-decider\n- type: prefill-filter\n- type: decode-filter\n- type: token-producer\n  parameters:\n    modelName: zai-org/GLM-5.2-FP8\n    vllm:\n      url: http://glm-5-2-render-engines:8000\n\
+    - type: endpoint-notification-source\n- type: precise-prefix-cache-producer\n  parameters:\n    indexerConfig:\n      kvBlockIndexConfig:\n        enableMetrics: true\n        inMemoryConfig:\n    \
+    \      podCacheSize: 128\n      kvCacheBackendConfigs:\n      - name: gpu\n        weight: 1.0\n      - name: cpu\n        weight: 0.4\n    tokenProcessorConfig:\n      blockSize: 64\n    speculativeIndexing:\
+    \ true\n    kvEventsConfig:\n      topicFilter: \"kv@\"\n      discoverPods: true\n      podDiscoveryConfig:\n        socketPort: 5557\n- type: p2p-source-producer\n  parameters:\n    prefixMatchInfoProducerName:\
+    \ precise-prefix-cache-producer\n    prefillProfileName: prefill\n    minCachedTokenDelta: 2048\n- type: inflight-load-producer\n  parameters:\n    prefixMatchInfoProducerName: precise-prefix-cache-producer\n\
+    - type: prefix-cache-affinity-filter\n  parameters:\n    prefixMatchInfoProducerName: precise-prefix-cache-producer\n    inFlightLoadProducerName: inflight-load-producer\n    peakPrefillThroughput:\
+    \ 5541\n    maxTTFTPenaltyMs: 55000\n- type: token-load-scorer\n- type: active-request-scorer\n- type: max-score-picker\ndataLayer:\n  sources:\n  - pluginRef: endpoint-notification-source\n    extractors:\n\
+    \    - pluginRef: precise-prefix-cache-producer\nschedulingProfiles:\n- name: prefill\n  plugins:\n  - pluginRef: prefill-filter\n  - pluginRef: prefix-cache-affinity-filter\n  - pluginRef: token-load-scorer\n\
+    \  - pluginRef: max-score-picker\n- name: decode\n  plugins:\n  - pluginRef: decode-filter\n  - pluginRef: active-request-scorer\n  - pluginRef: max-score-picker\n"
+kind: ConfigMap
+metadata:
+  name: epp-config
+  namespace: maroon-precise-kv
+

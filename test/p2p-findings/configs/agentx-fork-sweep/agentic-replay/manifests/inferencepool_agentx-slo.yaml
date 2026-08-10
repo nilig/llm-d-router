@@ -1,0 +1,27 @@
+apiVersion: inference.networking.k8s.io/v1
+kind: InferencePool
+metadata:
+  name: agentx-slo
+  namespace: maroon-precise-kv
+spec:
+  appProtocol: http
+  endpointPickerRef:
+    failureMode: FailOpen
+    group: ''
+    kind: Service
+    name: agentx-slo-epp
+    port:
+      number: 9002
+  selector:
+    matchLabels:
+      llm-d.ai/inference-serving: 'true'
+  targetPorts:
+  - number: 8000
+  - number: 8001
+  - number: 8002
+  - number: 8003
+  - number: 8004
+  - number: 8005
+  - number: 8006
+  - number: 8007
+

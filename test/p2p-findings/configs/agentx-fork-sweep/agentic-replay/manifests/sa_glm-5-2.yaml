@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    llm-d.ai/accelerator-variant: gpu
+    llm-d.ai/accelerator-vendor: nvidia
+    llm-d.ai/guide: wide-ep-lws
+    llm-d.ai/model: GLM-5.2-FP8
+  name: glm-5-2
+  namespace: maroon-precise-kv
+

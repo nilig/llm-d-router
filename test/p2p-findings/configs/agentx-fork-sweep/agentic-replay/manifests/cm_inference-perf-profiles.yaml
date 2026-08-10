@@ -1,0 +1,14 @@
+apiVersion: v1
+data:
+  agentic_replay.yaml: "load:\n  type: concurrent\n  num_workers: 8\n  worker_max_concurrency: 1000\n  request_timeout: 600\n  stages:\n    - num_requests: 1200\n      concurrency_level: 60\napi:\n  type:\
+    \ completion\n  streaming: true\nserver:\n  type: vllm\n  model_name: zai-org/GLM-5.2-FP8\n  base_url: http://10.16.0.66\ntokenizer:\n  pretrained_model_name_or_path: zai-org/GLM-5.2-FP8\ndata:\n  type:\
+    \ conversation_replay\n  conversation_replay:\n    seed: 67\n    max_model_len: 120000\n    num_conversations: 60\n    shared_system_prompt_len: 3000\n    dynamic_system_prompt_len:\n      type: lognormal\n\
+    \      min: 10000\n      max: 100000\n      mean: 73000\n      std_dev: 107000\n    turns_per_conversation:\n      type: lognormal\n      min: 1\n      max: 3000\n      mean: 540\n      std_dev: 48600\n\
+    \    input_tokens_per_turn:\n      type: lognormal\n      min: 100\n      max: 10000\n      mean: 1500\n      std_dev: 1200\n    output_tokens_per_turn:\n      type: lognormal\n      min: 50\n     \
+    \ max: 10000\n      mean: 425\n      std_dev: 825\n    tool_call_latency_sec:\n      type: lognormal\n      min: 1\n      max: 100\n      mean: 15\n      std_dev: 55\nreport:\n  request_lifecycle:\n\
+    \    summary: true\n    per_stage: true\n    per_request: true\nstorage:\n  local_storage:\n    path: /workspace\n"
+kind: ConfigMap
+metadata:
+  name: inference-perf-profiles
+  namespace: maroon-precise-kv
+
