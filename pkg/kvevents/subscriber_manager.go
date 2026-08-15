@@ -19,6 +19,7 @@ package kvevents
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/llm-d/llm-d-router/pkg/common/observability/logging"
 	"github.com/llm-d/llm-d-router/pkg/kvcache/metrics"
@@ -116,8 +117,47 @@ func (sm *SubscriberManager) EnsureSubscriber(
 	return nil
 }
 
-// RemoveSubscriber removes a subscriber for the given pod identifier.
-func (sm *SubscriberManager) RemoveSubscriber(ctx context.Context, podIdentifier string) {
+// RemoveSubscriber removes a subscriber for the given pod identifier. It
+// returns the removed subscriber's source endpoint - the identity its events
+// were attributed to - so callers can clear derived state even when the pod's
+// current metadata has moved on, or "" when no subscriber existed.
+func (sm *SubscriberManager) RemoveSubscriber(ctx context.Context, podIdentifier string) string {
+	entry := sm.detachSubscriber(ctx, podIdentifier)
+	if entry == nil {
+		return ""
+	}
+	return entry.sourceEndpoint
+}
+
+// subscriberDrainTimeout bounds how long RemoveSubscriberAndReset waits for a
+// removed subscriber's goroutine to exit before enqueuing the reset anyway.
+const subscriberDrainTimeout = 3 * time.Second
+
+// RemoveSubscriberAndReset removes a subscriber and enqueues an ordered reset
+// for its source endpoint on the pool, so the index and deduplication state
+// clear only after every event already queued from that source has been
+// processed. It waits (bounded) for the subscriber's goroutine to exit first,
+// so no message from the old subscription can land after the reset. Returns
+// the removed subscriber's source endpoint, or "" when none existed.
+func (sm *SubscriberManager) RemoveSubscriberAndReset(ctx context.Context, podIdentifier string) string {
+	entry := sm.detachSubscriber(ctx, podIdentifier)
+	if entry == nil {
+		return ""
+	}
+	select {
+	case <-entry.done:
+	case <-time.After(subscriberDrainTimeout):
+		log.FromContext(ctx).V(logging.DEBUG).Info(
+			"Subscriber did not exit before drain timeout; resetting anyway",
+			"podIdentifier", podIdentifier)
+	}
+	sm.pool.resetForSource("", entry.sourceEndpoint)
+	return entry.sourceEndpoint
+}
+
+// detachSubscriber cancels and unregisters a subscriber, returning its entry
+// or nil when none existed.
+func (sm *SubscriberManager) detachSubscriber(ctx context.Context, podIdentifier string) *subscriberEntry {
 	debugLogger := log.FromContext(ctx).V(logging.DEBUG)
 
 	sm.mu.Lock()
@@ -126,7 +166,7 @@ func (sm *SubscriberManager) RemoveSubscriber(ctx context.Context, podIdentifier
 	entry, exists := sm.subscribers[podIdentifier]
 	if !exists {
 		debugLogger.Info("Subscriber does not exist, nothing to remove", "podIdentifier", podIdentifier)
-		return
+		return nil
 	}
 
 	debugLogger.Info("Removing subscriber", "podIdentifier", podIdentifier, "endpoint", entry.endpoint)
@@ -134,6 +174,7 @@ func (sm *SubscriberManager) RemoveSubscriber(ctx context.Context, podIdentifier
 	delete(sm.subscribers, podIdentifier)
 	metrics.SubscriberActive.Set(float64(len(sm.subscribers)))
 	cleanupSubscriberMetrics(podIdentifier, entry.done)
+	return entry
 }
 
 // cleanupSubscriberMetrics drops the per-pod series for a removed subscriber

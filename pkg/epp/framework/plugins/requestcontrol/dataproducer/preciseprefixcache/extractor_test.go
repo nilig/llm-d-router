@@ -19,17 +19,22 @@ package preciseprefixcache
 import (
 	"context"
 	"reflect"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/llm-d/llm-d-router/pkg/kvcache"
 	"github.com/llm-d/llm-d-router/pkg/kvevents"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/labels"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	fwkdl "github.com/llm-d/llm-d-router/pkg/epp/framework/interface/datalayer"
 	"github.com/llm-d/llm-d-router/pkg/epp/framework/interface/plugin"
+	"github.com/llm-d/llm-d-router/test/utils"
 )
 
 // Avoid a -race ding from subscriber goroutines writing through a t-bound
@@ -243,31 +248,59 @@ func TestProducer_ExtractEndpoint_SingleRankUsesBaseSocketPort(t *testing.T) {
 		"single-rank pod (RankIndex=0) must dial the base SocketPort")
 }
 
-// EventDelete clears index entries for the removed pod's address.
-func TestProducer_ExtractEndpoint_DeleteClearsIndex(t *testing.T) {
-	ctx := discardCtx(t)
+// clearRecorder is a goroutine-safe recorder for index Clear calls, needed
+// because pool-ordered resets clear from worker goroutines.
+type clearRecorder struct {
+	mu   sync.Mutex
+	pods []string
+}
 
-	var clearedPod string
+func (r *clearRecorder) record(pod string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.pods = append(r.pods, pod)
+}
+
+func (r *clearRecorder) snapshot() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.pods...)
+}
+
+// newExtractorProducerWithPool builds a producer whose subscriber manager is
+// backed by a started pool sharing the recording index, so pool-ordered
+// resets are actually processed.
+func newExtractorProducerWithPool(ctx context.Context, t *testing.T, rec *clearRecorder) *Producer {
+	t.Helper()
 	fakeIndex := &fakeKVBlockIndex{
 		clearFn: func(_ context.Context, podIdentifier string) error {
-			clearedPod = podIdentifier
+			rec.record(podIdentifier)
 			return nil
 		},
 	}
-	fakeIndexer := &fakeKVCacheIndexer{index: fakeIndex}
-
 	cfg := kvevents.DefaultConfig()
 	cfg.DiscoverPods = true
 	cfg.PodDiscoveryConfig = kvevents.DefaultPodReconcilerConfig()
 	cfg.PodDiscoveryConfig.SocketPort = 5557
 
-	p := &Producer{
+	pool := kvevents.NewPool(cfg, fakeIndex, nil, nil)
+	pool.Start(ctx)
+	t.Cleanup(func() { pool.Shutdown(ctx) })
+
+	return &Producer{
 		typedName:          plugin.TypedName{Type: PluginType, Name: PluginType},
-		subscribersManager: kvevents.NewSubscriberManager(kvevents.NewPool(cfg, nil, nil, nil)),
+		subscribersManager: kvevents.NewSubscriberManager(pool),
 		kvEventsConfig:     cfg,
-		kvCacheIndexer:     fakeIndexer,
+		kvCacheIndexer:     &fakeKVCacheIndexer{index: fakeIndex},
 		subscriberCtx:      context.Background(),
 	}
+}
+
+// EventDelete clears index entries for the removed pod's address.
+func TestProducer_ExtractEndpoint_DeleteClearsIndex(t *testing.T) {
+	ctx := discardCtx(t)
+	rec := &clearRecorder{}
+	p := newExtractorProducerWithPool(ctx, t, rec)
 	defer p.subscribersManager.Shutdown(ctx)
 
 	ep := newEndpoint("pod-clear", "10.0.0.99")
@@ -282,7 +315,11 @@ func TestProducer_ExtractEndpoint_DeleteClearsIndex(t *testing.T) {
 		Endpoint: ep,
 	}))
 
-	assert.Equal(t, "10.0.0.99:8080", clearedPod, "index should be cleared using pod IP:Port matching PodIdentifier format")
+	require.Eventually(t, func() bool {
+		return len(rec.snapshot()) > 0
+	}, 5*time.Second, 10*time.Millisecond, "pool-ordered reset must clear the pod")
+	assert.Equal(t, []string{"10.0.0.99:8080"}, rec.snapshot(),
+		"index should be cleared using pod IP:Port matching PodIdentifier format")
 
 	ids, _ := p.subscribersManager.GetActiveSubscribers()
 	assert.Empty(t, ids)
@@ -313,4 +350,132 @@ func TestProducer_ExtractEndpoint_DeleteWithMissingAddressRemovesExistingSubscri
 
 	ids, _ = p.subscribersManager.GetActiveSubscribers()
 	assert.Empty(t, ids)
+}
+
+// PodLabelSelector limits subscribers to matching endpoints; a relabel that
+// stops matching removes the endpoint's subscriber and clears its learned
+// index entries, while never-subscribed endpoints leave the index untouched.
+func TestProducer_ExtractEndpoint_PodLabelSelectorFilters(t *testing.T) {
+	ctx := discardCtx(t)
+	rec := &clearRecorder{}
+	p := newExtractorProducerWithPool(ctx, t, rec)
+	defer p.subscribersManager.Shutdown(ctx)
+	selector, err := labels.Parse("llm-d.ai/role=prefill")
+	require.NoError(t, err)
+	p.podSelector = selector
+
+	prefill := fwkdl.NewEndpoint(&fwkdl.EndpointMetadata{
+		ID:      k8stypes.NamespacedName{Namespace: "ns", Name: "prefill-a"},
+		Address: "10.0.0.1",
+		Port:    "8080",
+		Labels:  map[string]string{"llm-d.ai/role": "prefill"},
+	}, nil)
+	decode := fwkdl.NewEndpoint(&fwkdl.EndpointMetadata{
+		ID:      k8stypes.NamespacedName{Namespace: "ns", Name: "decode-a"},
+		Address: "10.0.0.2",
+		Port:    "8080",
+		Labels:  map[string]string{"llm-d.ai/role": "decode"},
+	}, nil)
+
+	require.NoError(t, p.Extract(ctx, fwkdl.EndpointEvent{Type: fwkdl.EventAddOrUpdate, Endpoint: prefill}))
+	require.NoError(t, p.Extract(ctx, fwkdl.EndpointEvent{Type: fwkdl.EventAddOrUpdate, Endpoint: decode}))
+
+	ids, _ := p.subscribersManager.GetActiveSubscribers()
+	require.Equal(t, []string{"ns/prefill-a"}, ids, "only the matching endpoint gets a subscriber")
+	assert.Empty(t, rec.snapshot(), "never-subscribed endpoints must not trigger index clears")
+
+	// Relabel the subscribed endpoint away from the selector.
+	relabeled := fwkdl.NewEndpoint(&fwkdl.EndpointMetadata{
+		ID:      k8stypes.NamespacedName{Namespace: "ns", Name: "prefill-a"},
+		Address: "10.0.0.1",
+		Port:    "8080",
+		Labels:  map[string]string{"llm-d.ai/role": "decode"},
+	}, nil)
+	require.NoError(t, p.Extract(ctx, fwkdl.EndpointEvent{Type: fwkdl.EventAddOrUpdate, Endpoint: relabeled}))
+
+	ids, _ = p.subscribersManager.GetActiveSubscribers()
+	assert.Empty(t, ids, "subscriber must be removed when the endpoint stops matching")
+	require.Eventually(t, func() bool {
+		return len(rec.snapshot()) > 0
+	}, 5*time.Second, 10*time.Millisecond, "pool-ordered reset must clear the relabeled endpoint")
+	assert.Equal(t, []string{"10.0.0.1:8080"}, rec.snapshot(),
+		"the relabeled endpoint's learned index entries must be cleared")
+}
+
+// A relabel that arrives together with an address change must clear the
+// entries learned under the subscriber's previous source endpoint, not the
+// event's new address.
+func TestProducer_ExtractEndpoint_RelabelWithAddressChangeClearsOldIdentity(t *testing.T) {
+	ctx := discardCtx(t)
+	rec := &clearRecorder{}
+	p := newExtractorProducerWithPool(ctx, t, rec)
+	defer p.subscribersManager.Shutdown(ctx)
+	selector, err := labels.Parse("llm-d.ai/role=prefill")
+	require.NoError(t, err)
+	p.podSelector = selector
+
+	subscribed := fwkdl.NewEndpoint(&fwkdl.EndpointMetadata{
+		ID:      k8stypes.NamespacedName{Namespace: "ns", Name: "prefill-a"},
+		Address: "10.0.0.1",
+		Port:    "8080",
+		Labels:  map[string]string{"llm-d.ai/role": "prefill"},
+	}, nil)
+	require.NoError(t, p.Extract(ctx, fwkdl.EndpointEvent{Type: fwkdl.EventAddOrUpdate, Endpoint: subscribed}))
+
+	moved := fwkdl.NewEndpoint(&fwkdl.EndpointMetadata{
+		ID:      k8stypes.NamespacedName{Namespace: "ns", Name: "prefill-a"},
+		Address: "10.0.0.2",
+		Port:    "8080",
+		Labels:  map[string]string{"llm-d.ai/role": "decode"},
+	}, nil)
+	require.NoError(t, p.Extract(ctx, fwkdl.EndpointEvent{Type: fwkdl.EventAddOrUpdate, Endpoint: moved}))
+
+	require.Eventually(t, func() bool {
+		return len(rec.snapshot()) > 0
+	}, 5*time.Second, 10*time.Millisecond)
+	assert.Equal(t, []string{"10.0.0.1:8080"}, rec.snapshot(),
+		"teardown must clear the subscriber's stored source endpoint")
+}
+
+// Delete after an address change clears both the subscriber's stored source
+// endpoint and the endpoint's current identity.
+func TestProducer_ExtractEndpoint_DeleteAfterAddressChangeClearsBothIdentities(t *testing.T) {
+	ctx := discardCtx(t)
+	rec := &clearRecorder{}
+	p := newExtractorProducerWithPool(ctx, t, rec)
+	defer p.subscribersManager.Shutdown(ctx)
+
+	require.NoError(t, p.Extract(ctx, fwkdl.EndpointEvent{
+		Type:     fwkdl.EventAddOrUpdate,
+		Endpoint: newEndpoint("pod-a", "10.0.0.1"),
+	}))
+
+	require.NoError(t, p.Extract(ctx, fwkdl.EndpointEvent{
+		Type:     fwkdl.EventDelete,
+		Endpoint: newEndpoint("pod-a", "10.0.0.2"),
+	}))
+
+	require.Eventually(t, func() bool {
+		return len(rec.snapshot()) == 2
+	}, 5*time.Second, 10*time.Millisecond)
+	assert.ElementsMatch(t, []string{"10.0.0.1:8080", "10.0.0.2:8080"}, rec.snapshot())
+}
+
+// An invalid podLabelSelector fails construction before any background
+// goroutines start.
+func TestNewRejectsInvalidPodLabelSelector(t *testing.T) {
+	ctx, cancel := context.WithCancel(utils.NewTestContext(t))
+	t.Cleanup(cancel)
+
+	idxCfg, err := kvcache.NewDefaultConfig()
+	require.NoError(t, err)
+	kvEventsCfg := kvevents.DefaultConfig()
+	kvEventsCfg.PodDiscoveryConfig = kvevents.DefaultPodReconcilerConfig()
+	kvEventsCfg.PodDiscoveryConfig.PodLabelSelector = "!!not-a-selector!!"
+
+	_, err = New(ctx, "invalid-selector", PluginConfig{
+		IndexerConfig:  idxCfg,
+		KVEventsConfig: kvEventsCfg,
+	})
+	require.ErrorContains(t, err, "invalid podLabelSelector")
 }

@@ -32,6 +32,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/llm-d/llm-d-router/pkg/common/observability/logging"
@@ -78,7 +79,8 @@ type subscriberManager interface {
 		podIdentifier, sourceEndpoint, endpoint, replayEndpoint, topicFilter string,
 		remoteSocket bool,
 	) error
-	RemoveSubscriber(ctx context.Context, podIdentifier string)
+	RemoveSubscriber(ctx context.Context, podIdentifier string) string
+	RemoveSubscriberAndReset(ctx context.Context, podIdentifier string) string
 	GetActiveSubscribers() ([]string, []string)
 	Shutdown(ctx context.Context)
 }
@@ -97,6 +99,9 @@ type Producer struct {
 
 	subscribersManager subscriberManager
 	kvEventsConfig     *kvevents.Config
+	// podSelector filters which endpoints get KV-events subscribers,
+	// parsed from PodDiscoveryConfig.PodLabelSelector.
+	podSelector labels.Selector
 
 	kvBlockScorer kvcache.KVBlockScorer
 
@@ -158,6 +163,19 @@ func PluginFactory(name string, rawParameters *json.Decoder, handle plugin.Handl
 // The kvcache indexer, KV-events pool, and any local ZMQ subscriber start
 // in background goroutines bound to ctx.
 func New(ctx context.Context, name string, config PluginConfig) (*Producer, error) {
+	// Validate before starting any background goroutines: a construction
+	// error below this point would leak the started indexer, pool, and
+	// subscribers with no Producer to stop them through.
+	podSelector := labels.Everything()
+	if config.KVEventsConfig.PodDiscoveryConfig != nil && config.KVEventsConfig.PodDiscoveryConfig.PodLabelSelector != "" {
+		var err error
+		podSelector, err = labels.Parse(config.KVEventsConfig.PodDiscoveryConfig.PodLabelSelector)
+		if err != nil {
+			return nil, fmt.Errorf("invalid podLabelSelector %q: %w",
+				config.KVEventsConfig.PodDiscoveryConfig.PodLabelSelector, err)
+		}
+	}
+
 	if config.TokenProcessorConfig == nil {
 		config.TokenProcessorConfig = kvblock.DefaultTokenProcessorConfig()
 	}
@@ -208,6 +226,7 @@ func New(ctx context.Context, name string, config PluginConfig) (*Producer, erro
 		kvBlockScorer:      kvBlockScorer,
 		subscribersManager: subscribersManager,
 		kvEventsConfig:     config.KVEventsConfig,
+		podSelector:        podSelector,
 		dk:                 attrprefix.PrefixCacheMatchInfoDataKey.WithNonEmptyProducerName(name),
 		pluginState:        plugin.NewPluginState(ctx),
 		speculativeCache:   speculativeCache,

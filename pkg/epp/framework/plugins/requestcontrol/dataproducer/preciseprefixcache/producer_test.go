@@ -772,7 +772,11 @@ func (f *fakeSubscriberManager) EnsureSubscriber(
 	f.endpoints = append(f.endpoints, endpoint)
 	return nil
 }
-func (f *fakeSubscriberManager) RemoveSubscriber(_ context.Context, _ string) {}
+func (f *fakeSubscriberManager) RemoveSubscriber(_ context.Context, _ string) string { return "" }
+
+func (f *fakeSubscriberManager) RemoveSubscriberAndReset(_ context.Context, _ string) string {
+	return ""
+}
 func (f *fakeSubscriberManager) GetActiveSubscribers() ([]string, []string) {
 	return f.ids, f.endpoints
 }

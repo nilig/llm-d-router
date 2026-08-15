@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/go-logr/logr"
+	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/llm-d/llm-d-router/pkg/common/observability/logging"
@@ -46,21 +48,57 @@ func (p *Producer) Extract(ctx context.Context, event fwkdl.EndpointEvent) error
 
 	switch event.Type {
 	case fwkdl.EventAddOrUpdate:
+		// PodLabelSelector narrows which endpoints get subscribers (e.g.
+		// prefill ranks only); a nil selector filters nothing. A subscribed
+		// endpoint whose pod stops matching after a relabel is torn down like
+		// a deleted one - subscriber and learned index entries both - so no
+		// stale locality data survives the transition. Never-subscribed
+		// non-matching endpoints are skipped without touching the index.
+		if p.podSelector != nil && !p.podSelector.Matches(labels.Set(meta.Labels)) {
+			// RemoveSubscriberAndReset keys the reset by the subscriber's
+			// stored source endpoint (the event's metadata may already carry
+			// a new address) and orders it behind that source's queued
+			// events, clearing index and deduplication state together.
+			if prev := p.subscribersManager.RemoveSubscriberAndReset(ctx, endpointKey); prev != "" {
+				logger.V(logging.DEBUG).Info("Removed KV-events subscriber", "endpoint", endpointKey)
+			}
+			logger.V(logging.DEBUG).Info("Endpoint does not match podLabelSelector, skipping subscriber",
+				"endpoint", endpointKey)
+			return nil
+		}
 		if err := p.ensureSubscriber(ctx, meta); err != nil {
 			return err
 		}
 		logger.V(logging.DEBUG).Info("Adding subscriber", "endpoint", endpointKey)
 	case fwkdl.EventDelete:
-		p.subscribersManager.RemoveSubscriber(ctx, endpointKey)
-		if meta.Address != "" {
-			if err := p.kvCacheIndexer.KVBlockIndex().Clear(ctx, fmt.Sprintf("%s:%s", meta.Address, meta.Port)); err != nil {
-				logger.Error(err, "Failed to clear index entries for removed endpoint",
-					"endpoint", endpointKey, "address", meta.Address, "port", meta.Port)
-			}
+		prev := p.subscribersManager.RemoveSubscriberAndReset(ctx, endpointKey)
+		// Also clear under the endpoint's current identity: speculative
+		// entries are keyed by it, and it differs from the subscriber's
+		// stored source endpoint after an address change. These entries are
+		// not event-sourced, so a direct clear needs no queue ordering.
+		if current := servingEndpoint(meta); current != "" && current != prev {
+			p.clearIndexFor(ctx, logger, endpointKey, current)
 		}
 		logger.V(logging.DEBUG).Info("Removed KV-events subscriber", "endpoint", endpointKey)
 	}
 	return nil
+}
+
+// servingEndpoint returns the endpoint's Address:Port identity, or "" when
+// the metadata carries no address.
+func servingEndpoint(meta *fwkdl.EndpointMetadata) string {
+	if meta.Address == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s:%s", meta.Address, meta.Port)
+}
+
+// clearIndexFor removes the index entries attributed to podIdentifier.
+func (p *Producer) clearIndexFor(ctx context.Context, logger logr.Logger, endpointKey, podIdentifier string) {
+	if err := p.kvCacheIndexer.KVBlockIndex().Clear(ctx, podIdentifier); err != nil {
+		logger.Error(err, "Failed to clear index entries for removed endpoint",
+			"endpoint", endpointKey, "podIdentifier", podIdentifier)
+	}
 }
 
 // ensureSubscriber idempotently installs a KV-events subscriber for the given
