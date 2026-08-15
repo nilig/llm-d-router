@@ -18,7 +18,6 @@ package tokenizer
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -153,31 +152,24 @@ func completionsPayload(body *fwkrh.InferenceRequestBody) fwkrh.RequestPayload {
 	return fwkrh.PayloadMap{"prompt": prompt.PlainText()}
 }
 
-// chatPayload returns the payload for a chat completions request. Falls back
-// to an OpenAI-shaped PayloadMap constructed from the typed struct when the body
-// carries a non-map payload (gRPC, warmup).
-func chatPayload(body *fwkrh.InferenceRequestBody) fwkrh.RequestPayload {
+// chatPayload returns the render input for a chat completions request: the
+// parsed request map when available, else the typed request (gRPC, warmup).
+func chatPayload(body *fwkrh.InferenceRequestBody) chatRenderInput {
 	if body.Payload != nil {
-		if _, ok := body.Payload.AsMap(); ok {
-			return body.Payload
+		if pm, ok := body.Payload.AsMap(); ok {
+			return chatRenderInput{pm: pm}
 		}
 	}
-	rcr := ChatCompletionsToRenderChatRequest(body.ChatCompletions)
-	data, _ := json.Marshal(buildChatRenderRequest("", rcr))
-	var pm fwkrh.PayloadMap
-	_ = json.Unmarshal(data, &pm)
-	return pm
+	return chatRenderInput{typed: ChatCompletionsToRenderChatRequest(body.ChatCompletions)}
 }
 
-// messagesPayload returns the payload for an Anthropic Messages request. The raw
-// body uses the Anthropic Messages schema (top-level system, source-based image
-// blocks), which vLLM /render does not accept, so the payload is always rebuilt
-// from the typed struct into the /render chat schema regardless of body.Payload.
-func messagesPayload(body *fwkrh.InferenceRequestBody) fwkrh.RequestPayload {
-	data, _ := json.Marshal(buildChatRenderRequest("", MessagesToRenderChatRequest(body.Messages)))
-	var pm fwkrh.PayloadMap
-	_ = json.Unmarshal(data, &pm)
-	return pm
+// messagesPayload returns the render input for an Anthropic Messages request.
+// The raw body uses the Anthropic Messages schema (top-level system,
+// source-based image blocks), which vLLM /render does not accept, so the
+// input is always the typed /render chat projection regardless of
+// body.Payload.
+func messagesPayload(body *fwkrh.InferenceRequestBody) chatRenderInput {
+	return chatRenderInput{typed: MessagesToRenderChatRequest(body.Messages)}
 }
 
 // CacheSaltFromBody returns the cache salt from whichever protocol is populated.

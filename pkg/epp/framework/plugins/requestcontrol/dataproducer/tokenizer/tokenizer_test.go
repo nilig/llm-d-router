@@ -37,15 +37,15 @@ import (
 
 type mockTokenizer struct {
 	renderFunc     func(payload fwkrh.RequestPayload) ([][]uint32, [][]tokenizerTypes.Offset, error)
-	renderChatFunc func(payload fwkrh.RequestPayload) ([]uint32, *tokenization.MultiModalFeatures, error)
+	renderChatFunc func(input chatRenderInput) ([]uint32, *tokenization.MultiModalFeatures, error)
 }
 
 func (m *mockTokenizer) Render(_ context.Context, payload fwkrh.RequestPayload) ([][]uint32, [][]tokenizerTypes.Offset, error) {
 	return m.renderFunc(payload)
 }
 
-func (m *mockTokenizer) RenderChat(_ context.Context, payload fwkrh.RequestPayload) ([]uint32, *tokenization.MultiModalFeatures, error) {
-	return m.renderChatFunc(payload)
+func (m *mockTokenizer) RenderChat(_ context.Context, input chatRenderInput) ([]uint32, *tokenization.MultiModalFeatures, error) {
+	return m.renderChatFunc(input)
 }
 
 func newTestPlugin(tok tokenizer) *Plugin {
@@ -150,7 +150,7 @@ func TestProduce_PopulatesTokenizedPrompt(t *testing.T) {
 		},
 	}
 	tok := &mockTokenizer{
-		renderChatFunc: func(_ fwkrh.RequestPayload) ([]uint32, *tokenization.MultiModalFeatures, error) {
+		renderChatFunc: func(_ chatRenderInput) ([]uint32, *tokenization.MultiModalFeatures, error) {
 			return []uint32{1, 2, 3, 4}, mm, nil
 		},
 	}
@@ -188,7 +188,7 @@ func TestProduce_SkipsWhenAlreadyPopulated(t *testing.T) {
 
 func TestProduce_SetsCacheSaltOnSkipPath(t *testing.T) {
 	tok := &mockTokenizer{
-		renderChatFunc: func(fwkrh.RequestPayload) ([]uint32, *tokenization.MultiModalFeatures, error) {
+		renderChatFunc: func(chatRenderInput) ([]uint32, *tokenization.MultiModalFeatures, error) {
 			t.Fatal("backend must not run on the skip path")
 			return nil, nil, nil
 		},
@@ -267,7 +267,7 @@ func TestProduce_NilBody(t *testing.T) {
 
 func TestProduce_TokenizerError(t *testing.T) {
 	tok := &mockTokenizer{
-		renderChatFunc: func(_ fwkrh.RequestPayload) ([]uint32, *tokenization.MultiModalFeatures, error) {
+		renderChatFunc: func(_ chatRenderInput) ([]uint32, *tokenization.MultiModalFeatures, error) {
 			return nil, nil, assert.AnError
 		},
 	}
@@ -306,7 +306,7 @@ func TestProduce_GenerateUsesPreTokenizedIDs(t *testing.T) {
 			t.Error("tokenizer.Render must not be called for generate requests")
 			return nil, nil, nil
 		},
-		renderChatFunc: func(_ fwkrh.RequestPayload) ([]uint32, *tokenization.MultiModalFeatures, error) {
+		renderChatFunc: func(_ chatRenderInput) ([]uint32, *tokenization.MultiModalFeatures, error) {
 			t.Error("tokenizer.RenderChat must not be called for generate requests")
 			return nil, nil, nil
 		},
@@ -336,7 +336,7 @@ func TestProduce_GenerateFlattensFeatures(t *testing.T) {
 			t.Error("tokenizer.Render must not be called for generate requests")
 			return nil, nil, nil
 		},
-		renderChatFunc: func(_ fwkrh.RequestPayload) ([]uint32, *tokenization.MultiModalFeatures, error) {
+		renderChatFunc: func(_ chatRenderInput) ([]uint32, *tokenization.MultiModalFeatures, error) {
 			t.Error("tokenizer.RenderChat must not be called for generate requests")
 			return nil, nil, nil
 		},
@@ -767,10 +767,10 @@ func TestMessagesToRenderChatRequest_StructuredMessage(t *testing.T) {
 
 func TestProduce_MessagesRequest(t *testing.T) {
 	wantTokens := []uint32{100, 200, 300}
-	var gotPayload fwkrh.RequestPayload
+	var gotInput chatRenderInput
 	tok := &mockTokenizer{
-		renderChatFunc: func(payload fwkrh.RequestPayload) ([]uint32, *tokenization.MultiModalFeatures, error) {
-			gotPayload = payload
+		renderChatFunc: func(input chatRenderInput) ([]uint32, *tokenization.MultiModalFeatures, error) {
+			gotInput = input
 			return wantTokens, nil, nil
 		},
 	}
@@ -794,12 +794,9 @@ func TestProduce_MessagesRequest(t *testing.T) {
 	require.NotNil(t, req.Body.TokenizedPrompt)
 	assert.Equal(t, [][]uint32{wantTokens}, req.Body.TokenizedPrompt.PerPromptTokens)
 
-	pm, ok := gotPayload.AsMap()
-	require.True(t, ok, "RenderChat payload must be a map")
-	assert.NotContains(t, pm, "system", "raw Anthropic top-level system must not reach /render")
-	msgs, ok := pm["messages"].([]any)
-	require.True(t, ok, "payload must carry the /render chat messages array")
-	require.Len(t, msgs, 2)
-	assert.Equal(t, "system", msgs[0].(map[string]any)["role"])
-	assert.Equal(t, "user", msgs[1].(map[string]any)["role"])
+	require.Nil(t, gotInput.pm, "raw Anthropic payload must not reach /render")
+	require.NotNil(t, gotInput.typed, "RenderChat input must carry the typed /render projection")
+	require.Len(t, gotInput.typed.Conversation, 2)
+	assert.Equal(t, "system", gotInput.typed.Conversation[0].Role)
+	assert.Equal(t, "user", gotInput.typed.Conversation[1].Role)
 }

@@ -62,12 +62,17 @@ func (a *udsTokenizerAdapter) Render(_ context.Context, payload fwkrh.RequestPay
 	return [][]uint32{tokenIDs}, [][]tokenizerTypes.Offset{toInTreeOffsets(offsets)}, nil
 }
 
-func (a *udsTokenizerAdapter) RenderChat(_ context.Context, payload fwkrh.RequestPayload) ([]uint32, *tokenization.MultiModalFeatures, error) {
-	pm, ok := payload.AsMap()
-	if !ok {
-		return nil, nil, errors.New("UDS tokenizer requires a parsed PayloadMap")
+func (a *udsTokenizerAdapter) RenderChat(_ context.Context, input chatRenderInput) ([]uint32, *tokenization.MultiModalFeatures, error) {
+	var req *kvctoktypes.RenderChatRequest
+	var err error
+	switch {
+	case input.pm != nil:
+		req, err = renderChatRequestFromPayload(input.pm)
+	case input.typed != nil:
+		req, err = toExternalRenderChatRequest(input.typed)
+	default:
+		return nil, nil, errors.New("UDS tokenizer requires a chat render input")
 	}
-	req, err := renderChatRequestFromPayload(pm)
 	if err != nil {
 		return nil, nil, err
 	}

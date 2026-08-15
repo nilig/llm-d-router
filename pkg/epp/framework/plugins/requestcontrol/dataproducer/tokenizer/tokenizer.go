@@ -41,7 +41,29 @@ import (
 
 type tokenizer interface {
 	Render(ctx context.Context, payload fwkrh.RequestPayload) ([][]uint32, [][]tokenizerTypes.Offset, error)
-	RenderChat(ctx context.Context, payload fwkrh.RequestPayload) ([]uint32, *tokenization.MultiModalFeatures, error)
+	RenderChat(ctx context.Context, input chatRenderInput) ([]uint32, *tokenization.MultiModalFeatures, error)
+}
+
+// chatRenderInput carries one chat render request to a renderer: the verbatim
+// parsed request map, or the typed request when the body was not JSON-parsed
+// (gRPC, Anthropic Messages, warmup). Exactly one field is set.
+type chatRenderInput struct {
+	pm    fwkrh.PayloadMap
+	typed *tokenizerTypes.RenderChatRequest
+}
+
+// hasStructuredContent reports whether any conversation message carries
+// structured (potentially multimodal) content blocks.
+func (in chatRenderInput) hasStructuredContent() bool {
+	if in.typed == nil {
+		return false
+	}
+	for _, c := range in.typed.Conversation {
+		if len(c.Content.Structured) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 const (

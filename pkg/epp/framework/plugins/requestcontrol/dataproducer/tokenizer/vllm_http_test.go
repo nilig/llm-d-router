@@ -138,7 +138,7 @@ func TestVLLMHTTPRenderer_RenderChat_Multimodal(t *testing.T) {
 		},
 		"add_generation_prompt": true,
 	}
-	tokenIDs, mm, err := r.RenderChat(context.Background(), payload)
+	tokenIDs, mm, err := r.RenderChat(context.Background(), chatRenderInput{pm: payload})
 	require.NoError(t, err)
 	assert.Equal(t, []uint32{1, 2, 3, 4, 5}, tokenIDs)
 	require.NotNil(t, mm)
@@ -184,7 +184,7 @@ func TestVLLMHTTPRenderer_RenderChat_ForwardsMMContentBlocks(t *testing.T) {
 	}
 
 	r := newHTTPRenderer(t, srv)
-	tokenIDs, _, err := r.RenderChat(context.Background(), payload)
+	tokenIDs, _, err := r.RenderChat(context.Background(), chatRenderInput{pm: payload})
 	require.NoError(t, err)
 	assert.Equal(t, []uint32{6, 7}, tokenIDs)
 

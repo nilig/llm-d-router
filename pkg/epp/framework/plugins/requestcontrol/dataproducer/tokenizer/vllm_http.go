@@ -151,17 +151,24 @@ func (r *vllmHTTPRenderer) postCompletionsRender(ctx context.Context, body any) 
 	return allTokenIDs, nil, nil
 }
 
-// RenderChat calls /v1/chat/completions/render. The PayloadMap is forwarded
-// verbatim with the configured model name stamped in.
-func (r *vllmHTTPRenderer) RenderChat(ctx context.Context, payload fwkrh.RequestPayload) ([]uint32, *tokenization.MultiModalFeatures, error) {
-	pm, ok := payload.AsMap()
-	if !ok {
-		return nil, nil, errors.New("vLLM HTTP tokenizer requires a parsed PayloadMap")
+// RenderChat calls /v1/chat/completions/render. A map input is forwarded
+// verbatim with the configured model name stamped in; a typed input is
+// projected straight into the wire body, without a generic-map round trip.
+func (r *vllmHTTPRenderer) RenderChat(ctx context.Context, input chatRenderInput) ([]uint32, *tokenization.MultiModalFeatures, error) {
+	if input.pm != nil {
+		// Shallow copy is sufficient because only the top-level model field is stamped in.
+		body := maps.Clone(input.pm)
+		body["model"] = r.modelName // `vllm launch render` requires the base model name
+		return r.postChatRender(ctx, body, r.chatTimeout(input.pm))
 	}
-	// Shallow copy is sufficient because only the top-level model field is stamped in.
-	body := maps.Clone(pm)
-	body["model"] = r.modelName // `vllm launch render` requires the base model name
-	return r.postChatRender(ctx, body, r.chatTimeout(pm))
+	if input.typed == nil {
+		return nil, nil, errors.New("vLLM HTTP tokenizer requires a chat render input")
+	}
+	timeout := r.timeout
+	if input.hasStructuredContent() {
+		timeout = r.mmTimeout
+	}
+	return r.postChatRender(ctx, buildChatRenderRequest(r.modelName, input.typed), timeout)
 }
 
 func (r *vllmHTTPRenderer) postChatRender(ctx context.Context, body any, timeout time.Duration) ([]uint32, *tokenization.MultiModalFeatures, error) {
