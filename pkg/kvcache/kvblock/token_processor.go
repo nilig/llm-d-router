@@ -23,8 +23,6 @@ import (
 
 	"github.com/fxamacker/cbor/v2"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-
-	"github.com/llm-d/llm-d-router/pkg/common/collections"
 )
 
 // defaultBlockSize is the default number of tokens per block.
@@ -144,6 +142,13 @@ func (db *chunkedTokenDatabase) getInitHash(modelName string) uint64 {
 // multi-modal content. Supported types: nil, int, string, map[string]interface{}.
 // Must be CBOR-serializable.
 func (db *chunkedTokenDatabase) hash(parent uint64, tokens []uint32, extra interface{}) uint64 {
+	// Text-only blocks feed the digest directly, without materializing the
+	// CBOR encoding. hashTextOnly is byte-equivalent to the encoder path
+	// below (pinned by TestHashTextOnlyMatchesEncoder).
+	if extra == nil && len(tokens) > 0 {
+		return hashTextOnly(parent, tokens)
+	}
+
 	payload := []interface{}{parent, tokens, extra}
 
 	b, err := db.encoder.Marshal(payload)
@@ -157,22 +162,57 @@ func (db *chunkedTokenDatabase) hash(parent uint64, tokens []uint32, extra inter
 	return h.Sum64()
 }
 
-// prefixHashes returns a slice of uint64 hashes.
-// extraFeatures must be the same length as tokenChunks (callers guarantee this).
-func (db *chunkedTokenDatabase) prefixHashes(
-	parentHash uint64, tokenChunks [][]uint32, extraFeatures []*BlockExtraFeatures,
-) []uint64 {
-	prefix := parentHash
-	hashes := make([]uint64, len(tokenChunks))
-	for i, chunk := range tokenChunks {
-		var extra interface{}
-		if extraFeatures[i] != nil {
-			extra = extraFeatures[i].MMHashes
+const (
+	fnvOffset64 = 14695981039346656037
+	fnvPrime64  = 1099511628211
+
+	cborNull         = 0xf6
+	cborMajorArray   = 4
+	cborThreeElement = 0x83
+)
+
+// fnvByte folds one byte into an FNV-64a state.
+func fnvByte(h uint64, b byte) uint64 {
+	return (h ^ uint64(b)) * fnvPrime64
+}
+
+// fnvCBORHead folds the canonical (shortest-form) CBOR head for value v of
+// the given major type into an FNV-64a state.
+func fnvCBORHead(h uint64, major byte, v uint64) uint64 {
+	m := major << 5
+	switch {
+	case v < 24:
+		return fnvByte(h, m|byte(v))
+	case v <= 0xff:
+		return fnvByte(fnvByte(h, m|24), byte(v))
+	case v <= 0xffff:
+		h = fnvByte(h, m|25)
+		return fnvByte(fnvByte(h, byte(v>>8)), byte(v))
+	case v <= 0xffffffff:
+		h = fnvByte(h, m|26)
+		for shift := 24; shift >= 0; shift -= 8 {
+			h = fnvByte(h, byte(v>>shift))
 		}
-		prefix = db.hash(prefix, chunk, extra)
-		hashes[i] = prefix
+		return h
+	default:
+		h = fnvByte(h, m|27)
+		for shift := 56; shift >= 0; shift -= 8 {
+			h = fnvByte(h, byte(v>>shift))
+		}
+		return h
 	}
-	return hashes
+}
+
+// hashTextOnly computes the FNV-64a digest of the canonical CBOR encoding of
+// [parent, tokens, null] by streaming the encoding into the digest.
+func hashTextOnly(parent uint64, tokens []uint32) uint64 {
+	h := fnvByte(fnvOffset64, cborThreeElement)
+	h = fnvCBORHead(h, 0, parent)
+	h = fnvCBORHead(h, cborMajorArray, uint64(len(tokens)))
+	for _, t := range tokens {
+		h = fnvCBORHead(h, 0, uint64(t))
+	}
+	return fnvByte(h, cborNull)
 }
 
 // BlockSize returns the number of tokens per block.
@@ -180,23 +220,8 @@ func (db *chunkedTokenDatabase) BlockSize() int {
 	return db.BlockSizeTokens
 }
 
-// chunkTokens splits the input slice of tokens into chunks of size blockSize.
-func (db *chunkedTokenDatabase) chunkTokens(tokens []uint32) [][]uint32 {
-	bs := db.BlockSizeTokens
-	var chunks [][]uint32
-	for i := 0; i < len(tokens); i += bs {
-		end := i + bs
-		if end > len(tokens) {
-			break // no partial blocks
-		}
-
-		chunks = append(chunks, tokens[i:end])
-	}
-
-	return chunks
-}
-
-// TokensToKVBlockKeys converts tokens into kv_block.Keys.
+// TokensToKVBlockKeys converts tokens into kv_block.Keys. Partial trailing
+// blocks are dropped.
 func (db *chunkedTokenDatabase) TokensToKVBlockKeys(
 	parentKey BlockHash, tokens []uint32, modelName string,
 	extraFeatures []*BlockExtraFeatures,
@@ -208,21 +233,26 @@ func (db *chunkedTokenDatabase) TokensToKVBlockKeys(
 		currentParentHash = db.getInitHash(modelName)
 	}
 
-	chunks := db.chunkTokens(tokens)
-	if len(chunks) == 0 {
+	bs := db.BlockSizeTokens
+	numBlocks := len(tokens) / bs
+	if numBlocks == 0 {
 		return nil, nil
 	}
 
-	if extraFeatures == nil {
-		extraFeatures = make([]*BlockExtraFeatures, len(chunks))
-	} else if len(extraFeatures) != len(chunks) {
+	if extraFeatures != nil && len(extraFeatures) != numBlocks {
 		return nil, fmt.Errorf("extraFeatures length %d does not match token chunk count %d (blockSizeTokens=%d, tokens=%d)",
-			len(extraFeatures), len(chunks), db.BlockSizeTokens, len(tokens))
+			len(extraFeatures), numBlocks, db.BlockSizeTokens, len(tokens))
 	}
 
-	ph := db.prefixHashes(currentParentHash, chunks, extraFeatures)
-
-	return collections.SliceMap(ph, func(hashVal uint64) BlockHash {
-		return BlockHash(hashVal)
-	}), nil
+	keys := make([]BlockHash, numBlocks)
+	prefix := currentParentHash
+	for i := 0; i < numBlocks; i++ {
+		var extra interface{}
+		if extraFeatures != nil && extraFeatures[i] != nil {
+			extra = extraFeatures[i].MMHashes
+		}
+		prefix = db.hash(prefix, tokens[i*bs:(i+1)*bs], extra)
+		keys[i] = BlockHash(prefix)
+	}
+	return keys, nil
 }
