@@ -1,0 +1,6 @@
+=== prefill aggregate kv_offload counters ===
+vllm:kv_offload_load_bytes_created{engine="0",model_name="openai/gpt-oss-120b"} 14297486754
+vllm:kv_offload_load_bytes_total{engine="0",model_name="openai/gpt-oss-120b"} 4223451267072
+vllm:kv_offload_store_bytes_created{engine="0",model_name="openai/gpt-oss-120b"} 14297486494
+vllm:kv_offload_store_bytes_total{engine="0",model_name="openai/gpt-oss-120b"} 1292776243200
+=== decode aggregate kv_offload counters ===

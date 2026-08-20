@@ -1,0 +1,339 @@
+apiVersion: v1
+automountServiceAccountToken: false
+kind: ServiceAccount
+metadata:
+  labels:
+    llm-d.ai/accelerator-variant: gpu
+    llm-d.ai/accelerator-vendor: nvidia
+    llm-d.ai/engine-type: vllm
+    llm-d.ai/guide: pd-disaggregation
+    llm-d.ai/model: gpt-oss-120b
+  name: pd-disaggregation-nvidia-gpu-vllm-sa
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    llm-d.ai/accelerator-variant: gpu
+    llm-d.ai/accelerator-vendor: nvidia
+    llm-d.ai/engine-type: vllm
+    llm-d.ai/guide: pd-disaggregation
+    llm-d.ai/model: gpt-oss-120b
+    llm-d.ai/role: decode
+  name: pd-disaggregation-nvidia-gpu-vllm-decode
+spec:
+  replicas: 8
+  selector:
+    matchLabels:
+      llm-d.ai/accelerator-variant: gpu
+      llm-d.ai/accelerator-vendor: nvidia
+      llm-d.ai/engine-type: vllm
+      llm-d.ai/guide: pd-disaggregation
+      llm-d.ai/model: gpt-oss-120b
+      llm-d.ai/role: decode
+  template:
+    metadata:
+      labels:
+        llm-d.ai/accelerator-variant: gpu
+        llm-d.ai/accelerator-vendor: nvidia
+        llm-d.ai/engine-type: vllm
+        llm-d.ai/guide: pd-disaggregation
+        llm-d.ai/model: gpt-oss-120b
+        llm-d.ai/role: decode
+    spec:
+      containers:
+      - args:
+        - openai/gpt-oss-120b
+        - --disable-access-log-for-endpoints=/health,/metrics,/v1/models
+        - --tensor-parallel-size=1
+        - --block-size=128
+        - --kv-transfer-config
+        - '{"kv_connector":"NixlConnector","kv_role":"kv_both","kv_load_failure_policy":"recompute"}'
+        - --kv-events-config
+        - '{"enable_kv_cache_events":true,"publisher":"zmq","endpoint":"$(KV_EVENTS_ENDPOINT)","topic":"kv@$(POD_IP):8000@openai/gpt-oss-120b"}'
+        - --no-disable-hybrid-kv-cache-manager
+        - --port=8200
+        - --load-format=runai_streamer
+        - --model-loader-extra-config
+        - '{"distributed":true,"concurrency":16,"memory_limit":17179869184}'
+        command:
+        - vllm
+        - serve
+        env:
+        - name: PYTHONHASHSEED
+          value: '0'
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: KV_EVENTS_ENDPOINT
+          value: tcp://*:5556
+        - name: HF_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: HF_TOKEN
+              name: llm-d-hf-token
+        - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: USER
+          value: llm-d
+        - name: VLLM_CACHE_ROOT
+          value: /.cache/vllm
+        - name: NCCL_IB_HCA
+          value: ibp
+        - name: NCCL_SOCKET_IFNAME
+          value: eth0
+        - name: GLOO_SOCKET_IFNAME
+          value: eth0
+        - name: POD_PORT
+          value: '8000'
+        image: docker.io/vllm/vllm-openai:nightly-5a4c8d99242e9e069b604d0e9b969e77f7dd501d
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /health
+            port: modelserver
+          periodSeconds: 10
+          timeoutSeconds: 5
+        name: modelserver
+        ports:
+        - containerPort: 8200
+          name: modelserver
+          protocol: TCP
+        - containerPort: 5600
+          name: nixl
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /v1/models
+            port: modelserver
+          periodSeconds: 5
+          timeoutSeconds: 2
+        resources:
+          limits:
+            cpu: '16'
+            memory: 220Gi
+            nvidia.com/gpu: '1'
+            rdma/ib: '1'
+          requests:
+            cpu: '8'
+            memory: 160Gi
+            nvidia.com/gpu: '1'
+            rdma/ib: '1'
+        securityContext:
+          capabilities:
+            add:
+            - IPC_LOCK
+            - SYS_RAWIO
+          runAsGroup: 0
+          runAsUser: 0
+        startupProbe:
+          failureThreshold: 120
+          httpGet:
+            path: /v1/models
+            port: modelserver
+          initialDelaySeconds: 15
+          periodSeconds: 30
+          timeoutSeconds: 5
+        volumeMounts:
+        - mountPath: /dev/shm
+          name: shm
+        - mountPath: /.cache
+          name: torch-compile-cache
+        - mountPath: /.config
+          name: vllm-config
+        - mountPath: /.triton
+          name: triton-cache
+      initContainers:
+      - args:
+        - --port=8000
+        - --vllm-port=8200
+        - --kv-connector=nixlv2
+        - --zap-log-level=1
+        - --secure-proxy=false
+        image: quay.io/niliguy/llm-d-router-disagg-sidecar:p2p-seq-e1427b0f
+        imagePullPolicy: Always
+        name: routing-proxy
+        ports:
+        - containerPort: 8000
+          name: sidecar
+          protocol: TCP
+        resources: {}
+        restartPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+      serviceAccountName: pd-disaggregation-nvidia-gpu-vllm-sa
+      volumes:
+      - emptyDir:
+          medium: Memory
+          sizeLimit: 120Gi
+        name: shm
+      - emptyDir: {}
+        name: torch-compile-cache
+      - emptyDir: {}
+        name: vllm-config
+      - emptyDir: {}
+        name: triton-cache
+      nodeSelector:
+        kubernetes.io/hostname: g1238bc
+  strategy:
+    type: Recreate
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    llm-d.ai/accelerator-variant: gpu
+    llm-d.ai/accelerator-vendor: nvidia
+    llm-d.ai/engine-type: vllm
+    llm-d.ai/guide: pd-disaggregation
+    llm-d.ai/model: gpt-oss-120b
+    llm-d.ai/role: prefill
+  name: pd-disaggregation-nvidia-gpu-vllm-prefill
+spec:
+  replicas: 8
+  selector:
+    matchLabels:
+      llm-d.ai/accelerator-variant: gpu
+      llm-d.ai/accelerator-vendor: nvidia
+      llm-d.ai/engine-type: vllm
+      llm-d.ai/guide: pd-disaggregation
+      llm-d.ai/model: gpt-oss-120b
+      llm-d.ai/role: prefill
+  template:
+    metadata:
+      labels:
+        llm-d.ai/accelerator-variant: gpu
+        llm-d.ai/accelerator-vendor: nvidia
+        llm-d.ai/engine-type: vllm
+        llm-d.ai/guide: pd-disaggregation
+        llm-d.ai/model: gpt-oss-120b
+        llm-d.ai/role: prefill
+    spec:
+      containers:
+      - args:
+        - openai/gpt-oss-120b
+        - --disable-access-log-for-endpoints=/health,/metrics,/v1/models
+        - --tensor-parallel-size=1
+        - --block-size=128
+        - --kv-transfer-config
+        - '{"kv_connector":"MultiConnector","kv_role":"kv_both","kv_load_failure_policy":"recompute","kv_connector_extra_config":{"connectors":[{"kv_connector":"NixlConnector","kv_role":"kv_both"},{"kv_connector":"OffloadingConnector","kv_role":"kv_both","kv_connector_extra_config":{"cpu_bytes_to_use":107374182400,"block_size":128,"eviction_policy":"lru"}}]}}'
+        - --kv-events-config
+        - '{"enable_kv_cache_events":true,"publisher":"zmq","endpoint":"$(KV_EVENTS_ENDPOINT)","topic":"kv@$(POD_IP):8000@openai/gpt-oss-120b"}'
+        - --no-disable-hybrid-kv-cache-manager
+        - --load-format=runai_streamer
+        - --model-loader-extra-config
+        - '{"distributed":true,"concurrency":16,"memory_limit":17179869184}'
+        command:
+        - vllm
+        - serve
+        env:
+        - name: PYTHONHASHSEED
+          value: '0'
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: KV_EVENTS_ENDPOINT
+          value: tcp://*:5556
+        - name: HF_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: HF_TOKEN
+              name: llm-d-hf-token
+        - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: VLLM_HTTP_TIMEOUT_KEEP_ALIVE
+          value: '120'
+        - name: USER
+          value: llm-d
+        - name: VLLM_CACHE_ROOT
+          value: /.cache/vllm
+        - name: NCCL_IB_HCA
+          value: ibp
+        - name: NCCL_SOCKET_IFNAME
+          value: eth0
+        - name: GLOO_SOCKET_IFNAME
+          value: eth0
+        - name: POD_PORT
+          value: '8000'
+        image: docker.io/vllm/vllm-openai:nightly-5a4c8d99242e9e069b604d0e9b969e77f7dd501d
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /health
+            port: modelserver
+          periodSeconds: 10
+          timeoutSeconds: 5
+        name: modelserver
+        ports:
+        - containerPort: 8000
+          name: modelserver
+          protocol: TCP
+        - containerPort: 5600
+          name: nixl
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /v1/models
+            port: modelserver
+          periodSeconds: 5
+          timeoutSeconds: 2
+        resources:
+          limits:
+            cpu: '16'
+            memory: 220Gi
+            nvidia.com/gpu: '1'
+            rdma/ib: '1'
+          requests:
+            cpu: '8'
+            memory: 160Gi
+            nvidia.com/gpu: '1'
+            rdma/ib: '1'
+        securityContext:
+          capabilities:
+            add:
+            - IPC_LOCK
+            - SYS_RAWIO
+          runAsGroup: 0
+          runAsUser: 0
+        startupProbe:
+          failureThreshold: 120
+          httpGet:
+            path: /v1/models
+            port: modelserver
+          initialDelaySeconds: 15
+          periodSeconds: 30
+          timeoutSeconds: 5
+        volumeMounts:
+        - mountPath: /dev/shm
+          name: shm
+        - mountPath: /.cache
+          name: torch-compile-cache
+        - mountPath: /.config
+          name: vllm-config
+        - mountPath: /.triton
+          name: triton-cache
+      serviceAccountName: pd-disaggregation-nvidia-gpu-vllm-sa
+      volumes:
+      - emptyDir:
+          medium: Memory
+          sizeLimit: 120Gi
+        name: shm
+      - emptyDir: {}
+        name: torch-compile-cache
+      - emptyDir: {}
+        name: vllm-config
+      - emptyDir: {}
+        name: triton-cache
+      nodeSelector:
+        kubernetes.io/hostname: g11bab6
+  strategy:
+    type: Recreate
