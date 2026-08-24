@@ -1,0 +1,51 @@
+load:
+  type: concurrent
+  num_workers: 6
+  request_timeout: 300.0
+  stages:
+    # Warm the model and prefix cache below the two-replica operating knee.
+    - num_requests: 96
+      concurrency_level: 32
+
+    # Establish a stable low-load autoscaled baseline.
+    - num_requests: 256
+      concurrency_level: 64
+
+    # Saturate the static two-replica baseline and hold through one cold start.
+    - num_requests: 2048
+      concurrency_level: 256
+
+    # Increase demand after the first scale-out to test further actuation.
+    - num_requests: 3072
+      concurrency_level: 384
+
+    # Return below the operating knee and hold through scale-down stabilization.
+    - num_requests: 1920
+      concurrency_level: 64
+api:
+  type: completion
+  streaming: true
+server:
+  type: vllm
+  model_name: Qwen/Qwen3-32B
+  base_url: REPLACE_ENV_LLMDBENCH_HARNESS_STACK_ENDPOINT_URL
+  ignore_eos: true
+tokenizer:
+  pretrained_model_name_or_path: Qwen/Qwen3-32B
+data:
+  type: shared_prefix
+  shared_prefix:
+    num_groups: 150
+    num_prompts_per_group: 5
+    system_prompt_len: 6000
+    question_len: 1200
+    output_len: 1000
+    enable_multi_turn_chat: false
+report:
+  request_lifecycle:
+    summary: true
+    per_stage: true
+    per_request: true
+storage:
+  local_storage:
+    path: /workspace
